@@ -1,0 +1,9 @@
+[{
+    "name":"Marine Start",
+    "team":"marines",
+    "enemyspawns":    ["Computer Core"]
+},
+{
+    "name":"Computer Core",
+    "team":"aliens"
+}]
