@@ -20,6 +20,12 @@ Plugin.DefaultConfig =
         ["ns2_mineshaft"] = true,
         ["ns2_summit"] = true,
         ["ns2_eclipse"] = true,
+        ["ns2_nsl_biodome"] = true,
+        ["ns2_nsl_descent"] = true,
+        ["ns2_nsl_docking"] = true,
+        ["ns2_nsl_mineshaft"] = true,
+        ["ns2_nsl_summit"] = true,
+        ["ns2_nsl_eclipse"] = true,
     }
 }
 Plugin.CheckConfig = true
