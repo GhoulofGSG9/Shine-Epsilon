@@ -24,23 +24,23 @@ function Plugin:Initialise()
     return true
 end
 
-Shine.Hook.SetupClassHook("MarineTeam","SpawnInitialStructures","OnSpawnInitialStructures", "PassivePost")
+Shine.Hook.SetupClassHook( "MarineTeam", "SpawnInitialStructures", "OnSpawnInitialStructures", "PassivePost")
 
-local function Spawn2ndInfantryPortal(team, techPoint)
-    local techPointOrigin = techPoint:GetOrigin()
-    local spawnPoint = GetRandomBuildPosition(kTechId.InfantryPortal, techPointOrigin, 5)
-    if spawnPoint then
-        spawnPoint = spawnPoint - Vector(0,0.6,0)
-        local ip = CreateEntity(InfantryPortal.kMapName, spawnPoint, team:GetTeamNumber())
-        SetRandomOrientation(ip)
-        ip:SetConstructionComplete()
+local function Spawn2ndInfantryPortal( Team, TechPoint )
+    local TechPointOrigin = TechPoint:GetOrigin()
+    local SpawnPoint = GetRandomBuildPosition( kTechId.InfantryPortal, TechPointOrigin, 5 )
+    if SpawnPoint then
+        SpawnPoint = SpawnPoint - Vector( 0, 0.6, 0 )
+        local Ip = CreateEntity( InfantryPortal.kMapName, SpawnPoint, Team:GetTeamNumber() )
+        SetRandomOrientation( Ip )
+        Ip:SetConstructionComplete()
     end
 end
 
 
-function Plugin:OnSpawnInitialStructures( Team, techPoint )
-    if Server.GetNumPlayers() < self.Config.MinPlayers then return end    
-    Spawn2ndInfantryPortal(Team, techPoint)
+function Plugin:OnSpawnInitialStructures( Team, TechPoint )
+    if Server.GetNumPlayers() < self.Config.MinPlayers then return end
+    Spawn2ndInfantryPortal( Team, TechPoint )
 end
 
 Shine:RegisterExtension( "2ndip", Plugin )
