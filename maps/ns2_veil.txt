@@ -1,0 +1,9 @@
+[{
+    "name":"Control",
+    "team":"marines",
+    "enemyspawns":    ["Cargo"]
+},
+{
+    "name":"Cargo",
+    "team":"aliens"
+}]
