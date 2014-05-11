@@ -23,8 +23,9 @@ function Plugin:ClientConnect( Client )
 end
 
 function Plugin:ClientDisconnect( Client )
-    if #Shine.GetAllClients() > self.Config.MinPlayer + 1 then return end
+    if Shine.GetHumanPlayerCount() > self.Config.MinPlayer then return end
     self:SimpleTimer( self.Config.ResetTime * 60, function()
+	if Shine.GetHumanPlayerCount() > self.Config.MinPlayer then return end
         Notify( "[PasswordReset] Reseting password to default one" )
         Server.SetPassword( tostring( self.Config.DefaultPassword ) or "" )
     end )

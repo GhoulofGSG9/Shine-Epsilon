@@ -2,6 +2,7 @@
     Shine 2ndIp Plugin
 ]]
 local Shine = Shine
+local StringFormat = string.format
 
 local Plugin = {}
 Plugin.Version = "1.0"
@@ -16,7 +17,7 @@ Plugin.CheckConfig = true
 
 function Plugin:Initialise()
     local Gamemode = Shine.GetGamemode()
-    if Gamemode ~= "ns2" then        
+    if Gamemode ~= "ns2" and Gamemode ~= "mvm" then        
         return false, StringFormat( "The 2ndIp plugin does not work with %s.", Gamemode )
     end
   

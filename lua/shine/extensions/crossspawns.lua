@@ -26,6 +26,7 @@ Plugin.DefaultConfig =
         [ "ns2_summit" ] = true,
         [ "ns2_eclipse" ] = true,
         [ "ns2_veil" ] = false,
+        [ "ns2_kodiak" ] = false,
         [ "ns2_nsl_biodome" ] = true,
         [ "ns2_nsl_descent" ] = true,
         [ "ns2_nsl_docking" ] = true,
@@ -47,7 +48,7 @@ Shine.Hook.SetupClassHook( "NS2Gamerules", "ResetGame", "OnGameReset", "PassiveP
 
 function Plugin:Initialise()
     local Gamemode = Shine.GetGamemode()
-    if Gamemode ~= "ns2" then        
+    if Gamemode ~= "ns2" and Gamemode ~= "mvm" then        
         return false, StringFormat( "The crossspawns plugin does not work with %s.", Gamemode )
     end
     
@@ -78,7 +79,7 @@ local function LoadCustomTechPointData()
 							CurrentTechPoint.allowedTeamNumber = 2
 						elseif Lower( TempTechPoint.team ) == "both" then
 							CurrentTechPoint.allowedTeamNumber = 0
-						--If we don'Temp understand the team, no teams can spawn here
+						--If we don't understand the team, no teams can spawn here
 						else
 							CurrentTechPoint.allowedTeamNumber = 3
 						end
