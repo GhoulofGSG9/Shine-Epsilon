@@ -262,7 +262,7 @@ function Plugin:Disable()
 	local rules = GetGamerules()
 	if not rules then return end
     local notstarted = false
-    if rules:GetGameState() == kGameState.NotStarted then
+    if rules:GetGameState() < 3 then
         notstarted = true
     end
     
