@@ -19,7 +19,7 @@ Plugin.CheckConfig = true
 Plugin.DefaultState = true
 
 --Text for telling players the current status of PGP
-local statusString = "PGP is %s. A match has not started."
+local statusString = "Pregame \"Sandbox\" - Mode is %s. A match has not started."
 local limitString = "Turns %s when %s %s players."
 local noLimitString = "No player limit."
 local timerString = "PGP turning %s in %s seconds."
@@ -96,9 +96,9 @@ function Plugin:AlienSpawnInitialStructures(AlienTeam, techPoint)
 	if not self.dt.Enabled then return end
 	
 	local teamNr = AlienTeam:GetTeamNumber()
-	MakeTechEnt(techPoint, Crag.kMapName, 3.5, 1.5, teamNr)
-	MakeTechEnt(techPoint, Crag.kMapName, 3.5, -1.5, teamNr)
-	MakeTechEnt(techPoint, Shift.kMapName, -3.5, 1.5, teamNr)
+	MakeTechEnt(techPoint, Crag.kMapName, 3.5, 2, teamNr)
+	MakeTechEnt(techPoint, Crag.kMapName, 3.5, -2, teamNr)
+	MakeTechEnt(techPoint, Shift.kMapName, -3.5, 2, teamNr)
 end
 
 -- spawns the armory, proto, armslab and 3 macs
@@ -109,15 +109,15 @@ function Plugin:MarSpawnInitialStructures(MarTeam, techPoint)
 	
 	--don't spawn them if cheats is on(it already does it)
 	if not ( Shared.GetCheatsEnabled() and MarineTeam.gSandboxMode ) then
-		MakeTechEnt(techPoint, AdvancedArmory.kMapName, 3.5, 1.5, teamNr)
-		MakeTechEnt(techPoint, PrototypeLab.kMapName, 3.5, -1.5, teamNr)
+		MakeTechEnt(techPoint, AdvancedArmory.kMapName, 3.5, -2, teamNr)
+		MakeTechEnt(techPoint, PrototypeLab.kMapName, -3.5, 2, teamNr)
 	end
 
 	for i=1, 3 do
-	  MakeTechEnt(techPoint, MAC.kMapName, -3.5, -1.5, teamNr)
+	  MakeTechEnt(techPoint, MAC.kMapName, 3.5, 2, teamNr)
 	end   
 	
-	MakeTechEnt(techPoint, ArmsLab.kMapName, -3.5, 1.5, teamNr)
+	MakeTechEnt(techPoint, ArmsLab.kMapName, 3.5, -2, teamNr)
 	local techTree = MarTeam:GetTechTree()
 	if techTree then
 		techTree:GetTechNode( kTechId.Armor1 ):SetResearched( true )
@@ -215,7 +215,7 @@ function Plugin:AddScore(points, res, wasKill)
 end
 
 function Plugin:SendText( Player )
-	local Text = StringFormat("%s\n%s\n%s", StringFormat(statusString, self.dt.Enabled and "enabled" or "diabled"),
+	local Text = StringFormat("%s\n%s\n%s", StringFormat(statusString, self.dt.Enabled and "enabled" or "disabled"),
 		self.Config.CheckLimit and StringFormat( limitString, self.dt.Enabled and "off" or "on", 
 		self.dt.Enabled and "being above" or "being under", self.Config.PlayerLimit ) or noLimitString, self.Config.ExtraMessageLine )
 	local r,g,b = unpack( self.Config.StatusTextColour )
@@ -236,43 +236,54 @@ function Plugin:RemoveText( Player )
 	Shine:RemoveText( Player, Message )
 end
 
+function Plugin:StartText()
+    self:SendText()
+    self:CreateTimer("PGPText", 1800, -1, function() self:SendText() end)
+end
+
 function Plugin:Enable()
 	if self.dt.Enabled then return end
 	self.dt.Enabled = true
-	self:SendText()
-	self:CreateTimer("PGPText", 1800, -1, function() self:SendText() end)
-	
+	self:StartText()
+    
 	local rules = GetGamerules()
 	if not rules then return end
 	self.PlayerCount = #GetEntitiesForTeam( "Player", 1) + #GetEntitiesForTeam( "Player", 2 )
 	
 	rules:ResetGame()
 	rules:SetAllTech( true )
+    self:CheckLimit( rules )
 end
 
 function Plugin:Disable()
 	if not self.dt.Enabled then return end
 	self.dt.Enabled = false
-	self:RemoveText()
-	self:DestroyAllTimers()
 	
 	local rules = GetGamerules()
-	if not rules then return end	
-	rules:ResetGame()
+	if not rules then return end
+    local notstarted = false
+    if rules:GetGameState() == kGameState.NotStarted then
+        notstarted = true
+    end
+    
+    self:DestroyAllTimers()
+    self:RemoveText()    
+    rules:ResetGame()
+    
+    if notstarted then
+        self:StartText()
+    end
 end
 
-function Plugin:PostJoinTeam( Gamerules, Player, OldTeam, NewTeam, Force, ShineForce )
-	if NewTeam == 1 or NewTeam == 2 and not ( OldTeam == 1 or OldTeam == 2 ) then
-		self.PlayerCount = self.PlayerCount + 1
-	else
-		self.PlayerCount = self.PlayerCount - 1
-	end
-	
-	if self.Config.CheckLimit and Gamerules:GetGameState() == kGameState.NotStarted then
-		local PlayerLimit = tonumber( self.Config.PlayerLimit )
-		if self.PlayerCount >= PlayerLimit and self.dt.Enabled then
+function Plugin:CheckLimit( Gamerules )
+    if self.Config.CheckLimit and Gamerules:GetGameState() == kGameState.NotStarted then
+        local PlayerLimit = tonumber( self.Config.PlayerLimit )
+        if self.PlayerCount >= PlayerLimit and self.dt.Enabled then
 			if self.Config.LimitToggleDelay > 0 then
-				Shine.Timer.Create( "PGPLimit", 1, self.Config.LimitToggleDelay , function( Timer )
+                if self:TimerExists( "PGPLimitOff" ) then return end
+                self:DestroyTimer( "PGPLimitOn" )
+                
+				self:CreateTimer( "PGPLimitOff", 1, self.Config.LimitToggleDelay , function( Timer )
 					if self.PlayerCount < PlayerLimit then
 						self:SendText()
 						Timer:Destroy()
@@ -292,7 +303,10 @@ function Plugin:PostJoinTeam( Gamerules, Player, OldTeam, NewTeam, Force, ShineF
 			end
 		elseif self.PlayerCount < PlayerLimit and not self.dt.Enabled then
 			if self.Config.LimitToggleDelay > 0 then
-				Shine.Timer.Create( "PGPLimit", 1, self.Config.LimitToggleDelay, function( Timer )
+                if self:TimerExists( "PGPLimitOn" ) then return end
+                self:DestroyTimer( "PGPLimitOFF" )
+                
+				self:CreateTimer( "PGPLimitOn", 1, self.Config.LimitToggleDelay, function( Timer )
 					if self.PlayerCount >= PlayerLimit then
 						self:SendText()
 						Timer:Destroy()
@@ -314,6 +328,16 @@ function Plugin:PostJoinTeam( Gamerules, Player, OldTeam, NewTeam, Force, ShineF
 	end
 end
 
+function Plugin:PostJoinTeam( Gamerules, Player, OldTeam, NewTeam, Force, ShineForce )
+	if NewTeam == 1 or NewTeam == 2 and not ( OldTeam == 1 or OldTeam == 2 ) then
+		self.PlayerCount = self.PlayerCount + 1
+	else
+		self.PlayerCount = self.PlayerCount - 1
+	end
+    
+    self:CheckLimit( Gamerules )
+end
+
 function Plugin:ClientConfirmConnect( Client )
 	local Player = Client:GetControllingPlayer()
 	if not Player then return end
@@ -322,12 +346,13 @@ function Plugin:ClientConfirmConnect( Client )
 end
 
 function Plugin:SetGameState( Gamerules, NewState, OldState )
+
 	if self.dt.Enabled and NewState ~= kGameState.NotStarted then 
 		self:Disable() 
 		Gamerules:SetGameState( NewState ) 
 	end
 	
-	if not self.dt.Enabled and NewState == kGameState.NotStarted and OldState ~= kGameState.Countdown and OldState ~= kGameState.PreGame then
+	if not self.dt.Enabled and NewState == kGameState.NotStarted and OldState > 3 then
 		self:Enable()
 	end
 end
@@ -335,5 +360,6 @@ end
 function Plugin:Cleanup()
 	self:Disable()
 	self.BaseClass.Cleanup( self )
+    self:RemoveText()
 	self.Enabled = false
 end
