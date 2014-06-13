@@ -1,5 +1,4 @@
 local Plugin = {}
-Plugin.DefaultState = true
 
 local Shine = Shine
 local SetupClassHook = Shine.Hook.SetupClassHook
