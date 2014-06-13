@@ -248,7 +248,7 @@ function Plugin:Enable()
     
 	local rules = GetGamerules()
 	if not rules then return end
-	self.PlayerCount = #GetEntitiesForTeam( "Player", 1) + #GetEntitiesForTeam( "Player", 2 )
+	self.PlayerCount = #GetEntitiesForTeam( "Player", 1) + #GetEntitiesForTeam( "Player", 2)
 	
 	rules:ResetGame()
 	rules:SetAllTech( true )
@@ -266,6 +266,7 @@ function Plugin:Disable()
         notstarted = true
     end
     
+    rules:SetAllTech( false )
     self:DestroyAllTimers()
     self:RemoveText()    
     rules:ResetGame()
@@ -339,6 +340,10 @@ function Plugin:PostJoinTeam( Gamerules, Player, OldTeam, NewTeam, Force, ShineF
 end
 
 function Plugin:ClientConfirmConnect( Client )
+    local rules = GetGamerules()
+    if not rules then return end    
+    if rules:GetGameState() ~= kGameState.NotStarted then return end
+    
 	local Player = Client:GetControllingPlayer()
 	if not Player then return end
 	
