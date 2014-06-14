@@ -36,6 +36,7 @@ function Plugin:Initialise()
 	self.dt.AllowMines = self.Config.AllowMines
 	self.dt.Enabled = false
 	self.PlayerCount = 0
+    self.Ents = {}
 	return true
 end
 
@@ -50,6 +51,7 @@ local function MakeTechEnt(techPoint, mapName, rightOffset, forwardOffset, teamT
         SetRandomOrientation( newEnt )
         newEnt:SetConstructionComplete() 
     end
+    table.insert( Plugin.Ents, newEnt )
 end
 
 --Hacky stuff
@@ -242,36 +244,35 @@ end
 
 function Plugin:Enable()
 	if self.dt.Enabled then return end
-    
-    local rules = GetGamerules()
-	if not rules then return end
-    rules:SetAllTech( true )
-    
-	self.dt.Enabled = true
+    self.dt.Enabled = true
 	self:StartText()
-	self.PlayerCount = #GetEntitiesForTeam( "Player", 1) + #GetEntitiesForTeam( "Player", 2)    
-    self:CheckLimit( rules )
+	self.PlayerCount = #GetEntitiesForTeam( "Player", 1) + #GetEntitiesForTeam( "Player", 2)
+    
+    --Timer avoids issue that teams might not yet be initialized
+    self:SimpleTimer( 1, function()
+        local rules = GetGamerules()
+        if not rules then return end
+        rules:SetAllTech( true )
+    end)
+    
 end
 
 function Plugin:Disable()
 	if not self.dt.Enabled then return end
 	self.dt.Enabled = false
 	
-	local rules = GetGamerules()
-	if not rules then return end
-    local notstarted = false
-    if rules:GetGameState() < 3 then
-        notstarted = true
+    for i = 1, #self.Ents do
+        local ent = self.Ents[ i ]
+        DestroyEntity( ent )
     end
+    self.Ents = {}
     
-    rules:SetAllTech( false )
     self:DestroyAllTimers()
-    self:RemoveText()    
-    rules:ResetGame()
+    self:RemoveText()
     
-    if notstarted then
-        self:StartText()
-    end
+    local rules = GetGamerules()
+	if not rules then return end
+    rules:SetAllTech( false )
 end
 
 function Plugin:CheckLimit( Gamerules )
@@ -327,15 +328,7 @@ function Plugin:CheckLimit( Gamerules )
 	end
 end
 
-local first = true
 function Plugin:PostJoinTeam( Gamerules, Player, OldTeam, NewTeam, Force, ShineForce )
-    if first then
-        if not Gamerules:GetGameStarted() then 
-            self:Enable()
-            Gamerules:ResetGame()
-        end
-        first = false
-    end
     
 	if NewTeam == 1 or NewTeam == 2 and not ( OldTeam == 1 or OldTeam == 2 ) then
 		self.PlayerCount = self.PlayerCount + 1
@@ -357,21 +350,18 @@ function Plugin:ClientConfirmConnect( Client )
 	self:SendText( Player )
 end
 
-function Plugin:SetGameState( Gamerules, NewState, OldState )
-
-	if self.dt.Enabled and NewState ~= kGameState.NotStarted then 
+SetupClassHook( "NS2Gamerules", "SetGameState", "PreSetGameState", "PassivePre")
+function Plugin:PreSetGameState( Gamerules, NewState )
+    if Gamerules:GetGameState() == NewState then return end
+	if NewState ~= kGameState.NotStarted then 
 		self:Disable() 
-		Gamerules:SetGameState( NewState ) 
-	end
-	
-	if not self.dt.Enabled and NewState == kGameState.NotStarted and OldState > 3 then
+	else
 		self:Enable()
 	end
 end
 
 function Plugin:Cleanup()
 	self:Disable()
-	self.BaseClass.Cleanup( self )
-    self:RemoveText()
+	self.BaseClass.Cleanup( self )    
 	self.Enabled = false
 end
