@@ -35,10 +35,6 @@ function Plugin:Initialise()
 	self.dt.AllowOnosExo = self.Config.AllowOnosExo
 	self.dt.AllowMines = self.Config.AllowMines
 	self.dt.Enabled = false
-	Shine.Hook.Add( "Think", "StartServerPGP", function( Deltatime )
-		if self.Enabled then self:Enable() end		
-		Shine.Hook.Remove( "Think", "StartServerPGP" )
-	end )
 	self.PlayerCount = 0
 	return true
 end
@@ -50,7 +46,10 @@ local function MakeTechEnt(techPoint, mapName, rightOffset, forwardOffset, teamT
 	local position = origin+right*rightOffset+forward*forwardOffset
 
 	local newEnt = CreateEntity( mapName, position, teamType)
-	if HasMixin( newEnt, "Construct" ) then newEnt:SetConstructionComplete() end
+	if HasMixin( newEnt, "Construct" ) then
+        SetRandomOrientation( newEnt )
+        newEnt:SetConstructionComplete() 
+    end
 end
 
 --Hacky stuff
@@ -189,7 +188,7 @@ function Plugin:MarTeamUpdate( MarTeam, timePassed )
 			local spec = specs[i]
 			MarTeam:RemovePlayerFromRespawnQueue(spec)
 			local success,newMarine = MarTeam:ReplaceRespawnPlayer(spec, nil, nil)
-			newMarine:SetCameraDistance(0)
+			newMarine:SetCameraDistance( 0 )
 		end
 	end
 end
@@ -243,15 +242,14 @@ end
 
 function Plugin:Enable()
 	if self.dt.Enabled then return end
+    
+    local rules = GetGamerules()
+	if not rules then return end
+    rules:SetAllTech( true )
+    
 	self.dt.Enabled = true
 	self:StartText()
-    
-	local rules = GetGamerules()
-	if not rules then return end
-	self.PlayerCount = #GetEntitiesForTeam( "Player", 1) + #GetEntitiesForTeam( "Player", 2)
-	
-	rules:ResetGame()
-	rules:SetAllTech( true )
+	self.PlayerCount = #GetEntitiesForTeam( "Player", 1) + #GetEntitiesForTeam( "Player", 2)    
     self:CheckLimit( rules )
 end
 
@@ -323,13 +321,22 @@ function Plugin:CheckLimit( Gamerules )
 						StringFormat( timerString, "on", Timer:GetReps() ), self.Config.ExtraMessageLine ))
 				end)
 			else
-				self.Enable()
+				self:Enable()
 			end
 		end
 	end
 end
 
+local first = true
 function Plugin:PostJoinTeam( Gamerules, Player, OldTeam, NewTeam, Force, ShineForce )
+    if first then
+        if not Gamerules:GetGameStarted() then 
+            self:Enable()
+            Gamerules:ResetGame()
+        end
+        first = false
+    end
+    
 	if NewTeam == 1 or NewTeam == 2 and not ( OldTeam == 1 or OldTeam == 2 ) then
 		self.PlayerCount = self.PlayerCount + 1
 	else
