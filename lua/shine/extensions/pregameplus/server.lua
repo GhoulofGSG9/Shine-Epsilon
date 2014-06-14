@@ -22,22 +22,31 @@ Plugin.DefaultState = true
 local statusString = "Pregame \"Sandbox\" - Mode is %s. A match has not started."
 local limitString = "Turns %s when %s %s players."
 local noLimitString = "No player limit."
-local timerString = "PGP turning %s in %s seconds."
+local timerString = "Pregame \"Sandbox\" - Mode turning %s in %s seconds."
 
 local Shine = Shine
 local SetupClassHook = Shine.Hook.SetupClassHook
 local SetupGlobalHook = Shine.Hook.SetupGlobalHook
 local StringFormat = string.format
 local CreateTimer = Shine.Timer.Create
+local GetEntitiesForTeam = GetEntitiesForTeam
 
 function Plugin:Initialise()
 	self.Enabled = true
 	self.dt.AllowOnosExo = self.Config.AllowOnosExo
 	self.dt.AllowMines = self.Config.AllowMines
 	self.dt.Enabled = false
-	self.PlayerCount = 0
     self.Ents = {}
+    local rules = GetGamerules()
+    if rules and not rules:GetGameStarted() then
+        self:Enable()
+        rules:ResetGame() 
+    end
 	return true
+end
+
+local function GetPlayerinTeams()
+    return #GetEntitiesForTeam( "Player", 1) + #GetEntitiesForTeam( "Player", 2)
 end
 
 local function MakeTechEnt(techPoint, mapName, rightOffset, forwardOffset, teamType)
@@ -102,13 +111,9 @@ function Plugin:AlienSpawnInitialStructures(AlienTeam, techPoint)
 	MakeTechEnt(techPoint, Shift.kMapName, -3.5, 2, teamNr)
 end
 
-SetupClassHook("Marine", "GetArmorLevel", "GetArmorLevel", "ActivePre")
-function Plugin:GetArmorLevel()
-    if self.dt.Enabled then return 3 end
-end
-
-SetupClassHook("Marine", "GetWeaponLevel", "GetWeaponLevel", "ActivePre")
-function Plugin:GetWeaponLevel()
+SetupClassHook("Marine", "GetArmorLevel", "GetUpgradeLevel", "ActivePre")
+SetupClassHook("Marine", "GetWeaponLevel", "GetUpgradeLevel", "ActivePre")
+function Plugin:GetUpgradeLevel()
     if self.dt.Enabled then return 3 end
 end
 
@@ -129,7 +134,7 @@ function Plugin:MarSpawnInitialStructures(MarTeam, techPoint)
 		MakeTechEnt(techPoint, PrototypeLab.kMapName, -3.5, 2, teamNr)
 	end
 
-	for i=1, 3 do
+	for i = 1, 3 do
 	  MakeTechEnt(techPoint, MAC.kMapName, 3.5, 2, teamNr)
 	end	
 end
@@ -246,11 +251,19 @@ function Plugin:StartText()
     self:CreateTimer("PGPText", 1800, -1, function() self:SendText() end)
 end
 
-function Plugin:Enable()
+function Plugin:DestroyEnts()
+    for i = 1, #self.Ents do
+        local ent = self.Ents[ i ]
+        DestroyEntity( ent )
+    end
+    self.Ents = {}
+end
+
+function Plugin:Enable()    
 	if self.dt.Enabled then return end
     self.dt.Enabled = true
 	self:StartText()
-	self.PlayerCount = #GetEntitiesForTeam( "Player", 1) + #GetEntitiesForTeam( "Player", 2)
+	self.PlayerCount = GetPlayerinTeams()
     
     --Timer avoids issue that teams might not yet be initialized
     self:SimpleTimer( 1, function()
@@ -261,106 +274,94 @@ function Plugin:Enable()
     
 end
 
-function Plugin:Disable()
+function Plugin:Disable( ChangedGamestate )
 	if not self.dt.Enabled then return end
-	self.dt.Enabled = false
-	
-    for i = 1, #self.Ents do
-        local ent = self.Ents[ i ]
-        DestroyEntity( ent )
-    end
-    self.Ents = {}
-    
+	self.dt.Enabled = false    
     self:DestroyAllTimers()
     self:RemoveText()
     
     local rules = GetGamerules()
 	if not rules then return end
     rules:SetAllTech( false )
+    
+    if not ChangedGamestate and not rules:GetGameStarted() then
+        rules:ResetGame()
+    end
+    
+    return true
+end
+
+function Plugin:CreateLimitTimer( On, Gamerules )
+    local OnTimer = On and "PGPLimitOn" or "PGPLimitOFF"
+    local OffTime = On and "PGPLimitOFF" or "PGPLimitOn"    
+    local PlayerLimit = tonumber( self.Config.PlayerLimit )
+    
+    if self.Config.LimitToggleDelay > 0 then
+        if self:TimerExists( OnTimer ) then return end
+        self:DestroyTimer( OffTimer )
+        
+        self:CreateTimer( OnTimer, 1, self.Config.LimitToggleDelay, function( Timer )
+            if On and self.PlayerCount >= PlayerLimit or not On and self.PlayerCount < PlayerLimit then
+                Timer:Destroy()
+                self:SendText()
+                return
+            end
+            
+            if Timer:GetReps() == 0 then
+                if On then 
+                    self:Enable()
+                    Gamerules:ResetGame() 
+                else
+                    self:Disable()
+                    self:SendText()
+                end
+                return
+            end
+            
+            self:UpdateText( StringFormat( "%s\n%s\n%s", StringFormat(statusString, On and "disabled" or "enabled" ),
+                StringFormat( timerString, On and "on" or "off", Timer:GetReps() ), self.Config.ExtraMessageLine ))
+        end)
+    else
+        if On then 
+            self:Enable()
+        else
+            self:Disable()
+        end
+    end
 end
 
 function Plugin:CheckLimit( Gamerules )
+    self.PlayerCount = GetPlayerinTeams()
+    
     if self.Config.CheckLimit and Gamerules:GetGameState() == kGameState.NotStarted then
         local PlayerLimit = tonumber( self.Config.PlayerLimit )
         if self.PlayerCount >= PlayerLimit and self.dt.Enabled then
-			if self.Config.LimitToggleDelay > 0 then
-                if self:TimerExists( "PGPLimitOff" ) then return end
-                self:DestroyTimer( "PGPLimitOn" )
-                
-				self:CreateTimer( "PGPLimitOff", 1, self.Config.LimitToggleDelay , function( Timer )
-					if self.PlayerCount < PlayerLimit then
-						self:SendText()
-						Timer:Destroy()
-						return
-					end
-					
-					if Timer:GetReps() == 0 then
-						self:Disable()
-						return
-					end
-					
-					self:UpdateText( StringFormat( "%s\n%s\n%s", StringFormat(statusString, "enabled" ),
-						StringFormat( timerString, "off", Timer:GetReps() ), self.Config.ExtraMessageLine ))
-				end)
-			else
-				self:Disable()
-			end
+            self:CreateLimitTimer( false, Gamerules )
 		elseif self.PlayerCount < PlayerLimit and not self.dt.Enabled then
-			if self.Config.LimitToggleDelay > 0 then
-                if self:TimerExists( "PGPLimitOn" ) then return end
-                self:DestroyTimer( "PGPLimitOFF" )
-                
-				self:CreateTimer( "PGPLimitOn", 1, self.Config.LimitToggleDelay, function( Timer )
-					if self.PlayerCount >= PlayerLimit then
-						self:SendText()
-						Timer:Destroy()
-						return
-					end
-					
-					if Timer:GetReps() == 0 then
-						self:Enable()
-						return
-					end
-					
-					self:UpdateText( StringFormat( "%s\n%s\n%s", StringFormat(statusString, "disabled" ),
-						StringFormat( timerString, "on", Timer:GetReps() ), self.Config.ExtraMessageLine ))
-				end)
-			else
-				self:Enable()
-			end
+            self:CreateLimitTimer( true, Gamerules )
 		end
 	end
 end
 
-function Plugin:PostJoinTeam( Gamerules, Player, OldTeam, NewTeam, Force, ShineForce )
-    
-	if NewTeam == 1 or NewTeam == 2 and not ( OldTeam == 1 or OldTeam == 2 ) then
-		self.PlayerCount = self.PlayerCount + 1
-	else
-		self.PlayerCount = self.PlayerCount - 1
-	end
-    
+function Plugin:JoinTeam( Gamerules, Player, NewTeam, Force )
+    if not Gamerules:GetGameStarted() and NewTeam ~= 8 then self:SendText( Player ) end    
     self:CheckLimit( Gamerules )
 end
 
-function Plugin:ClientConfirmConnect( Client )
-    local rules = GetGamerules()
-    if not rules then return end    
-    if rules:GetGameState() ~= kGameState.NotStarted then return end
-    
-	local Player = Client:GetControllingPlayer()
-	if not Player then return end
-	
-	self:SendText( Player )
+function Plugin:ClientDisconnect( Client )
+    local Gamerules = GetGamerules()
+    if Gamerules then self:CheckLimit( Gamerules ) end
 end
 
 SetupClassHook( "NS2Gamerules", "SetGameState", "PreSetGameState", "PassivePre")
 function Plugin:PreSetGameState( Gamerules, NewState )
+    self:DestroyEnts()
     if Gamerules:GetGameState() == NewState then return end
+    
 	if NewState ~= kGameState.NotStarted then 
-		self:Disable() 
+		if self:Disable( true ) then Gamerules:SetGameState( NewState ) end
 	else
-		self:Enable()
+        self:Enable()
 	end
 end
 
