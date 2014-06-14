@@ -102,6 +102,21 @@ function Plugin:AlienSpawnInitialStructures(AlienTeam, techPoint)
 	MakeTechEnt(techPoint, Shift.kMapName, -3.5, 2, teamNr)
 end
 
+SetupClassHook("Marine", "GetArmorLevel", "GetArmorLevel", "ActivePre")
+function Plugin:GetArmorLevel()
+    if self.dt.Enabled then return 3 end
+end
+
+SetupClassHook("Marine", "GetWeaponLevel", "GetWeaponLevel", "ActivePre")
+function Plugin:GetWeaponLevel()
+    if self.dt.Enabled then return 3 end
+end
+
+SetupClassHook("Marine", "GetArmorAmount", "GetArmorAmount", "ActivePre")
+function Plugin:GetArmorAmount( Marine )
+    if self.dt.Enabled then return Marine.kBaseArmor + 3 * Marine.kArmorPerUpgradeLevel end
+end
+
 -- spawns the armory, proto, armslab and 3 macs
 SetupClassHook("MarineTeam", "SpawnInitialStructures", "MarSpawnInitialStructures", "PassivePost")
 function Plugin:MarSpawnInitialStructures(MarTeam, techPoint)
@@ -116,18 +131,7 @@ function Plugin:MarSpawnInitialStructures(MarTeam, techPoint)
 
 	for i=1, 3 do
 	  MakeTechEnt(techPoint, MAC.kMapName, 3.5, 2, teamNr)
-	end   
-	
-	MakeTechEnt(techPoint, ArmsLab.kMapName, 3.5, -2, teamNr)
-	local techTree = MarTeam:GetTechTree()
-	if techTree then
-		techTree:GetTechNode( kTechId.Armor1 ):SetResearched( true )
-		techTree:GetTechNode( kTechId.Weapons1 ):SetResearched( true )
-		techTree:GetTechNode( kTechId.Armor2 ):SetResearched( true )
-		techTree:GetTechNode( kTechId.Weapons3 ):SetResearched( true )
-		techTree:GetTechNode( kTechId.Armor3 ):SetResearched( true )
-		techTree:GetTechNode( kTechId.Weapons3 ):SetResearched( true )
-	end
+	end	
 end
 
 -- instantly spawn dead aliens
