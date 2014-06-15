@@ -13,6 +13,10 @@ Plugin.DefaultConfig = {
 	StatusTextColour = { 0, 255, 255 },
 	AllowOnosExo = true,
 	AllowMines = true,
+    PregameArmorLevel = 3,
+    PregameWeaponLevel = 3,
+    PregameBiomassLevel = 9,
+    PregameAlienUpgradesLevel = 3,
 	ExtraMessageLine = ""
 }
 Plugin.CheckConfig = true
@@ -35,6 +39,8 @@ function Plugin:Initialise()
 	self.Enabled = true
 	self.dt.AllowOnosExo = self.Config.AllowOnosExo
 	self.dt.AllowMines = self.Config.AllowMines
+    self.dt.BioLevel = math.Clamp( self.Config.PregameBiomassLevel, 1, 12 )
+    self.dt.UpgradeLevel = math.Clamp( self.Config.PregameAlienUpgradesLevel, 0, 3 )
 	self.dt.Enabled = false
     self.Ents = {}
     local rules = GetGamerules()
@@ -111,15 +117,25 @@ function Plugin:AlienSpawnInitialStructures(AlienTeam, techPoint)
 	MakeTechEnt(techPoint, Shift.kMapName, -3.5, 2, teamNr)
 end
 
-SetupClassHook("Marine", "GetArmorLevel", "GetUpgradeLevel", "ActivePre")
-SetupClassHook("Marine", "GetWeaponLevel", "GetUpgradeLevel", "ActivePre")
-function Plugin:GetUpgradeLevel()
-    if self.dt.Enabled then return 3 end
+SetupClassHook("Marine", "GetArmorLevel", "GetArmorUpgradeLevel", "ActivePre")
+function Plugin:GetArmorUpgradeLevel( Player )
+    if self.dt.Enabled and not Player:isa("Exo") then return self.Config.PregameArmorLevel end
+end
+
+SetupClassHook("Marine", "GetWeaponLevel", "GetWeaponUpgradeLevel", "ActivePre")
+SetupClassHook("Player", "GetWeaponUpgradeLevel", "GetWeaponUpgradeLevel", "ActivePre")
+function Plugin:GetWeaponUpgradeLevel( Player )
+    if self.dt.Enabled and not Player:isa("Exo") then return self.Config.PregameWeaponLevel end
 end
 
 SetupClassHook("Marine", "GetArmorAmount", "GetArmorAmount", "ActivePre")
 function Plugin:GetArmorAmount( Marine )
-    if self.dt.Enabled then return Marine.kBaseArmor + 3 * Marine.kArmorPerUpgradeLevel end
+    if self.dt.Enabled then return Marine.kBaseArmor + self.Config.PregameArmorLevel * Marine.kArmorPerUpgradeLevel end
+end
+
+SetupClassHook("Exo", "GetArmorAmount", "ExoGetArmorAmount", "ActivePre")
+function Plugin:ExoGetArmorAmount()
+    if self.dt.Enabled then return kExosuitArmor + self.Config.PregameArmorLevel * kExosuitArmorPerUpgradeLevel end
 end
 
 -- spawns the armory, proto, armslab and 3 macs
@@ -344,7 +360,7 @@ function Plugin:CheckLimit( Gamerules )
 end
 
 function Plugin:JoinTeam( Gamerules, Player, NewTeam, Force )
-    if not Gamerules:GetGameStarted() and NewTeam ~= 8 then self:SendText( Player ) end    
+    if not Gamerules:GetGameStarted() then self:SendText( Player ) end    
     self:CheckLimit( Gamerules )
 end
 
