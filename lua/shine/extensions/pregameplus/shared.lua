@@ -8,8 +8,8 @@ function Plugin:SetupDataTable()
 	self:AddDTVar( "boolean", "Enabled", false )
 	self:AddDTVar( "boolean", "AllowOnosExo", false )
 	self:AddDTVar( "boolean", "AllowMines", false )
-    self:AddDTVar( "integer (1 to 12)", "BioLevel", 9 )
-    self:AddDTVar( "integer (0 to 3)", "UpgradeLevel", 3 )
+	self:AddDTVar( "integer (1 to 12)", "BioLevel", 9 )
+	self:AddDTVar( "integer (0 to 3)", "UpgradeLevel", 3 )
 end
 
 SetupGlobalHook( "LookupTechData", "LookupTechData", "ActivePre" )

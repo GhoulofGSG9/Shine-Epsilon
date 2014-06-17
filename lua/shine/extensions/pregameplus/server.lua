@@ -13,10 +13,10 @@ Plugin.DefaultConfig = {
 	StatusTextColour = { 0, 255, 255 },
 	AllowOnosExo = true,
 	AllowMines = true,
-    PregameArmorLevel = 3,
-    PregameWeaponLevel = 3,
-    PregameBiomassLevel = 9,
-    PregameAlienUpgradesLevel = 3,
+	PregameArmorLevel = 3,
+	PregameWeaponLevel = 3,
+	PregameBiomassLevel = 9,
+	PregameAlienUpgradesLevel = 3,
 	ExtraMessageLine = ""
 }
 Plugin.CheckConfig = true
@@ -39,46 +39,46 @@ function Plugin:Initialise()
 	self.Enabled = true
 	self.dt.AllowOnosExo = self.Config.AllowOnosExo
 	self.dt.AllowMines = self.Config.AllowMines
-    self.dt.BioLevel = math.Clamp( self.Config.PregameBiomassLevel, 1, 12 )
-    self.dt.UpgradeLevel = math.Clamp( self.Config.PregameAlienUpgradesLevel, 0, 3 )
+	self.dt.BioLevel = math.Clamp( self.Config.PregameBiomassLevel, 1, 12 )
+	self.dt.UpgradeLevel = math.Clamp( self.Config.PregameAlienUpgradesLevel, 0, 3 )
 	self.dt.Enabled = false
-    self.Ents = {}
-    local rules = GetGamerules()
-    if rules and not rules:GetGameStarted() then
-        self:Enable()
-        rules:ResetGame() 
-    end
+	self.Ents = {}
+	local rules = GetGamerules()
+	if rules and rules:GetGameState() == kGameState.NotStarted then
+		self:Enable()
+		rules:ResetGame() 
+	end
 	return true
 end
 
 local function GetPlayerinTeams()
-    return #GetEntitiesForTeam( "Player", 1) + #GetEntitiesForTeam( "Player", 2)
+	return #GetEntitiesForTeam( "Player", 1 ) + #GetEntitiesForTeam( "Player", 2 )
 end
 
-local function MakeTechEnt(techPoint, mapName, rightOffset, forwardOffset, teamType)
+local function MakeTechEnt( techPoint, mapName, rightOffset, forwardOffset, teamType )
 	local origin = techPoint:GetOrigin()
 	local right = techPoint:GetCoords().xAxis
 	local forward = techPoint:GetCoords().zAxis
-	local position = origin+right*rightOffset+forward*forwardOffset
+	local position = origin + right * rightOffset + forward * forwardOffset
 
 	local newEnt = CreateEntity( mapName, position, teamType)
 	if HasMixin( newEnt, "Construct" ) then
-        SetRandomOrientation( newEnt )
-        newEnt:SetConstructionComplete() 
-    end
-    table.insert( Plugin.Ents, newEnt )
+		SetRandomOrientation( newEnt )
+		newEnt:SetConstructionComplete() 
+	end
+	table.insert( Plugin.Ents, newEnt )
 end
 
 --Hacky stuff
 local function ReplaceGameStarted1( OldFunc, ... )
-	local Hook = Shine.Hook.Call("CanEntDoDamageTo", ...)
+	local Hook = Shine.Hook.Call( "CanEntDoDamageTo", ... )
 	if not Hook then return OldFunc(...) end
 
 	local gameinfo = GetGameInfoEntity()
 	local oldGameInfoState = gameinfo:GetState()
-	gameinfo:SetState(kGameState.Started)
+	gameinfo:SetState( kGameState.Started )
 	local temp = OldFunc(...)
-	gameinfo:SetState(oldGameInfoState)
+	gameinfo:SetState( oldGameInfoState )
 
 	return temp
 end
@@ -99,7 +99,7 @@ function Plugin:ProcessBuyAction()
 	if self.dt.Enabled then return true end
 end
 
-SetupGlobalHook( "CanEntityDoDamageTo", "CanEntDoDamageTo", ReplaceGameStarted1)
+SetupGlobalHook( "CanEntityDoDamageTo", "CanEntDoDamageTo", ReplaceGameStarted1 )
 function Plugin:CanEntDoDamageTo( Attacker, Target, ... )
 	if not self.dt.Enabled then return end
 	if HasMixin( Target, "Construct" ) or Target:isa("MAC") then return end
@@ -107,40 +107,40 @@ function Plugin:CanEntDoDamageTo( Attacker, Target, ... )
 end
 
 -- spawn crags for faster healing
-SetupClassHook("AlienTeam", "SpawnInitialStructures", "AlienSpawnInitialStructures", "PassivePost")
-function Plugin:AlienSpawnInitialStructures(AlienTeam, techPoint)	
+SetupClassHook( "AlienTeam", "SpawnInitialStructures", "AlienSpawnInitialStructures", "PassivePost" )
+function Plugin:AlienSpawnInitialStructures( AlienTeam, techPoint )	
 	if not self.dt.Enabled then return end
 	
 	local teamNr = AlienTeam:GetTeamNumber()
-	MakeTechEnt(techPoint, Crag.kMapName, 3.5, 2, teamNr)
-	MakeTechEnt(techPoint, Crag.kMapName, 3.5, -2, teamNr)
-	MakeTechEnt(techPoint, Shift.kMapName, -3.5, 2, teamNr)
+	MakeTechEnt( techPoint, Crag.kMapName, 3.5, 2, teamNr )
+	MakeTechEnt( techPoint, Crag.kMapName, 3.5, -2, teamNr )
+	MakeTechEnt( techPoint, Shift.kMapName, -3.5, 2, teamNr )
 end
 
-SetupClassHook("Marine", "GetArmorLevel", "GetArmorUpgradeLevel", "ActivePre")
+SetupClassHook( "Marine", "GetArmorLevel", "GetArmorUpgradeLevel", "ActivePre" )
 function Plugin:GetArmorUpgradeLevel( Player )
-    if self.dt.Enabled and not Player:isa("Exo") then return self.Config.PregameArmorLevel end
+	if self.dt.Enabled and not Player:isa("Exo") then return self.Config.PregameArmorLevel end
 end
 
-SetupClassHook("Marine", "GetWeaponLevel", "GetWeaponUpgradeLevel", "ActivePre")
-SetupClassHook("Player", "GetWeaponUpgradeLevel", "GetWeaponUpgradeLevel", "ActivePre")
+SetupClassHook( "Marine", "GetWeaponLevel", "GetWeaponUpgradeLevel", "ActivePre" )
+SetupClassHook( "Player", "GetWeaponUpgradeLevel", "GetWeaponUpgradeLevel", "ActivePre" )
 function Plugin:GetWeaponUpgradeLevel( Player )
-    if self.dt.Enabled and not Player:isa("Exo") then return self.Config.PregameWeaponLevel end
+	if self.dt.Enabled and not Player:isa("Exo") then return self.Config.PregameWeaponLevel end
 end
 
-SetupClassHook("Marine", "GetArmorAmount", "GetArmorAmount", "ActivePre")
+SetupClassHook( "Marine", "GetArmorAmount", "GetArmorAmount", "ActivePre" )
 function Plugin:GetArmorAmount( Marine )
-    if self.dt.Enabled then return Marine.kBaseArmor + self.Config.PregameArmorLevel * Marine.kArmorPerUpgradeLevel end
+	if self.dt.Enabled then return Marine.kBaseArmor + self.Config.PregameArmorLevel * Marine.kArmorPerUpgradeLevel end
 end
 
-SetupClassHook("Exo", "GetArmorAmount", "ExoGetArmorAmount", "ActivePre")
+SetupClassHook( "Exo", "GetArmorAmount", "ExoGetArmorAmount", "ActivePre" )
 function Plugin:ExoGetArmorAmount()
-    if self.dt.Enabled then return kExosuitArmor + self.Config.PregameArmorLevel * kExosuitArmorPerUpgradeLevel end
+	if self.dt.Enabled then return kExosuitArmor + self.Config.PregameArmorLevel * kExosuitArmorPerUpgradeLevel end
 end
 
 -- spawns the armory, proto, armslab and 3 macs
-SetupClassHook("MarineTeam", "SpawnInitialStructures", "MarSpawnInitialStructures", "PassivePost")
-function Plugin:MarSpawnInitialStructures(MarTeam, techPoint)
+SetupClassHook( "MarineTeam", "SpawnInitialStructures", "MarSpawnInitialStructures", "PassivePost" )
+function Plugin:MarSpawnInitialStructures( MarTeam, techPoint )
 	if not self.dt.Enabled then return end	
 	local teamNr = MarTeam:GetTeamNumber()
 	
@@ -151,7 +151,7 @@ function Plugin:MarSpawnInitialStructures(MarTeam, techPoint)
 	end
 
 	for i = 1, 3 do
-	  MakeTechEnt(techPoint, MAC.kMapName, 3.5, 2, teamNr)
+		MakeTechEnt(techPoint, MAC.kMapName, 3.5, 2, teamNr)
 	end	
 end
 
@@ -263,121 +263,119 @@ function Plugin:RemoveText( Player )
 end
 
 function Plugin:StartText()
-    self:SendText()
-    self:CreateTimer("PGPText", 1800, -1, function() self:SendText() end)
+	self:SendText()
+	self:CreateTimer("PGPText", 1800, -1, function() self:SendText() end)
 end
 
 function Plugin:DestroyEnts()
-    for i = 1, #self.Ents do
-        local ent = self.Ents[ i ]
-        DestroyEntity( ent )
-    end
-    self.Ents = {}
+	for i = 1, #self.Ents do
+		local ent = self.Ents[ i ]
+		DestroyEntity( ent )
+	end
+	self.Ents = {}
 end
 
 function Plugin:Enable()    
 	if self.dt.Enabled then return end
-    self.dt.Enabled = true
+	self.dt.Enabled = true
 	self:StartText()
 	self.PlayerCount = GetPlayerinTeams()
-    
-    --Timer avoids issue that teams might not yet be initialized
-    self:SimpleTimer( 1, function()
-        local rules = GetGamerules()
-        if not rules then return end
-        rules:SetAllTech( true )
-    end)
-    
+	
+	--Timer avoids issue that teams might not yet be initialized
+	self:SimpleTimer( 1, function()
+		local rules = GetGamerules()
+		if not rules then return end
+		rules:SetAllTech( true )
+		self:CheckLimit( rules )
+	end)
+	
 end
 
 function Plugin:Disable( ChangedGamestate )
 	if not self.dt.Enabled then return end
 	self.dt.Enabled = false    
-    self:DestroyAllTimers()
-    self:RemoveText()
-    
-    local rules = GetGamerules()
+	self:DestroyAllTimers()
+	self:RemoveText()
+	
+	local rules = GetGamerules()
 	if not rules then return end
-    rules:SetAllTech( false )
-    
-    if not ChangedGamestate and not rules:GetGameStarted() then
-        rules:ResetGame()
-    end
-    
-    return true
+	rules:SetAllTech( false )
+	
+	if not ChangedGamestate and rules:GetGameState() == kGameState.NotStarted then
+		rules:ResetGame()
+	end
 end
 
 function Plugin:CreateLimitTimer( On, Gamerules )
-    local OnTimer = On and "PGPLimitOn" or "PGPLimitOFF"
-    local OffTime = On and "PGPLimitOFF" or "PGPLimitOn"    
-    local PlayerLimit = tonumber( self.Config.PlayerLimit )
-    
-    if self.Config.LimitToggleDelay > 0 then
-        if self:TimerExists( OnTimer ) then return end
-        self:DestroyTimer( OffTimer )
-        
-        self:CreateTimer( OnTimer, 1, self.Config.LimitToggleDelay, function( Timer )
-            if On and self.PlayerCount >= PlayerLimit or not On and self.PlayerCount < PlayerLimit then
-                Timer:Destroy()
-                self:SendText()
-                return
-            end
-            
-            if Timer:GetReps() == 0 then
-                if On then 
-                    self:Enable()
-                    Gamerules:ResetGame() 
-                else
-                    self:Disable()
-                    self:SendText()
-                end
-                return
-            end
-            
-            self:UpdateText( StringFormat( "%s\n%s\n%s", StringFormat(statusString, On and "disabled" or "enabled" ),
-                StringFormat( timerString, On and "on" or "off", Timer:GetReps() ), self.Config.ExtraMessageLine ))
-        end)
-    else
-        if On then 
-            self:Enable()
-        else
-            self:Disable()
-        end
-    end
+	local OnTimer = On and "PGPLimitOn" or "PGPLimitOFF"
+	local OffTime = On and "PGPLimitOFF" or "PGPLimitOn"    
+	local PlayerLimit = tonumber( self.Config.PlayerLimit )
+	
+	if self.Config.LimitToggleDelay > 0 then
+		if self:TimerExists( OnTimer ) then return end
+		self:DestroyTimer( OffTimer )
+		
+		self:CreateTimer( OnTimer, 1, self.Config.LimitToggleDelay, function( Timer )
+			if On and self.PlayerCount >= PlayerLimit or not On and self.PlayerCount < PlayerLimit then
+				Timer:Destroy()
+				self:SendText()
+				return
+			end
+			
+			self:UpdateText( StringFormat( "%s\n%s\n%s", StringFormat( statusString, On and "disabled" or "enabled" ),
+				StringFormat( timerString, On and "on" or "off", Timer:GetReps() ), self.Config.ExtraMessageLine ))
+			
+			if Timer:GetReps() == 0 then
+				if On then 
+					self:Enable()
+					Gamerules:ResetGame() 
+				else
+					self:Disable()
+					self:SimpleTimer( 1, function() self:StartText() end )					
+				end
+			end
+		end)
+	else
+		if On then 
+			self:Enable()
+		else
+			self:Disable()
+		end
+	end
 end
 
 function Plugin:CheckLimit( Gamerules )
-    self.PlayerCount = GetPlayerinTeams()
-    
-    if self.Config.CheckLimit and Gamerules:GetGameState() == kGameState.NotStarted then
-        local PlayerLimit = tonumber( self.Config.PlayerLimit )
-        if self.PlayerCount >= PlayerLimit and self.dt.Enabled then
-            self:CreateLimitTimer( false, Gamerules )
+	self.PlayerCount = GetPlayerinTeams()
+	
+	if self.Config.CheckLimit and Gamerules:GetGameState() == kGameState.NotStarted then
+		local PlayerLimit = tonumber( self.Config.PlayerLimit )
+		if self.PlayerCount >= PlayerLimit and self.dt.Enabled then
+			self:CreateLimitTimer( false, Gamerules )
 		elseif self.PlayerCount < PlayerLimit and not self.dt.Enabled then
-            self:CreateLimitTimer( true, Gamerules )
+			self:CreateLimitTimer( true, Gamerules )
 		end
 	end
 end
 
 function Plugin:JoinTeam( Gamerules, Player, NewTeam, Force )
-    if not Gamerules:GetGameStarted() then self:SendText( Player ) end    
-    self:CheckLimit( Gamerules )
+	if Gamerules:GetGameState() == kGameState.NotStarted then self:SendText( Player ) end    
+	self:CheckLimit( Gamerules )
 end
 
 function Plugin:ClientDisconnect( Client )
-    local Gamerules = GetGamerules()
-    if Gamerules then self:CheckLimit( Gamerules ) end
+	local Gamerules = GetGamerules()
+	if Gamerules then self:CheckLimit( Gamerules ) end
 end
 
 SetupClassHook( "NS2Gamerules", "SetGameState", "PreSetGameState", "PassivePre")
 function Plugin:PreSetGameState( Gamerules, NewState )
-    self:DestroyEnts()
-    if Gamerules:GetGameState() == NewState then return end
-    
+	self:DestroyEnts()
+	if Gamerules:GetGameState() == NewState then return end
+	
 	if NewState ~= kGameState.NotStarted then 
-		if self:Disable( true ) then Gamerules:SetGameState( NewState ) end
+		self:Disable( true )
 	else
-        self:Enable()
+		self:Enable()
 	end
 end
 
