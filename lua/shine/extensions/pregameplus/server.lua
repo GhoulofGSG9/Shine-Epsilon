@@ -43,11 +43,15 @@ function Plugin:Initialise()
 	self.dt.UpgradeLevel = math.Clamp( self.Config.PregameAlienUpgradesLevel, 0, 3 )
 	self.dt.Enabled = false
 	self.Ents = {}
-	local rules = GetGamerules()
-	if rules and rules:GetGameState() == kGameState.NotStarted then
-		self:Enable()
-		rules:ResetGame() 
-	end
+	self:SimpleTimer( 1, function()
+		self:SetupHooks()
+		local rules = GetGamerules()
+		if rules and rules:GetGameState() == kGameState.NotStarted then
+			self:Enable()
+			rules:ResetGame() 
+		end
+	end)
+	
 	return true
 end
 
@@ -94,12 +98,11 @@ local function ReplaceGameStarted2( OldFunc, ... )
 	return temp
 end
 
-SetupClassHook( "Alien", "ProcessBuyAction", "PreProcessBuyAction", ReplaceGameStarted2 )
 function Plugin:ProcessBuyAction()
 	if self.dt.Enabled then return true end
 end
 
-SetupGlobalHook( "CanEntityDoDamageTo", "CanEntDoDamageTo", ReplaceGameStarted1 )
+
 function Plugin:CanEntDoDamageTo( Attacker, Target, ... )
 	if not self.dt.Enabled then return end
 	if HasMixin( Target, "Construct" ) or Target:isa("MAC") then return end
@@ -107,7 +110,6 @@ function Plugin:CanEntDoDamageTo( Attacker, Target, ... )
 end
 
 -- spawn crags for faster healing
-SetupClassHook( "AlienTeam", "SpawnInitialStructures", "AlienSpawnInitialStructures", "PassivePost" )
 function Plugin:AlienSpawnInitialStructures( AlienTeam, techPoint )	
 	if not self.dt.Enabled then return end
 	
@@ -117,29 +119,23 @@ function Plugin:AlienSpawnInitialStructures( AlienTeam, techPoint )
 	MakeTechEnt( techPoint, Shift.kMapName, -3.5, 2, teamNr )
 end
 
-SetupClassHook( "Marine", "GetArmorLevel", "GetArmorUpgradeLevel", "ActivePre" )
 function Plugin:GetArmorUpgradeLevel( Player )
 	if self.dt.Enabled and not Player:isa("Exo") then return self.Config.PregameArmorLevel end
 end
 
-SetupClassHook( "Marine", "GetWeaponLevel", "GetWeaponUpgradeLevel", "ActivePre" )
-SetupClassHook( "Player", "GetWeaponUpgradeLevel", "GetWeaponUpgradeLevel", "ActivePre" )
 function Plugin:GetWeaponUpgradeLevel( Player )
 	if self.dt.Enabled and not Player:isa("Exo") then return self.Config.PregameWeaponLevel end
 end
 
-SetupClassHook( "Marine", "GetArmorAmount", "GetArmorAmount", "ActivePre" )
 function Plugin:GetArmorAmount( Marine )
 	if self.dt.Enabled then return Marine.kBaseArmor + self.Config.PregameArmorLevel * Marine.kArmorPerUpgradeLevel end
 end
 
-SetupClassHook( "Exo", "GetArmorAmount", "ExoGetArmorAmount", "ActivePre" )
 function Plugin:ExoGetArmorAmount()
 	if self.dt.Enabled then return kExosuitArmor + self.Config.PregameArmorLevel * kExosuitArmorPerUpgradeLevel end
 end
 
 -- spawns the armory, proto, armslab and 3 macs
-SetupClassHook( "MarineTeam", "SpawnInitialStructures", "MarSpawnInitialStructures", "PassivePost" )
 function Plugin:MarSpawnInitialStructures( MarTeam, techPoint )
 	if not self.dt.Enabled then return end	
 	local teamNr = MarTeam:GetTeamNumber()
@@ -156,8 +152,7 @@ function Plugin:MarSpawnInitialStructures( MarTeam, techPoint )
 end
 
 -- instantly spawn dead aliens
-SetupClassHook( "AlienTeam", "Update", "AlTeamUpdate", "PassivePost")
-function Plugin:AlTeamUpdate(AlTeam, timePassed)
+function Plugin:AlTeamUpdate( AlTeam, timePassed )
 	if self.dt.Enabled then
 		local alienSpectators = AlTeam:GetSortedRespawnQueue()
 		for i = 1, #alienSpectators do
@@ -170,72 +165,62 @@ function Plugin:AlTeamUpdate(AlTeam, timePassed)
 end
 
 -- set all evolution times to 1 second
-SetupClassHook("Embryo", "SetGestationData", "SetGestationData", "PassivePost")
 function Plugin:SetGestationData( Embryo, ... )
 	if self.dt.Enabled then Embryo.gestationTime = 1 end
 end
 
 --Prevent comm from moving crag
-SetupClassHook( "Crag", "GetMaxSpeed", "CragGetMaxSpeed", "ActivePre")
 function Plugin:CragGetMaxSpeed()
 	if self.dt.Enabled then return 0 end
 end
 
 --Prevent comm from moving shifts
-SetupClassHook( "Shift", "GetMaxSpeed", "ShiftGetMaxSpeed", "ActivePre")
 function Plugin:ShiftGetMaxSpeed()
 	if self.dt.Enabled then return 0 end
 end
 
 --prevents placing dead marines in IPs so we can do instant respawn
-SetupClassHook("InfantryPortal", "FillQueueIfFree", "FillQueueIfFree", "Halt")
 function Plugin:FillQueueIfFree( ... )
 	if self.dt.Enabled then return true end
 end
 
 --immobile macs so they don't get lost on the map
-SetupClassHook("MAC", "GetMoveSpeed", "MACGetMoveSpeed", "ActivePre")
 function Plugin:MACGetMoveSpeed( ... )
 	if self.dt.Enabled then return 0 end
 end
 
 -- lets players use macs to instant heal since the immobile mac
 -- cannot move, it may get stuck trying to weld distant objects
-SetupClassHook("MAC", "OnUse", "MACOnUse", "PassivePost")
 function Plugin:MACOnUse( MAC, player, ... )
 	if self.dt.Enabled then player:AddHealth(999, nil, false, nil) end
 end
 
 -- instantly respawn dead marines
-SetupClassHook("MarineTeam", "Update", "MarTeamUpdate", "PassivePost")
 function Plugin:MarTeamUpdate( MarTeam, timePassed )
 	if self.dt.Enabled then
 		local specs = MarTeam:GetSortedRespawnQueue()
 		for i = 1, #specs do
 			local spec = specs[i]
 			MarTeam:RemovePlayerFromRespawnQueue(spec)
-			local success,newMarine = MarTeam:ReplaceRespawnPlayer(spec, nil, nil)
+			local success, newMarine = MarTeam:ReplaceRespawnPlayer(spec, nil, nil)
 			newMarine:SetCameraDistance( 0 )
 		end
 	end
 end
 
-SetupClassHook( "ScoringMixin", "AddAssistKill", "AddAssistKill", "ActivePre")
 function Plugin:AddAssistKill()
 	if self.dt.Enabled then return true end
 end
 
-SetupClassHook( "ScoringMixin", "AddKill", "AddKill", "ActivePre")
 function Plugin:AddKill()
 	if self.dt.Enabled then return true end
 end
 
-SetupClassHook( "ScoringMixin", "AddDeaths", "AddDeaths", "ActivePre")
 function Plugin:AddDeaths()
 	if self.dt.Enabled then return true end
 end
 
-SetupClassHook( "ScoringMixin", "AddScore", "AddScore", "ActivePre")
+
 function Plugin:AddScore(points, res, wasKill)
 	if self.dt.Enabled then return true end
 end
@@ -367,7 +352,6 @@ function Plugin:ClientDisconnect( Client )
 	if Gamerules then self:CheckLimit( Gamerules ) end
 end
 
-SetupClassHook( "NS2Gamerules", "SetGameState", "PreSetGameState", "PassivePre")
 function Plugin:PreSetGameState( Gamerules, NewState )
 	self:DestroyEnts()
 	if Gamerules:GetGameState() == NewState then return end
@@ -377,6 +361,31 @@ function Plugin:PreSetGameState( Gamerules, NewState )
 	else
 		self:Enable()
 	end
+end
+
+function Plugin:SetupHooks()
+	SetupClassHook( "Alien", "ProcessBuyAction", "PreProcessBuyAction", ReplaceGameStarted2 )
+	SetupClassHook( "AlienTeam", "SpawnInitialStructures", "AlienSpawnInitialStructures", "PassivePost" )
+	SetupClassHook( "AlienTeam", "Update", "AlTeamUpdate", "PassivePost")
+	SetupClassHook( "Crag", "GetMaxSpeed", "CragGetMaxSpeed", "ActivePre")
+	SetupClassHook( "Exo", "GetArmorAmount", "ExoGetArmorAmount", "ActivePre" )
+	SetupClassHook( "Marine", "GetArmorAmount", "GetArmorAmount", "ActivePre" )
+	SetupClassHook( "Marine", "GetArmorLevel", "GetArmorUpgradeLevel", "ActivePre" )
+	SetupClassHook( "Marine", "GetWeaponLevel", "GetWeaponUpgradeLevel", "ActivePre" )
+	SetupClassHook( "MarineTeam", "SpawnInitialStructures", "MarSpawnInitialStructures", "PassivePost" )
+	SetupClassHook( "NS2Gamerules", "SetGameState", "PreSetGameState", "PassivePre")
+	SetupClassHook( "Player", "GetWeaponUpgradeLevel", "GetWeaponUpgradeLevel", "ActivePre" )
+	SetupClassHook( "ScoringMixin", "AddAssistKill", "AddAssistKill", "ActivePre")
+	SetupClassHook( "ScoringMixin", "AddDeaths", "AddDeaths", "ActivePre")
+	SetupClassHook( "ScoringMixin", "AddKill", "AddKill", "ActivePre")
+	SetupClassHook( "ScoringMixin", "AddScore", "AddScore", "ActivePre")
+	SetupClassHook( "Shift", "GetMaxSpeed", "ShiftGetMaxSpeed", "ActivePre")
+	SetupClassHook("Embryo", "SetGestationData", "SetGestationData", "PassivePost")
+	SetupClassHook("InfantryPortal", "FillQueueIfFree", "FillQueueIfFree", "Halt")
+	SetupClassHook("MAC", "GetMoveSpeed", "MACGetMoveSpeed", "ActivePre")
+	SetupClassHook("MAC", "OnUse", "MACOnUse", "PassivePost")
+	SetupClassHook("MarineTeam", "Update", "MarTeamUpdate", "PassivePost")
+	SetupGlobalHook( "CanEntityDoDamageTo", "CanEntDoDamageTo", ReplaceGameStarted1 )
 end
 
 function Plugin:Cleanup()
