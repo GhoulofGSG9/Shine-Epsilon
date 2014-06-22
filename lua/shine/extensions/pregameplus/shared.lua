@@ -31,7 +31,7 @@ function Plugin:LookupTechData(techId, fieldName, default)
 			return 999
 		end
 		
-		if not self.dt.AllowMines and techId == kTechId.Mine then return 999 end
+		if not self.dt.AllowMines and techId == kTechId.LayMines then return 999 end
 		
 		return 0
 	end

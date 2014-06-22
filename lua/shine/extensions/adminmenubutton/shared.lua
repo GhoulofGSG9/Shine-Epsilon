@@ -1,6 +1,10 @@
 -- Shine adminmenubutton
 
+local Shine = Shine
 local Plugin = {}
+
+Plugin.Version = "1.0"
+Plugin.HasConfig = false
 
 function Plugin:SetupDataTable()
 	self:AddNetworkMessage( "AdminMenu", {}, "Client" )
@@ -10,9 +14,11 @@ Shine:RegisterExtension( "adminmenubutton", Plugin )
 
 if Server then
 	function Plugin:Initialise()
+		self.Enabled = true
 		for _, Client in ipairs( Shine.GetAllClients() ) do
 			self:ClientConfirmConnect( Client )
 		end
+		return true
 	end
 	
 	function Plugin:ClientConfirmConnect( Client )
