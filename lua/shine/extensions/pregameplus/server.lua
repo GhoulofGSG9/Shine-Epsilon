@@ -255,7 +255,9 @@ end
 function Plugin:DestroyEnts()
 	for i = 1, #self.Ents do
 		local ent = self.Ents[ i ]
-		DestroyEntity( ent )
+		if ent then 
+			DestroyEntity( ent )
+		end
 	end
 	self.Ents = {}
 end

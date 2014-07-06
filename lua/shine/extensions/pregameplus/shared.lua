@@ -19,19 +19,25 @@ local function SetupHooks()
 	SetupGlobalHook( "LookupTechData", "LookupTechData", "ActivePre" )
 end
 
+local Gamemode
 function Plugin:Initialise()
 	self.Enabled = true
 	self:SimpleTimer( 1, function() SetupHooks() end)
+	Gamemode = Shine.GetGamemode()
 	return true
 end
 
 function Plugin:LookupTechData(techId, fieldName, default)
 	if self.dt.Enabled and ( fieldName == kTechDataUpgradeCost or fieldName == kTechDataCostKey ) then         
-		if not self.dt.AllowOnosExo and ( techId == kTechId.Onos or techId == kTechId.Exosuit ) then
+		if not self.dt.AllowOnosExo and ( techId == kTechId.Onos or techId == kTechId.Exosuit or techId == kTechId.ClawRailgunExosuit ) then
 			return 999
 		end
 		
-		if not self.dt.AllowMines and techId == kTechId.LayMines then return 999 end
+		if not self.dt.AllowMines then 
+			if Gamemode == "ns2" and techId == kTechId.LayMines or Gamemode == "mvm" and ( techId == kTechId.DemoMines or techId == kTechId.Mine ) then
+				return 999 
+			end
+		end	
 		
 		return 0
 	end
