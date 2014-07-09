@@ -70,7 +70,7 @@ local function MakeTechEnt( techPoint, mapName, rightOffset, forwardOffset, team
 		SetRandomOrientation( newEnt )
 		newEnt:SetConstructionComplete() 
 	end
-	table.insert( Plugin.Ents, newEnt )
+	table.insert( Plugin.Ents, newEnt:GetId() )
 end
 
 --Hacky stuff
@@ -254,7 +254,8 @@ end
 
 function Plugin:DestroyEnts()
 	for i = 1, #self.Ents do
-		local ent = self.Ents[ i ]
+		local entid = self.Ents[ i ]
+		local ent = Shared.GetEntity(entid)
 		if ent then 
 			DestroyEntity( ent )
 		end
