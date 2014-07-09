@@ -401,8 +401,8 @@ function Plugin:CreateCommands()
 
 		--We're currently waiting for a response on this ban.
 		if self.Retries[ ID ] then
-			self:NotifyError( Client, "Please wait for the current ban request on %s to finish.", true, ID )
-			self:AdminPrint( Client, "Please wait for the current ban request on %s to finish.", true, ID )
+			Shine:NotifyError( Client, "Please wait for the current ban request on %s to finish.", true, ID )
+			Shine:AdminPrint( Client, "Please wait for the current ban request on %s to finish.", true, ID )
 
 			return
 		end
@@ -432,8 +432,8 @@ function Plugin:CreateCommands()
 		if self.Config.Banned[ ID ] then
 			--We're currently waiting for a response on this ban.
 			if self.Retries[ ID ] then
-				self:NotifyError( Client, "Please wait for the current ban request on %s to finish.", true, ID )
-				self:AdminPrint( Client, "Please wait for the current ban request on %s to finish.", true, ID )
+				Shine:NotifyError( Client, "Please wait for the current ban request on %s to finish.", true, ID )
+				Shine:AdminPrint( Client, "Please wait for the current ban request on %s to finish.", true, ID )
 
 				return
 			end
@@ -463,24 +463,24 @@ function Plugin:CreateCommands()
 			ID = Shine.SteamIDToNS2( ID )
 
 			if not ID then
-				self:NotifyError( Client, "Invalid Steam ID for banning." )
-				self:AdminPrint( Client, "Invalid Steam ID for banning." )
+				Shine:NotifyError( Client, "Invalid Steam ID for banning." )
+				Shine:AdminPrint( Client, "Invalid Steam ID for banning." )
 
 				return
 			end
 		end
 
 		if not Shine:CanTarget( Client, tonumber( ID ) ) then
-			self:NotifyError( Client, "You cannot ban %s.", true, ID )
-			self:AdminPrint( Client, "You cannot ban %s.", true, ID )
+			Shine:NotifyError( Client, "You cannot ban %s.", true, ID )
+			Shine:AdminPrint( Client, "You cannot ban %s.", true, ID )
 
 			return
 		end
 
 		--We're currently waiting for a response on this ban.
 		if self.Retries[ ID ] then
-			self:NotifyError( Client, "Please wait for the current ban request on %s to finish.", true, ID )
-			self:AdminPrint( Client, "Please wait for the current ban request on %s to finish.", true, ID )
+			Shine:NotifyError( Client, "Please wait for the current ban request on %s to finish.", true, ID )
+			Shine:AdminPrint( Client, "Please wait for the current ban request on %s to finish.", true, ID )
 
 			return
 		end
@@ -559,7 +559,6 @@ function Plugin:CheckComLogin( Chair, Player )
 		end
 	end
 end
-
 
 function Plugin:ClientDisconnect( Client )
 	if not self.BanNetworkedClients then return end
