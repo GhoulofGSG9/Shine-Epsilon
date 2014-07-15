@@ -102,7 +102,6 @@ function Plugin:ProcessBuyAction()
 	if self.dt.Enabled then return true end
 end
 
-
 function Plugin:CanEntDoDamageTo( Attacker, Target, ... )
 	if not self.dt.Enabled then return end
 	if HasMixin( Target, "Construct" ) or Target:isa("MAC") then return end
@@ -180,12 +179,12 @@ function Plugin:ShiftGetMaxSpeed()
 end
 
 --prevents placing dead marines in IPs so we can do instant respawn
-function Plugin:FillQueueIfFree( ... )
+function Plugin:FillQueueIfFree()
 	if self.dt.Enabled then return true end
 end
 
 --immobile macs so they don't get lost on the map
-function Plugin:MACGetMoveSpeed( ... )
+function Plugin:MACGetMoveSpeed()
 	if self.dt.Enabled then return 0 end
 end
 
@@ -219,7 +218,6 @@ end
 function Plugin:AddDeaths()
 	if self.dt.Enabled then return true end
 end
-
 
 function Plugin:AddScore(points, res, wasKill)
 	if self.dt.Enabled then return true end
@@ -289,8 +287,10 @@ function Plugin:Disable( ChangedGamestate )
 	if not rules then return end
 	rules:SetAllTech( false )
 	
-	if not ChangedGamestate and rules:GetGameState() == kGameState.NotStarted then
-		rules:ResetGame()
+	if rules:GetGameState() == kGameState.NotStarted then
+		if not ChangedGamestate then
+			rules:ResetGame()
+		end
 	end
 end
 

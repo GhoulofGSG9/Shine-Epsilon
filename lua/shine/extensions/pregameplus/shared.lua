@@ -28,7 +28,7 @@ function Plugin:Initialise()
 end
 
 function Plugin:LookupTechData(techId, fieldName, default)
-	if self.dt.Enabled and ( fieldName == kTechDataUpgradeCost or fieldName == kTechDataCostKey ) then         
+	if self.dt.Enabled and ( fieldName == kTechDataUpgradeCost or fieldName == kTechDataCostKey ) then
 		if not self.dt.AllowOnosExo and ( techId == kTechId.Onos or techId == kTechId.Exosuit or techId == kTechId.ClawRailgunExosuit ) then
 			return 999
 		end
@@ -41,6 +41,11 @@ function Plugin:LookupTechData(techId, fieldName, default)
 		
 		return 0
 	end
+end
+
+--fixing issues with TechNode
+function TechNode:GetCost()
+	return LookupTechData(self.techId, kTechDataCostKey, 0)
 end
 
 function Plugin:GetGameStarted()
