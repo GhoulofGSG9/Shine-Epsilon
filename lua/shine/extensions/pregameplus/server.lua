@@ -13,6 +13,7 @@ Plugin.DefaultConfig = {
 	StatusTextColour = { 0, 255, 255 },
 	AllowOnosExo = true,
 	AllowMines = true,
+	AllowCommanding = true,
 	PregameArmorLevel = 3,
 	PregameWeaponLevel = 3,
 	PregameBiomassLevel = 9,
@@ -39,10 +40,12 @@ function Plugin:Initialise()
 	self.Enabled = true
 	self.dt.AllowOnosExo = self.Config.AllowOnosExo
 	self.dt.AllowMines = self.Config.AllowMines
+	self.dt.AllowCommanding = self.Config.AllowCommanding
 	self.dt.BioLevel = math.Clamp( self.Config.PregameBiomassLevel, 1, 12 )
 	self.dt.UpgradeLevel = math.Clamp( self.Config.PregameAlienUpgradesLevel, 0, 3 )
 	self.dt.Enabled = false
 	self.Ents = {}
+	self.ProtectedEnts = {}
 	self:SimpleTimer( 1, function()
 		self:SetupHooks()
 		local rules = GetGamerules()
@@ -70,7 +73,9 @@ local function MakeTechEnt( techPoint, mapName, rightOffset, forwardOffset, team
 		SetRandomOrientation( newEnt )
 		newEnt:SetConstructionComplete() 
 	end
-	table.insert( Plugin.Ents, newEnt:GetId() )
+	local ID = newEnt:GetId()
+	table.insert( Plugin.Ents, ID )
+	Plugin.ProtectedEnts[ ID ] = true
 end
 
 --Hacky stuff
@@ -104,7 +109,7 @@ end
 
 function Plugin:CanEntDoDamageTo( Attacker, Target, ... )
 	if not self.dt.Enabled then return end
-	if HasMixin( Target, "Construct" ) or Target:isa("MAC") then return end
+	if self.ProtectedEnts[ Target:GetId() ] or Target:isa( "InfantryPortal" ) or Target:isa( "Egg" ) or Target:isa( "CommandStructure" ) then return end
 	return true
 end
 
@@ -169,13 +174,18 @@ function Plugin:SetGestationData( Embryo, ... )
 end
 
 --Prevent comm from moving crag
-function Plugin:CragGetMaxSpeed()
-	if self.dt.Enabled then return 0 end
+function Plugin:CragGetMaxSpeed( Crag )
+	if self.ProtectedEnts[ Crag:GetId() ] then return 0 end
 end
 
 --Prevent comm from moving shifts
-function Plugin:ShiftGetMaxSpeed()
-	if self.dt.Enabled then return 0 end
+function Plugin:ShiftGetMaxSpeed( Shift )
+	if self.ProtectedEnts[ Shift:GetId() ] then return 0 end
+end
+
+--prevents start buildings from being teleported
+function Plugin:ShiftGetCanTeleport( Shift )
+	if self.ProtectedEnts[ Shift:GetId() ] then return false end
 end
 
 --prevents placing dead marines in IPs so we can do instant respawn
@@ -184,14 +194,14 @@ function Plugin:FillQueueIfFree()
 end
 
 --immobile macs so they don't get lost on the map
-function Plugin:MACGetMoveSpeed()
-	if self.dt.Enabled then return 0 end
+function Plugin:MACGetMoveSpeed( Mac )
+	if self.ProtectedEnts[ Mac:GetId() ] then return 0 end
 end
 
 -- lets players use macs to instant heal since the immobile mac
 -- cannot move, it may get stuck trying to weld distant objects
-function Plugin:MACOnUse( MAC, player, ... )
-	if self.dt.Enabled then player:AddHealth(999, nil, false, nil) end
+function Plugin:MACOnUse( Mac, Player, ... )
+	if self.dt.Enabled then Player:AddHealth( 999, nil, false, nil ) end
 end
 
 -- instantly respawn dead marines
@@ -200,8 +210,8 @@ function Plugin:MarTeamUpdate( MarTeam, timePassed )
 		local specs = MarTeam:GetSortedRespawnQueue()
 		for i = 1, #specs do
 			local spec = specs[i]
-			MarTeam:RemovePlayerFromRespawnQueue(spec)
-			local success, newMarine = MarTeam:ReplaceRespawnPlayer(spec, nil, nil)
+			MarTeam:RemovePlayerFromRespawnQueue( spec )
+			local success, newMarine = MarTeam:ReplaceRespawnPlayer( spec, nil, nil )
 			newMarine:SetCameraDistance( 0 )
 		end
 	end
@@ -259,6 +269,7 @@ function Plugin:DestroyEnts()
 		end
 	end
 	self.Ents = {}
+	self.ProtectedEnts = {}
 end
 
 function Plugin:Enable()    
@@ -391,6 +402,7 @@ function Plugin:SetupHooks()
 	SetupClassHook( "ScoringMixin", "AddKill", "AddKill", "ActivePre" )
 	SetupClassHook( "ScoringMixin", "AddScore", "AddScore", "ActivePre" )
 	SetupClassHook( "Shift", "GetMaxSpeed", "ShiftGetMaxSpeed", "ActivePre" )
+	SetupClassHook( "TeleportMixin", "GetCanTeleport", "ShiftGetCanTeleport", "ActivePre" )
 	SetupGlobalHook( "CanEntityDoDamageTo", "CanEntDoDamageTo", ReplaceGameStarted1 )
 	SetupGlobalHook( "LookupTechData", "LookupTechData", "ActivePre" )
 end

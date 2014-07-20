@@ -6,8 +6,9 @@ local SetupGlobalHook = Shine.Hook.SetupGlobalHook
 
 function Plugin:SetupDataTable()
 	self:AddDTVar( "boolean", "Enabled", false )
-	self:AddDTVar( "boolean", "AllowOnosExo", false )
-	self:AddDTVar( "boolean", "AllowMines", false )
+	self:AddDTVar( "boolean", "AllowOnosExo", true )
+	self:AddDTVar( "boolean", "AllowMines", true )
+	self:AddDTVar( "boolean", "AllowCommanding", true )
 	self:AddDTVar( "integer (1 to 12)", "BioLevel", 9 )
 	self:AddDTVar( "integer (0 to 3)", "UpgradeLevel", 3 )
 end
@@ -48,8 +49,11 @@ function TechNode:GetCost()
 	return LookupTechData(self.techId, kTechDataCostKey, 0)
 end
 
-function Plugin:GetGameStarted()
-	if self.dt.Enabled then return true end
+function Plugin:GetGameStarted( Player )
+	if self.dt.Enabled then
+		if Player:isa( "Commander" ) and not self.dt.AllowCommanding then return false end
+		return true 
+	end
 end
 
 function Plugin:GetIsPlaying( Player )
