@@ -21,7 +21,7 @@ Plugin.DefaultConfig = {
 	ExtraMessageLine = ""
 }
 Plugin.CheckConfig = true
-Plugin.DefaultState = true
+Plugin.CheckConfigTypes = true
 
 --Text for telling players the current status of PGP
 local statusString = "Pregame \"Sandbox\" - Mode is %s. A match has not started."

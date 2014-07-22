@@ -14,6 +14,7 @@ Plugin.DefaultConfig =
 	MinPlayers = { 18, 26 }
 }
 Plugin.CheckConfig = true
+Plugin.CheckConfigTypes = true
 
 function Plugin:Initialise()
 	local Gamemode = Shine.GetGamemode()
