@@ -18,6 +18,8 @@ local function SetupHooks()
 	SetupClassHook( "Player", "GetGameStarted", "GetGameStarted", "ActivePre" )
 	SetupClassHook( "Player", "GetIsPlaying", "GetIsPlaying", "ActivePre" )
 	SetupGlobalHook( "LookupTechData", "LookupTechData", "ActivePre" )
+	SetupGlobalHook( "ModularExo_GetIsConfigValid", "ModularExo_GetIsConfigValid", ReplaceModularExo_GetIsConfigValid )
+	SetupGlobalHook( "PlayerUI_GetPlayerResources", "PlayerUI_GetPlayerResources", "ActivePre" )
 end
 
 local Gamemode
@@ -26,6 +28,29 @@ function Plugin:Initialise()
 	self:SimpleTimer( 1, function() SetupHooks() end)
 	Gamemode = Shine.GetGamemode()
 	return true
+end
+
+--stuff for modular Exo mod ( guys really use the techtree )
+local function ReplaceModularExo_GetIsConfigValid( OldFunc, ... )
+	local Hook = Shine.Hook.Call( "ModularExo_GetIsConfigValid", ... )
+	if not Hook then return OldFunc(...) end
+	
+	local a, b, resourceCost, powerSupply, powerCost, exoTexturePath = OldFunc(...)
+	resourceCost = resourceCost and 0
+	
+	return a, b, resourceCost, powerSupply, powerCost, exoTexturePath
+end
+
+function Plugin:ModularExo_GetIsConfigValid()
+	if self.dt.Enabled then
+		return self.dt.AllowOnosExo
+	end
+end
+
+function Plugin:PlayerUI_GetPlayerResources()
+	if self.dt.Enabled then 
+		return 100
+	end
 end
 
 function Plugin:LookupTechData(techId, fieldName, default)

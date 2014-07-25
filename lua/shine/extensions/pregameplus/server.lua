@@ -377,6 +377,17 @@ function Plugin:PreSetGameState( Gamerules, NewState )
 	end
 end
 
+--stuff for modular Exo mod ( guys really use the techtree )
+local function ReplaceModularExo_GetIsConfigValid( OldFunc, ... )
+	local Hook = Shine.Hook.Call( "ModularExo_GetIsConfigValid", ... )
+	if not Hook then return OldFunc(...) end
+	
+	local a, b, resourceCost, powerSupply, powerCost, exoTexturePath = OldFunc(...)
+	resourceCost = resourceCost and 0
+	
+	return a, b, resourceCost, powerSupply, powerCost, exoTexturePath
+end
+
 function Plugin:SetupHooks()
 	SetupClassHook( "Alien", "ProcessBuyAction", "PreProcessBuyAction", ReplaceGameStarted2 )
 	SetupClassHook( "AlienTeam", "SpawnInitialStructures", "AlienSpawnInitialStructures", "PassivePost" )
@@ -405,6 +416,7 @@ function Plugin:SetupHooks()
 	SetupClassHook( "TeleportMixin", "GetCanTeleport", "ShiftGetCanTeleport", "ActivePre" )
 	SetupGlobalHook( "CanEntityDoDamageTo", "CanEntDoDamageTo", ReplaceGameStarted1 )
 	SetupGlobalHook( "LookupTechData", "LookupTechData", "ActivePre" )
+	SetupGlobalHook( "ModularExo_GetIsConfigValid", "ModularExo_GetIsConfigValid", ReplaceModularExo_GetIsConfigValid )
 end
 
 function Plugin:Cleanup()
