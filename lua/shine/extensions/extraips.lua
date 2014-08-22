@@ -27,9 +27,9 @@ function Plugin:Initialise()
 end
 
 local count = 0
-local function SpawnInfantryPortal(self, techPoint)
+local function SpawnInfantryPortal(self, techPoint, force)
 	
-	if Plugin.Enabled and count > #Plugin.Config.MinPlayers + 1 then return end
+	if Plugin.Enabled and not force and count > 0 then return end
 	
     local techPointOrigin = techPoint:GetOrigin() + Vector(0, 2, 0)
     
@@ -76,7 +76,7 @@ function Plugin:OnSpawnInitialStructures( Team, TechPoint )
 	
 	for i = 1, #MinPlayers do
 		if PlayerCount >= MinPlayers[i] then 
-			SpawnInfantryPortal(Team, TechPoint)
+			SpawnInfantryPortal(Team, TechPoint, true)
 		end
 	end
 end
