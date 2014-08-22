@@ -26,16 +26,48 @@ function Plugin:Initialise()
 	return true
 end
 
-local function SpawnExtraInfantryPortal( Team, TechPoint )
-	local TechPointOrigin = TechPoint:GetOrigin()
-	local SpawnPoint = GetRandomBuildPosition( kTechId.InfantryPortal, TechPointOrigin, 5 )
-	if SpawnPoint then
-		SpawnPoint = SpawnPoint - Vector( 0, 0.6, 0 )
-		local Ip = CreateEntity( InfantryPortal.kMapName, SpawnPoint, Team:GetTeamNumber() )
-		SetRandomOrientation( Ip )
-		Ip:SetConstructionComplete()
-	end
+local count = 0
+local function SpawnInfantryPortal(self, techPoint)
+	
+	if Plugin.Enabled and count > #Plugin.Config.MinPlayers + 1 then return end
+	
+    local techPointOrigin = techPoint:GetOrigin() + Vector(0, 2, 0)
+    
+    local spawnPoint = nil
+    
+    // First check the predefined spawn points. Look for a close one.
+    for p = 1, #Server.infantryPortalSpawnPoints do
+		
+		if not takenInfantryPortalPoints[p] then 
+			local predefinedSpawnPoint = Server.infantryPortalSpawnPoints[p]
+			if (predefinedSpawnPoint - techPointOrigin):GetLength() <= kInfantryPortalAttachRange then
+				spawnPoint = predefinedSpawnPoint
+				takenInfantryPortalPoints[p] = true
+			end
+		end
+        
+    end
+    
+    if not spawnPoint then
+		
+        spawnPoint = GetRandomBuildPosition( kTechId.InfantryPortal, techPointOrigin, kInfantryPortalAttachRange )
+        spawnPoint = spawnPoint and spawnPoint - Vector( 0, 0.6, 0 )
+		
+    end
+    
+    if spawnPoint then
+    
+        local ip = CreateEntity(InfantryPortal.kMapName, spawnPoint, self:GetTeamNumber())
+        
+        SetRandomOrientation(ip)
+        ip:SetConstructionComplete()
+        
+		count = count + 1
+    end
+    
 end
+
+Shine.Hook.ReplaceLocalFunction( MarineTeam.SpawnInitialStructures, "SpawnInfantryPortal", SpawnInfantryPortal )
 
 Shine.Hook.SetupClassHook( "MarineTeam", "SpawnInitialStructures", "OnSpawnInitialStructures", "PassivePost")
 function Plugin:OnSpawnInitialStructures( Team, TechPoint )
@@ -44,7 +76,7 @@ function Plugin:OnSpawnInitialStructures( Team, TechPoint )
 	
 	for i = 1, #MinPlayers do
 		if PlayerCount >= MinPlayers[i] then 
-			SpawnExtraInfantryPortal( Team, TechPoint )
+			SpawnInfantryPortal(Team, TechPoint)
 		end
 	end
 end
