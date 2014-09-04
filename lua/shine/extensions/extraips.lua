@@ -27,6 +27,8 @@ function Plugin:Initialise()
 end
 
 local count = 0
+local takenInfantryPortalPoints = {}
+
 local function SpawnInfantryPortal(self, techPoint, force)
 	
 	if Plugin.Enabled and not force and count > 0 then return end

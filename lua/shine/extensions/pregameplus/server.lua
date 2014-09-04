@@ -356,7 +356,7 @@ function Plugin:CheckLimit( Gamerules )
 	end
 end
 
-function Plugin:JoinTeam( Gamerules, Player, NewTeam, Force )
+function Plugin:PostJoinTeam( Gamerules, Player )
 	if Gamerules:GetGameState() == kGameState.NotStarted then self:SendText( Player ) end    
 	self:CheckLimit( Gamerules )
 end
