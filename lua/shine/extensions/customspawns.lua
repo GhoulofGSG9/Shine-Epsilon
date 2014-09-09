@@ -30,7 +30,6 @@ Plugin.DefaultConfig =
         [ "ns2_kodiak" ] = false
     }
 }
-Plugin.CheckConfig = true
 
 --list of default cross spawn map settings
 local MapConfigs = {

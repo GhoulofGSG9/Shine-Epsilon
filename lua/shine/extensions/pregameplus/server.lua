@@ -19,15 +19,15 @@ Plugin.DefaultConfig = {
 	PregameBiomassLevel = 9,
 	PregameAlienUpgradesLevel = 3,
 	ExtraMessageLine = ""
+	Strings = {
+		Status = "Pregame \"Sandbox\" - Mode is %s. A match has not started."
+		Limit = "Turns %s when %s %s players."
+		NoLimit = "No player limit."
+		Timer = "Pregame \"Sandbox\" - Mode turning %s in %s seconds."
+	}
 }
 Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
-
---Text for telling players the current status of PGP
-local statusString = "Pregame \"Sandbox\" - Mode is %s. A match has not started."
-local limitString = "Turns %s when %s %s players."
-local noLimitString = "No player limit."
-local timerString = "Pregame \"Sandbox\" - Mode turning %s in %s seconds."
 
 local Shine = Shine
 local SetupClassHook = Shine.Hook.SetupClassHook
@@ -37,6 +37,11 @@ local CreateTimer = Shine.Timer.Create
 local GetEntitiesForTeam = GetEntitiesForTeam
 
 function Plugin:Initialise()
+	local Gamemode = Shine.GetGamemode()
+    if Gamemode ~= "ns2" and Gamemode ~= "mvm" then        
+        return false, StringFormat( "The pregameplus plugin does not work with %s.", Gamemode )
+    end
+	
 	self.Enabled = true
 	self.dt.AllowOnosExo = self.Config.AllowOnosExo
 	self.dt.AllowMines = self.Config.AllowMines
@@ -234,9 +239,9 @@ function Plugin:AddScore(points, res, wasKill)
 end
 
 function Plugin:SendText( Player )
-	local Text = StringFormat("%s\n%s\n%s", StringFormat(statusString, self.dt.Enabled and "enabled" or "disabled"),
-		self.Config.CheckLimit and StringFormat( limitString, self.dt.Enabled and "off" or "on", 
-		self.dt.Enabled and "being above" or "being under", self.Config.PlayerLimit ) or noLimitString, self.Config.ExtraMessageLine )
+	local Text = StringFormat("%s\n%s\n%s", StringFormat(self.Config.Strings.Status, self.dt.Enabled and "enabled" or "disabled"),
+		self.Config.CheckLimit and StringFormat( self.Config.Strings.Limit, self.dt.Enabled and "off" or "on", 
+		self.dt.Enabled and "being above" or "being under", self.Config.PlayerLimit ) or self.Config.Strings.NoLimit, self.Config.ExtraMessageLine )
 	local r,g,b = unpack( self.Config.StatusTextColour )
 	local Message = Shine.BuildScreenMessage( 70, self.Config.StatusTextPosX, self.Config.StatusTextPosY, Text, 1800, r, g, b, 0, 1, 0 )
 	Shine:SendText( Player, Message )
@@ -321,8 +326,8 @@ function Plugin:CreateLimitTimer( On, Gamerules )
 				return
 			end
 			
-			self:UpdateText( StringFormat( "%s\n%s\n%s", StringFormat( statusString, On and "disabled" or "enabled" ),
-				StringFormat( timerString, On and "on" or "off", Timer:GetReps() ), self.Config.ExtraMessageLine ))
+			self:UpdateText( StringFormat( "%s\n%s\n%s", StringFormat( self.Config.Strings.Status, On and "disabled" or "enabled" ),
+				StringFormat( self.Config.Strings.Timer, On and "on" or "off", Timer:GetReps() ), self.Config.ExtraMessageLine ))
 			
 			if Timer:GetReps() == 0 then
 				if On then 
