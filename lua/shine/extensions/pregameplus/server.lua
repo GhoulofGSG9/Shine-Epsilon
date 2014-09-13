@@ -18,12 +18,12 @@ Plugin.DefaultConfig = {
 	PregameWeaponLevel = 3,
 	PregameBiomassLevel = 9,
 	PregameAlienUpgradesLevel = 3,
-	ExtraMessageLine = ""
+	ExtraMessageLine = "",
 	Strings = {
-		Status = "Pregame \"Sandbox\" - Mode is %s. A match has not started."
-		Limit = "Turns %s when %s %s players."
-		NoLimit = "No player limit."
-		Timer = "Pregame \"Sandbox\" - Mode turning %s in %s seconds."
+		Status = "Pregame \"Sandbox\" - Mode is %s. A match has not started.",
+		Limit = "Turns %s when %s %s players.",
+		NoLimit = "No player limit.",
+		Timer = "Pregame \"Sandbox\" - Mode turning %s in %s seconds.",
 	}
 }
 Plugin.CheckConfig = true
@@ -48,6 +48,9 @@ function Plugin:Initialise()
 	self.dt.AllowCommanding = self.Config.AllowCommanding
 	self.dt.BioLevel = math.Clamp( self.Config.PregameBiomassLevel, 1, 12 )
 	self.dt.UpgradeLevel = math.Clamp( self.Config.PregameAlienUpgradesLevel, 0, 3 )
+	self.dt.WeaponLevel = math.Clamp( self.Config.PregameWeaponLevel, 0, 3 )
+	self.dt.ArmorLevel = math.Clamp( self.Config.PregameArmorLevel, 0, 3 )
+	
 	self.dt.Enabled = false
 	self.Ents = {}
 	self.ProtectedEnts = {}
@@ -128,22 +131,6 @@ function Plugin:AlienSpawnInitialStructures( AlienTeam, techPoint )
 	MakeTechEnt( techPoint, Shift.kMapName, -3.5, 2, teamNr )
 end
 
-function Plugin:GetArmorUpgradeLevel( Player )
-	if self.dt.Enabled and not Player:isa("Exo") then return self.Config.PregameArmorLevel end
-end
-
-function Plugin:GetWeaponUpgradeLevel( Player )
-	if self.dt.Enabled and not Player:isa("Exo") then return self.Config.PregameWeaponLevel end
-end
-
-function Plugin:GetArmorAmount( Marine )
-	if self.dt.Enabled then return Marine.kBaseArmor + self.Config.PregameArmorLevel * Marine.kArmorPerUpgradeLevel end
-end
-
-function Plugin:ExoGetArmorAmount()
-	if self.dt.Enabled then return kExosuitArmor + self.Config.PregameArmorLevel * kExosuitArmorPerUpgradeLevel end
-end
-
 -- spawns the armory, proto, armslab and 3 macs
 function Plugin:MarSpawnInitialStructures( MarTeam, techPoint )
 	if not self.dt.Enabled then return end	
@@ -170,6 +157,16 @@ function Plugin:AlTeamUpdate( AlTeam, timePassed )
 			local success, newAlien = AlTeam:ReplaceRespawnPlayer( spec, nil, nil )
 			newAlien:SetCameraDistance( 0 )
 		end
+	end
+end
+
+function Plugin:AlTeamUpdateBioMassLevel( AlienTeam )
+	if self.dt.Enabled then
+		AlienTeam.bioMassLevel = self.Config.PregameBiomassLevel
+		AlienTeam.bioMassAlertLevel = 0
+		AlienTeam.maxBioMassLevel = 12
+		AlienTeam.bioMassFraction = self.Config.PregameBiomassLevel
+		return true
 	end
 end
 
@@ -397,22 +394,15 @@ function Plugin:SetupHooks()
 	SetupClassHook( "Alien", "ProcessBuyAction", "PreProcessBuyAction", ReplaceGameStarted2 )
 	SetupClassHook( "AlienTeam", "SpawnInitialStructures", "AlienSpawnInitialStructures", "PassivePost" )
 	SetupClassHook( "AlienTeam", "Update", "AlTeamUpdate", "PassivePost")
-	SetupClassHook( "AlienTeamInfo", "OnUpdate", "AlienTeamInfoUpdate", "PassivePost" )
+	SetupClassHook( "AlienTeam", "UpdateBioMassLevel", "AlTeamUpdateBioMassLevel", "ActivePre")
 	SetupClassHook( "Crag", "GetMaxSpeed", "CragGetMaxSpeed", "ActivePre")
 	SetupClassHook( "Embryo", "SetGestationData", "SetGestationData", "PassivePost" )
-	SetupClassHook( "Exo", "GetArmorAmount", "ExoGetArmorAmount", "ActivePre" )
 	SetupClassHook( "InfantryPortal", "FillQueueIfFree", "FillQueueIfFree", "Halt" )
 	SetupClassHook( "MAC", "GetMoveSpeed", "MACGetMoveSpeed", "ActivePre" )
 	SetupClassHook( "MAC", "OnUse", "MACOnUse", "PassivePost" )
-	SetupClassHook( "Marine", "GetArmorAmount", "GetArmorAmount", "ActivePre" )
-	SetupClassHook( "Marine", "GetArmorLevel", "GetArmorUpgradeLevel", "ActivePre" )
-	SetupClassHook( "Marine", "GetWeaponLevel", "GetWeaponUpgradeLevel", "ActivePre" )
 	SetupClassHook( "MarineTeam", "SpawnInitialStructures", "MarSpawnInitialStructures", "PassivePost" )
 	SetupClassHook( "MarineTeam", "Update", "MarTeamUpdate", "PassivePost" )
 	SetupClassHook( "NS2Gamerules", "SetGameState", "PreSetGameState", "PassivePre")
-	SetupClassHook( "Player", "GetGameStarted", "GetGameStarted", "ActivePre" )
-	SetupClassHook( "Player", "GetIsPlaying", "GetIsPlaying", "ActivePre" )
-	SetupClassHook( "Player", "GetWeaponUpgradeLevel", "GetWeaponUpgradeLevel", "ActivePre" )
 	SetupClassHook( "ScoringMixin", "AddAssistKill", "AddAssistKill", "ActivePre" )
 	SetupClassHook( "ScoringMixin", "AddDeaths", "AddDeaths", "ActivePre" )
 	SetupClassHook( "ScoringMixin", "AddKill", "AddKill", "ActivePre" )
@@ -420,8 +410,15 @@ function Plugin:SetupHooks()
 	SetupClassHook( "Shift", "GetMaxSpeed", "ShiftGetMaxSpeed", "ActivePre" )
 	SetupClassHook( "TeleportMixin", "GetCanTeleport", "ShiftGetCanTeleport", "ActivePre" )
 	SetupGlobalHook( "CanEntityDoDamageTo", "CanEntDoDamageTo", ReplaceGameStarted1 )
+
+	SetupClassHook( "AlienTeamInfo", "OnUpdate", "AlienTeamInfoUpdate", "PassivePost" )
+	SetupClassHook( "Player", "GetGameStarted", "GetGameStarted", "ActivePre" )
+	SetupClassHook( "Player", "GetIsPlaying", "GetIsPlaying", "ActivePre" )
+	SetupClassHook( "TechNode", "GetResearched", "GetResearched", "ActivePre" )
+	SetupClassHook( "TechNode", "GetHasTech", "GetHasTech", "ActivePre" )
 	SetupGlobalHook( "LookupTechData", "LookupTechData", "ActivePre" )
 	SetupGlobalHook( "ModularExo_GetIsConfigValid", "ModularExo_GetIsConfigValid", ReplaceModularExo_GetIsConfigValid )
+	SetupGlobalHook( "PlayerUI_GetPlayerResources", "PlayerUI_GetPlayerResources", "ActivePre" )
 end
 
 function Plugin:Cleanup()
