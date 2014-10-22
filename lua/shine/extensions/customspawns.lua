@@ -200,7 +200,7 @@ function Plugin:Initialise()
     
 	self.Enabled = true
 	 
-	if Shared.GetMapName() then 
+	if Shared.GetMapName() then
 		self:MapPostLoad()
 	end
 	
@@ -234,13 +234,10 @@ local function LoadMapConfig( Mapname, Gamemode )
 	else
 		MapConfig, Pos, Err = Shine.LoadJSONFile( Path )
 	end
-
-
-	if not MapConfig or not IsType( MapConfig, "table" ) and IsType( Pos, "string" ) and MapConfigs[ Mapname ] then
+	
+	if ( not MapConfig or not IsType( MapConfig, "table" ) ) and MapConfigs[ Mapname ] then
 		Shine.SaveJSONFile( MapConfigs[ Mapname ], Path )
 		MapConfig = MapConfigs[ Mapname ]
-	else
-		return
 	end
 	
 	return MapConfig
@@ -293,10 +290,11 @@ function Plugin:MapPostLoad()
 	if not ValidFile then
 		self.Enabled = false
 		Print( StringFormat( "[Custom Spawns]: Couldn't find a valid spawn set-up file for %s, disabling the plug-in for now", Mapname ))
+		return
 	end
 	
 	--reset game just to apply custom spawns directly
-	GetGamerules():Reset()
+	self:SimpleTimer( 1, function() GetGamerules():ResetGame() end)
 end
 
 function Plugin:OnChooseTechPoint( NS2Gamerules, TechPoint, TeamNumber)

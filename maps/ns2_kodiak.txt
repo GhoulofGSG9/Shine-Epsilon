@@ -1,9 +1,0 @@
-[{
-    "name":"Astroid Tracking",
-    "team":"marines",
-    "enemyspawns":    ["Command"]
-},
-{
-    "name":"Command",
-    "team":"aliens"
-}]
