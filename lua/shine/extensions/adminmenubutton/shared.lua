@@ -33,8 +33,8 @@ if Client then
 		Shine.VoteMenu:EditPage( "Main", function( self )
 			self:AddSideButton( "Admin Menu", function()
 				Shared.ConsoleCommand("sh_adminmenu")
-				self:Clear()
-			end )
+				self:SetIsVisible( false )
+		end )
 		end )
 	end
 end

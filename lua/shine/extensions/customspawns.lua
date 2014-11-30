@@ -3,11 +3,9 @@ Shine Custom Spawns plug-in. - Server
 ]]
 
 local Shine = Shine
-local Notify = Shared.Message
 
 local Lower = string.lower
 local Insert = table.insert
-local JsonDecode = json.decode
 local StringFormat = string.format
 local IsType = Shine.IsType
 
@@ -208,31 +206,15 @@ function Plugin:Initialise()
 end
 
 local function LoadMapConfig( Mapname, Gamemode )
-	local MapConfig
 	local MapPath = StringFormat( "customspawns/%s.json" , Mapname )
 	
 	local Path = Shine.Config.ExtensionDir .. MapPath
-	local Err
-	local Pos
+	local MapConfig = Shine.LoadJSONFile( Path )
 
 	--Look for gamemode specific config file.
-	if Gamemode ~= "ns2" then
-		local Paths = {
-			StringFormat( "%s%s/%s", Shine.Config.ExtensionDir, Gamemode, MapPath ),
-			Path
-		}
-		for i = 1, #Paths do
-			local File, ErrPos, ErrString = Shine.LoadJSONFile( Paths[ i ] )
-			if File then
-				MapConfig = File
-				break
-			elseif IsType( ErrPos, "number" ) then
-				Err = ErrString
-				Pos = ErrPos
-			end
-		end
-	else
-		MapConfig, Pos, Err = Shine.LoadJSONFile( Path )
+	if not MapConfig and Gamemode ~= "ns2" then
+		Path = StringFormat( "%s%s/%s", Shine.Config.ExtensionDir, Gamemode, MapPath )
+		MapConfig = Shine.LoadJSONFile( Path )
 	end
 	
 	if ( not MapConfig or not IsType( MapConfig, "table" ) ) and MapConfigs[ Mapname ] then
@@ -297,25 +279,27 @@ function Plugin:MapPostLoad()
 	self:SimpleTimer( 1, function() GetGamerules():ResetGame() end)
 end
 
-function Plugin:OnChooseTechPoint( NS2Gamerules, TechPoint, TeamNumber)
+function Plugin:OnChooseTechPoint( _, TechPoint, TeamNumber)
 	if TeamNumber == kTeam1Index then
 		Insert( gCustomTechPoints, TechPoint)
+
 		--If getting team1 spawn location, build alien spawns for next check
 		local ValidAlienSpawns = { }
 		for _, CurrentTechPoint in ipairs( gCustomTechPoints ) do
 			local TeamNum = CurrentTechPoint:GetTeamNumberAllowed()
 			if TechPoint.enemyspawns and ( TeamNum == 0 or TeamNum == 2 ) then
-				for _, TempTechPoint in ipairs(TechPoint.enemyspawns) do
+				for _, TempTechPoint in ipairs( TechPoint.enemyspawns ) do
 					if ( TempTechPoint == CurrentTechPoint:GetLocationName() ) then
 						Insert( ValidAlienSpawns, CurrentTechPoint )
 					end
 				end
 			end
 		end
+
 		local RandomTechPointIndex = math.random( #ValidAlienSpawns )
-		ValidAlienSpawn = ValidAlienSpawns[ RandomTechPointIndex ]
+		self.ValidAlienSpawn = ValidAlienSpawns[ RandomTechPointIndex ]
 	elseif TeamNumber == kTeam2Index then
-		TechPoint = ValidAlienSpawn
+		TechPoint = self.ValidAlienSpawn
 	end
 	
     return TechPoint

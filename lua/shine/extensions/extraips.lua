@@ -35,9 +35,9 @@ local function SpawnInfantryPortal(self, techPoint, force)
 	
     local techPointOrigin = techPoint:GetOrigin() + Vector(0, 2, 0)
     
-    local spawnPoint = nil
+    local spawnPoint
     
-    // First check the predefined spawn points. Look for a close one.
+    -- First check the predefined spawn points. Look for a close one.
     for p = 1, #Server.infantryPortalSpawnPoints do
 		
 		if not takenInfantryPortalPoints[p] then 

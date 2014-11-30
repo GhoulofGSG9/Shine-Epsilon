@@ -18,11 +18,11 @@ Plugin.DefaultConfig =
 }
 Plugin.CheckConfig = true
 
-function Plugin:ClientConnect( Client )
+function Plugin:ClientConnect()
     self:DestroyAllTimers()
 end
 
-function Plugin:ClientDisconnect( Client )
+function Plugin:ClientDisconnect()
     if Shine.GetHumanPlayerCount() > self.Config.MinPlayer then return end
     self:SimpleTimer( self.Config.ResetTime * 60, function()
 	if Shine.GetHumanPlayerCount() > self.Config.MinPlayer then return end

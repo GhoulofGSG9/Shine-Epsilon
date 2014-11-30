@@ -26,11 +26,10 @@ local function SetupHooks()
 	SetupGlobalHook( "PlayerUI_GetPlayerResources", "PlayerUI_GetPlayerResources", "ActivePre" )
 end
 
-local Gamemode
 function Plugin:Initialise()
 	self.Enabled = true
 	self:SimpleTimer( 1, function() SetupHooks() end)
-	Gamemode = Shine.GetGamemode()
+	self.Gamemode = Shine.GetGamemode()
 	return true
 end
 
@@ -57,14 +56,14 @@ function Plugin:PlayerUI_GetPlayerResources()
 	end
 end
 
-function Plugin:LookupTechData( techId, fieldName, default)
+function Plugin:LookupTechData( techId, fieldName )
 	if self.dt.Enabled and ( fieldName == kTechDataUpgradeCost or fieldName == kTechDataCostKey ) then
 		if not self.dt.AllowOnosExo and ( techId == kTechId.Onos or techId == kTechId.Exosuit or techId == kTechId.ClawRailgunExosuit ) then
 			return 999
 		end
 		
 		if not self.dt.AllowMines then 
-			if Gamemode == "ns2" and techId == kTechId.LayMines or Gamemode == "mvm" and ( techId == kTechId.DemoMines or techId == kTechId.Mine ) then
+			if self.Gamemode == "ns2" and techId == kTechId.LayMines or self.Gamemode == "mvm" and ( techId == kTechId.DemoMines or techId == kTechId.Mine ) then
 				return 999 
 			end
 		end	
