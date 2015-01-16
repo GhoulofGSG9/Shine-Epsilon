@@ -38,6 +38,7 @@ local GetEntitiesForTeam = GetEntitiesForTeam
 
 function Plugin:Initialise()
 	local Gamemode = Shine.GetGamemode()
+
     if Gamemode ~= "ns2" and Gamemode ~= "mvm" then        
         return false, StringFormat( "The pregameplus plugin does not work with %s.", Gamemode )
     end
@@ -54,15 +55,11 @@ function Plugin:Initialise()
 	self.dt.Enabled = false
 	self.Ents = {}
 	self.ProtectedEnts = {}
-	self:SimpleTimer( 1, function()
-		self:SetupHooks()
-		local rules = GetGamerules()
-		if rules and rules:GetGameState() == kGameState.NotStarted then
-			self:Enable()
-			rules:ResetGame() 
-		end
-	end)
-	
+
+	self.firstreset = true
+
+	self:SetupHooks()
+
 	return true
 end
 
@@ -81,6 +78,7 @@ local function MakeTechEnt( techPoint, mapName, rightOffset, forwardOffset, team
 		SetRandomOrientation( newEnt )
 		newEnt:SetConstructionComplete() 
 	end
+
 	local ID = newEnt:GetId()
 	table.insert( Plugin.Ents, ID )
 	Plugin.ProtectedEnts[ ID ] = true
@@ -111,40 +109,58 @@ local function ReplaceGameStarted2( OldFunc, ... )
 	return temp
 end
 
+--stuff for modular Exo mod ( guys really use the techtree )
+local function ReplaceModularExo_GetIsConfigValid( OldFunc, ... )
+	local Hook = Shine.Hook.Call( "ModularExo_GetIsConfigValid", ... )
+	if not Hook then return OldFunc(...) end
+
+	local a, b, resourceCost, powerSupply, powerCost, exoTexturePath = OldFunc(...)
+	resourceCost = resourceCost and 0
+
+	return a, b, resourceCost, powerSupply, powerCost, exoTexturePath
+end
+
+function Plugin:SetupHooks()
+	SetupClassHook( "Alien", "ProcessBuyAction", "PreProcessBuyAction", ReplaceGameStarted2 )
+	SetupClassHook( "AlienTeam", "Update", "AlTeamUpdate", "PassivePost")
+	SetupClassHook( "AlienTeam", "UpdateBioMassLevel", "AlTeamUpdateBioMassLevel", "ActivePre")
+	SetupClassHook( "Crag", "GetMaxSpeed", "CragGetMaxSpeed", "ActivePre")
+	SetupClassHook( "Embryo", "SetGestationData", "SetGestationData", "PassivePost" )
+	SetupClassHook( "InfantryPortal", "FillQueueIfFree", "FillQueueIfFree", "Halt" )
+	SetupClassHook( "MAC", "GetMoveSpeed", "MACGetMoveSpeed", "ActivePre" )
+	SetupClassHook( "MAC", "OnUse", "MACOnUse", "PassivePost" )
+	SetupClassHook( "MarineTeam", "Update", "MarTeamUpdate", "PassivePost" )
+	SetupClassHook( "ScoringMixin", "AddAssistKill", "AddAssistKill", "ActivePre" )
+	SetupClassHook( "ScoringMixin", "AddDeaths", "AddDeaths", "ActivePre" )
+	SetupClassHook( "ScoringMixin", "AddKill", "AddKill", "ActivePre" )
+	SetupClassHook( "ScoringMixin", "AddScore", "AddScore", "ActivePre" )
+	SetupClassHook( "Shift", "GetMaxSpeed", "ShiftGetMaxSpeed", "ActivePre" )
+	SetupClassHook( "TeleportMixin", "GetCanTeleport", "ShiftGetCanTeleport", "ActivePre" )
+	SetupGlobalHook( "CanEntityDoDamageTo", "CanEntDoDamageTo", ReplaceGameStarted1 )
+
+	SetupClassHook( "NS2Gamerules", "ResetGame", "OnResetGame", "PassivePre" )
+	SetupClassHook( "AlienTeamInfo", "OnUpdate", "AlienTeamInfoUpdate", "PassivePost" )
+	SetupClassHook( "Player", "GetGameStarted", "GetGameStarted", "ActivePre" )
+	SetupClassHook( "Player", "GetIsPlaying", "GetIsPlaying", "ActivePre" )
+	SetupClassHook( "TechNode", "GetResearched", "GetResearched", "ActivePre" )
+	SetupClassHook( "TechNode", "GetHasTech", "GetHasTech", "ActivePre" )
+	SetupGlobalHook( "LookupTechData", "LookupTechData", "ActivePre" )
+	SetupGlobalHook( "ModularExo_GetIsConfigValid", "ModularExo_GetIsConfigValid", ReplaceModularExo_GetIsConfigValid )
+	SetupGlobalHook( "PlayerUI_GetPlayerResources", "PlayerUI_GetPlayerResources", "ActivePre" )
+end
+
 function Plugin:ProcessBuyAction()
 	if self.dt.Enabled then return true end
 end
 
 function Plugin:CanEntDoDamageTo( Attacker, Target, ... )
 	if not self.dt.Enabled then return end
-	if self.ProtectedEnts[ Target:GetId() ] or Target:isa( "InfantryPortal" ) or Target:isa( "Egg" ) or Target:isa( "CommandStructure" ) then return end
-	return true
-end
 
--- spawn crags for faster healing
-function Plugin:AlienSpawnInitialStructures( AlienTeam, techPoint )	
-	if not self.dt.Enabled then return end
-	
-	local teamNr = AlienTeam:GetTeamNumber()
-	MakeTechEnt( techPoint, Crag.kMapName, 3.5, 2, teamNr )
-	MakeTechEnt( techPoint, Crag.kMapName, 3.5, -2, teamNr )
-	MakeTechEnt( techPoint, Shift.kMapName, -3.5, 2, teamNr )
-end
-
--- spawns the armory, proto, armslab and 3 macs
-function Plugin:MarSpawnInitialStructures( MarTeam, techPoint )
-	if not self.dt.Enabled then return end	
-	local teamNr = MarTeam:GetTeamNumber()
-	
-	--don't spawn them if cheats is on(it already does it)
-	if not ( Shared.GetCheatsEnabled() and MarineTeam.gSandboxMode ) then
-		MakeTechEnt(techPoint, AdvancedArmory.kMapName, 3.5, -2, teamNr)
-		MakeTechEnt(techPoint, PrototypeLab.kMapName, -3.5, 2, teamNr)
+	if self.ProtectedEnts[ Target:GetId() ] then
+		return
 	end
 
-	for i = 1, 3 do
-		MakeTechEnt(techPoint, MAC.kMapName, 3.5, 2, teamNr)
-	end	
+	return true
 end
 
 -- instantly spawn dead aliens
@@ -270,41 +286,90 @@ function Plugin:DestroyEnts()
 			DestroyEntity( ent )
 		end
 	end
+
 	self.Ents = {}
 	self.ProtectedEnts = {}
 end
 
-function Plugin:Enable()    
-	if self.dt.Enabled then return end
-	self.dt.Enabled = true
-	self:StartText()
-	self.PlayerCount = GetPlayerinTeams()
-	
-	--Timer avoids issue that teams might not yet be initialized
-	self:SimpleTimer( 1, function()
-		local rules = GetGamerules()
-		if not rules then return end
-		rules:SetAllTech( true )
-		self:CheckLimit( rules )
-	end)
-	
+local function SpawnBuildings( team )
+	local teamNr = team:GetTeamNumber()
+	local techPoint = team:GetInitialTechPoint()
+
+	if team:GetTeamType() == kAlienTeamType then
+		MakeTechEnt( techPoint, Crag.kMapName, 3.5, 2, teamNr )
+		MakeTechEnt( techPoint, Crag.kMapName, 3.5, -2, teamNr )
+		MakeTechEnt( techPoint, Shift.kMapName, -3.5, 2, teamNr )
+	else
+		--don't spawn them if cheats is on(it already does it)
+		if not ( Shared.GetCheatsEnabled() and MarineTeam.gSandboxMode ) then
+			MakeTechEnt(techPoint, AdvancedArmory.kMapName, 3.5, -2, teamNr)
+			MakeTechEnt(techPoint, PrototypeLab.kMapName, -3.5, 2, teamNr)
+		end
+
+		for i = 1, 3 do
+			MakeTechEnt(techPoint, MAC.kMapName, 3.5, 2, teamNr)
+		end
+	end
 end
 
-function Plugin:Disable( ChangedGamestate )
+local function CheckState()
+	local self = Plugin
+
+	local Gamerules = GetGamerules()
+	local State = Gamerules:GetGameState()
+
+	if State == kGameState.NotStarted then
+		self:Enable()
+	end
+end
+
+function Plugin:OnResetGame()
+	self:Disable()
+
+	self:SimpleTimer(0.1, CheckState)
+end
+
+function Plugin:Enable()    
+	if self.dt.Enabled then return end
+
+	self.PlayerCount = GetPlayerinTeams()
+
+	if self.Config.CheckLimit and tonumber( self.Config.PlayerLimit ) <= self.PlayerCount then return end
+
+	self.dt.Enabled = true
+
+	self:StartText()
+
+	local Rules = GetGamerules()
+	if not Rules then return end
+
+	Rules:SetAllTech( true )
+
+	local Team1 = Rules:GetTeam1()
+	local Team2 = Rules:GetTeam2()
+
+	SpawnBuildings(Team1)
+	SpawnBuildings(Team2)
+
+	for _, ent in ipairs( GetEntitiesWithMixin( "Construct" ) ) do
+		self.ProtectedEnts[ ent:GetId() ] = true
+	end
+end
+
+function Plugin:Disable()
 	if not self.dt.Enabled then return end
-	self.dt.Enabled = false    
+
+	self:DestroyEnts()
+
+	self.dt.Enabled = false
+
 	self:DestroyAllTimers()
 	self:RemoveText()
 	
 	local rules = GetGamerules()
 	if not rules then return end
+
 	rules:SetAllTech( false )
-	
-	if rules:GetGameState() == kGameState.NotStarted then
-		if not ChangedGamestate then
-			rules:ResetGame()
-		end
-	end
 end
 
 function Plugin:CreateLimitTimer( On, Gamerules )
@@ -327,102 +392,44 @@ function Plugin:CreateLimitTimer( On, Gamerules )
 				StringFormat( self.Config.Strings.Timer, On and "on" or "off", Timer:GetReps() ), self.Config.ExtraMessageLine ))
 			
 			if Timer:GetReps() == 0 then
+				Gamerules:ResetGame()
+
 				if On then 
 					self:Enable()
-					Gamerules:ResetGame() 
 				else
-					self:Disable()
 					self:SimpleTimer( 1, function() self:StartText() end )					
 				end
 			end
 		end)
 	else
+		Gamerules:ResetGame()
+
 		if On then 
 			self:Enable()
-		else
-			self:Disable()
 		end
 	end
 end
 
 function Plugin:CheckLimit( Gamerules )
+	if not self.Config.CheckLimit and Gamerules:GetGameState() ~= kGameState.NotStarted then return end
+
 	self.PlayerCount = GetPlayerinTeams()
-	
-	if self.Config.CheckLimit and Gamerules:GetGameState() == kGameState.NotStarted then
-		local PlayerLimit = tonumber( self.Config.PlayerLimit )
-		if self.PlayerCount >= PlayerLimit and self.dt.Enabled then
-			self:CreateLimitTimer( false, Gamerules )
-		elseif self.PlayerCount < PlayerLimit and not self.dt.Enabled then
-			self:CreateLimitTimer( true, Gamerules )
-		end
+
+	if tonumber( self.Config.PlayerLimit ) >= self.PlayerCount and self.dt.Enabled or not self.dt.Enabled then
+		self:CreateLimitTimer( not self.dt.Enabled , Gamerules )
 	end
 end
 
 function Plugin:PostJoinTeam( Gamerules, Player )
-	if Gamerules:GetGameState() == kGameState.NotStarted then self:SendText( Player ) end    
-	self:CheckLimit( Gamerules )
-end
-
-function Plugin:ClientDisconnect( Client )
-	local Gamerules = GetGamerules()
-	if Gamerules then self:CheckLimit( Gamerules ) end
-end
-
-function Plugin:PreSetGameState( Gamerules, NewState )
-	self:DestroyEnts()
-	if Gamerules:GetGameState() == NewState then return end
-	
-	if NewState ~= kGameState.NotStarted then 
-		self:Disable( true )
-	else
-		self:Enable()
+	if Gamerules:GetGameState() == kGameState.NotStarted then
+		self:SendText( Player )
+		self:CheckLimit( Gamerules )
 	end
-end
-
---stuff for modular Exo mod ( guys really use the techtree )
-local function ReplaceModularExo_GetIsConfigValid( OldFunc, ... )
-	local Hook = Shine.Hook.Call( "ModularExo_GetIsConfigValid", ... )
-	if not Hook then return OldFunc(...) end
-	
-	local a, b, resourceCost, powerSupply, powerCost, exoTexturePath = OldFunc(...)
-	resourceCost = resourceCost and 0
-	
-	return a, b, resourceCost, powerSupply, powerCost, exoTexturePath
-end
-
-function Plugin:SetupHooks()
-	SetupClassHook( "Alien", "ProcessBuyAction", "PreProcessBuyAction", ReplaceGameStarted2 )
-	SetupClassHook( "AlienTeam", "SpawnInitialStructures", "AlienSpawnInitialStructures", "PassivePost" )
-	SetupClassHook( "AlienTeam", "Update", "AlTeamUpdate", "PassivePost")
-	SetupClassHook( "AlienTeam", "UpdateBioMassLevel", "AlTeamUpdateBioMassLevel", "ActivePre")
-	SetupClassHook( "Crag", "GetMaxSpeed", "CragGetMaxSpeed", "ActivePre")
-	SetupClassHook( "Embryo", "SetGestationData", "SetGestationData", "PassivePost" )
-	SetupClassHook( "InfantryPortal", "FillQueueIfFree", "FillQueueIfFree", "Halt" )
-	SetupClassHook( "MAC", "GetMoveSpeed", "MACGetMoveSpeed", "ActivePre" )
-	SetupClassHook( "MAC", "OnUse", "MACOnUse", "PassivePost" )
-	SetupClassHook( "MarineTeam", "SpawnInitialStructures", "MarSpawnInitialStructures", "PassivePost" )
-	SetupClassHook( "MarineTeam", "Update", "MarTeamUpdate", "PassivePost" )
-	SetupClassHook( "NS2Gamerules", "SetGameState", "PreSetGameState", "PassivePre")
-	SetupClassHook( "ScoringMixin", "AddAssistKill", "AddAssistKill", "ActivePre" )
-	SetupClassHook( "ScoringMixin", "AddDeaths", "AddDeaths", "ActivePre" )
-	SetupClassHook( "ScoringMixin", "AddKill", "AddKill", "ActivePre" )
-	SetupClassHook( "ScoringMixin", "AddScore", "AddScore", "ActivePre" )
-	SetupClassHook( "Shift", "GetMaxSpeed", "ShiftGetMaxSpeed", "ActivePre" )
-	SetupClassHook( "TeleportMixin", "GetCanTeleport", "ShiftGetCanTeleport", "ActivePre" )
-	SetupGlobalHook( "CanEntityDoDamageTo", "CanEntDoDamageTo", ReplaceGameStarted1 )
-
-	SetupClassHook( "AlienTeamInfo", "OnUpdate", "AlienTeamInfoUpdate", "PassivePost" )
-	SetupClassHook( "Player", "GetGameStarted", "GetGameStarted", "ActivePre" )
-	SetupClassHook( "Player", "GetIsPlaying", "GetIsPlaying", "ActivePre" )
-	SetupClassHook( "TechNode", "GetResearched", "GetResearched", "ActivePre" )
-	SetupClassHook( "TechNode", "GetHasTech", "GetHasTech", "ActivePre" )
-	SetupGlobalHook( "LookupTechData", "LookupTechData", "ActivePre" )
-	SetupGlobalHook( "ModularExo_GetIsConfigValid", "ModularExo_GetIsConfigValid", ReplaceModularExo_GetIsConfigValid )
-	SetupGlobalHook( "PlayerUI_GetPlayerResources", "PlayerUI_GetPlayerResources", "ActivePre" )
 end
 
 function Plugin:Cleanup()
 	self:Disable()
-	self.BaseClass.Cleanup( self )    
+	self.BaseClass.Cleanup( self )
+
 	self.Enabled = false
 end
