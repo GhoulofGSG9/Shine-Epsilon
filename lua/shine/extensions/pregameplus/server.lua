@@ -145,7 +145,10 @@ function Plugin:SetupHooks()
 	SetupClassHook( "TechNode", "GetResearched", "GetResearched", "ActivePre" )
 	SetupClassHook( "TechNode", "GetHasTech", "GetHasTech", "ActivePre" )
 	SetupGlobalHook( "LookupTechData", "LookupTechData", "ActivePre" )
-	SetupGlobalHook( "ModularExo_GetIsConfigValid", "ModularExo_GetIsConfigValid", ReplaceModularExo_GetIsConfigValid )
+
+	self:SimpleTimer( 1, function()
+		SetupGlobalHook( "ModularExo_GetIsConfigValid", "ModularExo_GetIsConfigValid", ReplaceModularExo_GetIsConfigValid )
+	end)
 	SetupGlobalHook( "PlayerUI_GetPlayerResources", "PlayerUI_GetPlayerResources", "ActivePre" )
 end
 
@@ -332,13 +335,12 @@ end
 function Plugin:Enable()    
 	if self.dt.Enabled then return end
 
-	self.PlayerCount = GetPlayerinTeams()
+	self:StartText()
 
+	self.PlayerCount = GetPlayerinTeams()
 	if self.Config.CheckLimit and tonumber( self.Config.PlayerLimit ) <= self.PlayerCount then return end
 
 	self.dt.Enabled = true
-
-	self:StartText()
 
 	local Rules = GetGamerules()
 	if not Rules then return end
@@ -357,6 +359,9 @@ function Plugin:Enable()
 end
 
 function Plugin:Disable()
+
+	self:RemoveText()
+
 	if not self.dt.Enabled then return end
 
 	self:DestroyEnts()
@@ -364,7 +369,6 @@ function Plugin:Disable()
 	self.dt.Enabled = false
 
 	self:DestroyAllTimers()
-	self:RemoveText()
 	
 	local rules = GetGamerules()
 	if not rules then return end
