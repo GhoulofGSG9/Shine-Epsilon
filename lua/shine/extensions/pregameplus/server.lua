@@ -419,7 +419,7 @@ function Plugin:CheckLimit( Gamerules )
 
 	self.PlayerCount = GetPlayerinTeams()
 
-	if tonumber( self.Config.PlayerLimit ) >= self.PlayerCount and self.dt.Enabled or not self.dt.Enabled then
+	if tonumber( self.Config.PlayerLimit ) < self.PlayerCount and self.dt.Enabled or not self.dt.Enabled then
 		self:CreateLimitTimer( not self.dt.Enabled , Gamerules )
 	end
 end
