@@ -55,7 +55,10 @@ function Plugin:ClientDisconnect( Client )
 end
 
 function Plugin:PostJoinTeam( Gamerules, Player, OldTeam )
-    if self.Config.Teams[OldTeam] and #self.Config.Teams[OldTeam].InformAboutFreeSpace ~= 0 then
+    if OldTeam < 0 then return end
+
+    if self.Config.Teams[OldTeam] and #self.Config.Teams[OldTeam].InformAboutFreeSpace ~= 0 and
+            Gamerules:GetTeam(OldTeam):GetNumPlayers() + 1 == self.Config.Teams[OldTeam].MaxPlayers then
         for _, i in ipairs(self.Config.Teams[OldTeam].InformAboutFreeSpace) do
             local Team = Gamerules:GetTeam(i)
             local Players = Team and Team:GetPlayers()
