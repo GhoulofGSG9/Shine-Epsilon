@@ -3,6 +3,8 @@ Shine Custom Spawns plug-in. - Server
 ]]
 
 local Shine = Shine
+local SetupClassHook = Shine.Hook.SetupClassHook
+
 
 local Lower = string.lower
 local StringFormat = string.format
@@ -181,18 +183,21 @@ local MapConfigs = {
 	},
 }
 
-Shine.Hook.SetupClassHook( "NS2Gamerules", "ChooseTechPoint", "OnChooseTechPoint",
+SetupClassHook( "NS2Gamerules", "ChooseTechPoint", "OverrideChooseTechPoint",
 	function( OldFunc, NS2Gamerules,  TechPoints, TeamNumber )
 
-	Shine.Hook.Call( "PreChooseTechPoint",  NS2Gamerules, TechPoints, TeamNumber )
+	local Pre = Shine.Hook.Call( "PreChooseTechPoint",  NS2Gamerules, TechPoints, TeamNumber)
+	if Pre then return Pre end
 
-    --Override default tech point choosing function to something that supports using the caches
     local TechPoint = OldFunc( NS2Gamerules, TechPoints, TeamNumber )
-    local Ret = Shine.Hook.Call( "OnChooseTechPoint",  NS2Gamerules, TechPoint, TeamNumber, TechPoints )
-    return Ret or TechPoint
+    Shine.Hook.Call( "PostChooseTechPoint",  NS2Gamerules, TechPoint, TeamNumber)
+    return TechPoint
 end )
-Shine.Hook.SetupClassHook( "NS2Gamerules", "ResetGame", "OnGameReset", "PassivePre")
-Shine.Hook.SetupClassHook( "AlienTeam", "SpawnInitialStructures", "PostAlienTeamSpawnInitialStructures",
+SetupClassHook( "NS2Gamerules", "ResetGame", "OnGameReset", "PassivePre")
+SetupClassHook( "TechPoint", "OnInitialized", "TechPointIntialized", "PassivePost")
+SetupClassHook( "TechPoint", "GetChooseWeight", "OnGetChooseWeight", "ActivePre")
+SetupClassHook( "TechPoint", "GetTeamNumberAllowed", "OnGetTeamNumberAllowed", "ActivePre")
+SetupClassHook( "AlienTeam", "SpawnInitialStructures", "PostAlienTeamSpawnInitialStructures",
 	function( OldFunc, self, TechPoint)
 		local Tower, CommandStructure = OldFunc(self, TechPoint)
 		Shine.Hook.Call( "PostAlienTeamSpawnInitialStructures", self, TechPoint, Tower, CommandStructure )
@@ -200,16 +205,13 @@ Shine.Hook.SetupClassHook( "AlienTeam", "SpawnInitialStructures", "PostAlienTeam
 	end)
 
 function Plugin:Initialise()
-    self.Gamemode = Shine.GetGamemode()
-    if self.Gamemode ~= "ns2" and self.Gamemode ~= "mvm" then
-        return false, StringFormat( "The customspawns plugin does not work with %s.", Gamemode )
-    end
-    
-	self.Enabled = true
-	 
-	if GetGamerules and GetGamerules() then
-		GetGamerules():ResetGame()
+	self.Gamemode = Shine.GetGamemode()
+	if self.Gamemode ~= "ns2" and self.Gamemode ~= "mvm" then
+		return false, StringFormat( "The customspawns plugin does not work with %s.", self.Gamemode )
 	end
+
+	self.TechPoints = {}
+	self.Enabled = true
 	
     return true
 end
@@ -234,73 +236,109 @@ local function LoadMapConfig( Mapname, Gamemode )
 	return MapConfig
 end
 
-local ValidFile = false
-function Plugin:PreChooseTechPoint( _, TechPoints )
-	if ValidFile or not self.Enabled then return end
+function Plugin:TechPointIntialized( TechPoint )
+	--Don't rebuild table after we have parsed the config!
+	if self.Spawns then return end
 
-	if not self.Config.Maps[ Shared.GetMapName() ] then 
-		self.Enabled = false
+	self.TechPoints[ Lower(TechPoint:GetLocationName()) ] = TechPoint
+end
+
+function Plugin:OnGetChooseWeight()
+	return 1
+end
+
+function Plugin:ParseMapConfig()
+	local MapName = Lower( Shared.GetMapName() )
+	if not self.Config.Maps[ MapName ] then
+		Shine:UnloadExtension( "customspawns" )
 		return
 	end
 
-	local Mapname = Shared.GetMapName()
-	local Temp = LoadMapConfig( Mapname, self.Gamemode )
-	
-	if Temp then
-		for _, TempTechPoint in ipairs( Temp ) do
-			for _, CurrentTechPoint in ipairs( TechPoints ) do
-				if Lower( TempTechPoint.name ) == Lower( CurrentTechPoint:GetLocationName() ) then						
-					--Modify the teams allowed to spawn here
-					if  Lower( TempTechPoint.team ) == "marines" then
-						CurrentTechPoint.allowedTeamNumber = 1
-					elseif Lower( TempTechPoint.team ) == "aliens" then
-						CurrentTechPoint.allowedTeamNumber = 2
-					elseif Lower( TempTechPoint.team ) == "both" then
-						CurrentTechPoint.allowedTeamNumber = 0
-					--If we don't understand the team, no teams can spawn here
-					else
-						CurrentTechPoint.allowedTeamNumber = 3
-					end
-					
-					--Assign the valid enemy spawns to the tech point
-					if TempTechPoint.enemyspawns then
-						CurrentTechPoint.enemyspawns = TempTechPoint.enemyspawns
-					end
-					
-					--Reset the weight parameter (will be customizable in the File later)
-					CurrentTechPoint.chooseWeight = 1
+	self.Spawns = self.TechPoints
+	self.TechPoints = nil
 
-					ValidFile = true
-				end
-			end
+	local Spawns = LoadMapConfig( MapName, self.Gamemode )
+
+	local NumAlienSpawns = 0
+	local NumMarineSpawns = 0
+
+	for _, Spawn in ipairs(Spawns) do
+		local name = Lower( Spawn.name )
+
+		if not self.Spawns[ name ] then
+			return StringFormat("[CustomSpawns]: Couldn't parse the given mapconfig as %s is not a valid spawn!", Spawn.Name )
 		end
+
+		if not Spawn.enemyspawns or not type( Spawn.enemyspawns ) == "table" or #Spawn.enemyspawns < 1 then
+			return StringFormat("[CustomSpawns]: Couldn't parse the given mapconfig as %s has no valid enemyspawns!", Spawn.Name )
+		end
+
+		self.Spawns[ name ].enemyspawns = Spawn.enemyspawns
+
+		if not Spawn.team then
+			return StringFormat("[CustomSpawns]: Couldn't parse the given mapconfig as %s has no valid team!", Spawn.Name )
+		end
+
+		local team = 3
+		local teamname = Lower( Spawn.team )
+		if teamname == "both" then
+			NumAlienSpawns = NumAlienSpawns + 1
+			NumMarineSpawns = NumMarineSpawns + 1
+			team = 0
+		elseif teamname == "aliens" then
+			NumAlienSpawns = NumAlienSpawns + 1
+			team = 2
+		elseif teamname == "marines" then
+			NumMarineSpawns = NumMarineSpawns + 1
+			team = 1
+		end
+
+		self.Spawns[ name ].team = team
 	end
 
-	if not ValidFile then
-		self.Enabled = false
-		Shared.Message( StringFormat( "[Custom Spawns]: Couldn't find a valid spawn set-up file for %s, disabling the plug-in for now", Mapname ))
+	if NumAlienSpawns < 1 or NumMarineSpawns < 1 then
+		return "[CustomSpawns]: Couldn't parse the given mapconfig are not enought spawns for both teams!"
 	end
 end
 
-function Plugin:OnChooseTechPoint( _, TechPoint, TeamNumber, TechPoints)
-	if TeamNumber == kTeam1Index then
-		--If getting team1 spawn location, build alien spawns for next check
-		local RandomTechPointIndex = math.random( #TechPoint.enemyspawns )
-		self.ValidAlienSpawn = TechPoint.enemyspawns[ RandomTechPointIndex ]
-	elseif TeamNumber == kTeam2Index and self.ValidAlienSpawn and
-			Lower( TechPoint:GetLocationName() ) ~= Lower( self.ValidAlienSpawn ) then
-		for _, techPoint in pairs(TechPoints) do
-			if Lower( techPoint:GetLocationName() ) == Lower(self.ValidAlienSpawn) then
-				TechPoint = techPoint
-			end
+function Plugin:OnGetTeamNumberAllowed( TechPoint )
+	if self.Spawns == nil then
+		local error = self:ParseMapConfig()
+		if error then
+			Shared.Message(error)
+			Shine.UnloadExtension( "customspawns" )
+			return
 		end
 	end
-	
-    return TechPoint
+
+	local name =  Lower( TechPoint:GetLocationName() )
+	return self.Spawns[ name ] and self.Spawns[ name ].team or 3
+end
+
+--Called after a techpoint has been chosen.
+function Plugin:PostChooseTechPoint( _, TechPoint, TeamNumber)
+	if TeamNumber == kTeam1Index then
+		local name =  Lower( TechPoint:GetLocationName() )
+		local enemyspawns = self.Spawns[ name ] and self.Spawns[ name ].enemyspawns
+		if enemyspawns then
+			local random = math.random( #enemyspawns )
+			self.ValidAlienSpawn = self.Spawns[ Lower( enemyspawns[ random ] ) ]
+		end
+	end
+end
+
+--Called before a techpoint has been chosen, if this returns soemthing it gets immediately returned by the hooked function
+function Plugin:PreChooseTechPoint( _, _, TeamNumber)
+	if TeamNumber == kTeam2Index and self.ValidAlienSpawn then
+		local TechPoint = self.ValidAlienSpawn
+		self.ValidAlienSpawn = nil
+		return TechPoint
+	end
 end
 
 function Plugin:OnGameReset()
     Server.spawnSelectionOverrides = false
+    Server.teamSpawnOverride = false
 end
 
 --Needed to avoid that Harvester die at tech point where no cysts are pre-placed
@@ -329,5 +367,16 @@ function Plugin:PostAlienTeamSpawnInitialStructures( Team, _, Tower )
 		end
 	end
 end
+
+function Plugin:CleanUp()
+	self.TechPoints = nil
+	self.Spawns = nil
+	self.ValidAlienSpawn = nil
+
+	self.BaseClass.CleanUp()
+
+	self.Enabled = false
+end
+
 
 Shine:RegisterExtension( "customspawns", Plugin )
