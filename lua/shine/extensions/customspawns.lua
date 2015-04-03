@@ -170,7 +170,7 @@ local MapConfigs = {
 	},
 	[ "ns2_kodiak" ] = {
 		{
-			name = "Astroid Tracking",
+			name = "Asteroid Tracking",
 			team = "marines",
 			enemyspawns = { 
 				"Command" 
@@ -240,7 +240,10 @@ function Plugin:TechPointIntialized( TechPoint )
 	--Don't rebuild table after we have parsed the config!
 	if self.Spawns then return end
 
-	self.TechPoints[ Lower(TechPoint:GetLocationName()) ] = TechPoint
+	local name = Lower(TechPoint:GetLocationName())
+	if name == "" then return end --seems like there are sometimes techpoints without a name
+
+	self.TechPoints[ name ] = TechPoint
 end
 
 function Plugin:OnGetChooseWeight()
@@ -250,12 +253,11 @@ end
 function Plugin:ParseMapConfig()
 	local MapName = Lower( Shared.GetMapName() )
 	if not self.Config.Maps[ MapName ] then
-		Shine:UnloadExtension( "customspawns" )
+		self.Enabled = false --So the command might be used
 		return
 	end
 
 	self.Spawns = self.TechPoints
-	self.TechPoints = nil
 
 	local Spawns = LoadMapConfig( MapName, self.Gamemode )
 
@@ -266,17 +268,11 @@ function Plugin:ParseMapConfig()
 		local name = Lower( Spawn.name )
 
 		if not self.Spawns[ name ] then
-			return StringFormat("[CustomSpawns]: Couldn't parse the given mapconfig as %s is not a valid spawn!", Spawn.Name )
+			return StringFormat("%s in the given mapconfig is not a valid spawn!", Spawn.name )
 		end
-
-		if not Spawn.enemyspawns or not type( Spawn.enemyspawns ) == "table" or #Spawn.enemyspawns < 1 then
-			return StringFormat("[CustomSpawns]: Couldn't parse the given mapconfig as %s has no valid enemyspawns!", Spawn.Name )
-		end
-
-		self.Spawns[ name ].enemyspawns = Spawn.enemyspawns
 
 		if not Spawn.team then
-			return StringFormat("[CustomSpawns]: Couldn't parse the given mapconfig as %s has no valid team!", Spawn.Name )
+			return StringFormat("the spawn %s has no valid team in the given mapconfig!", Spawn.name )
 		end
 
 		local team = 3
@@ -294,10 +290,16 @@ function Plugin:ParseMapConfig()
 		end
 
 		self.Spawns[ name ].team = team
+
+		if team < 2 and (not Spawn.enemyspawns or not type( Spawn.enemyspawns ) == "table" or #Spawn.enemyspawns < 1) then
+			return StringFormat("the spawn %s has no valid enemyspawns in the given mapconfig!", Spawn.name )
+		end
+
+		self.Spawns[ name ].enemyspawns = Spawn.enemyspawns
 	end
 
 	if NumAlienSpawns < 1 or NumMarineSpawns < 1 then
-		return "[CustomSpawns]: Couldn't parse the given mapconfig are not enought spawns for both teams!"
+		return "there are not enought spawns for both teams in the given mapconfig!"
 	end
 end
 
@@ -305,9 +307,13 @@ function Plugin:OnGetTeamNumberAllowed( TechPoint )
 	if self.Spawns == nil then
 		local error = self:ParseMapConfig()
 		if error then
-			Shared.Message(error)
+			Shared.Message(StringFormat("[CustomSpawns] Error, %s", error))
+			Shared.Message("[CustomSpawns] Unloading the plugin now ...")
 			Shine.UnloadExtension( "customspawns" )
 			return
+		else
+			--doing this here as map has been completly loaded at this point.
+			self:CreateCommands()
 		end
 	end
 
@@ -366,6 +372,67 @@ function Plugin:PostAlienTeamSpawnInitialStructures( Team, _, Tower )
 			previousParent = cyst
 		end
 	end
+end
+
+function Plugin:Notify( Player, String, Format, ... )
+	Shine:NotifyDualColour( Player, 0, 100, 255, "[CustomSpawns]", 255, 255, 255, String, Format, ... )
+end
+
+function Plugin:CreateCommands()
+	local function DumpSpawns( Client, DumpName)
+		local SpawnsTable = {}
+		local Spawns = {
+			[0] = {},
+			[1] = {},
+			[2] = {},
+			[3] = {},
+		}
+		local TeamNames = {
+			[0] = "both",
+			[1] = "marines",
+			[2] = "aliens",
+			[3] = "none",
+		}
+
+		for name, Spawn in pairs(self.TechPoints) do
+			table.insertunique(Spawns[Spawn.allowedTeamNumber], name )
+		end
+
+		local function GetEnemySpawns( TeamNumber )
+			if TeamNumber > 2 then return {} end
+
+			local function JoinTables( t1, t2 )
+				for _, name in ipairs( t2 ) do
+					t1[#t1 + 1] = name
+				end
+				return t1
+			end
+
+			local spawns = table.Copy(Spawns[0]) --localize, so we don't overriding the original table
+
+			if TeamNumber < 2 then
+				return JoinTables( spawns, Spawns[2] )
+			else
+				return JoinTables( spawns, Spawns[1] )
+			end
+		end
+
+		for name, Spawn in pairs(self.TechPoints) do
+			local SpawnEntry = {}
+			SpawnEntry.name = name
+			SpawnEntry.team = TeamNames[ Spawn.allowedTeamNumber ]
+			SpawnEntry.enemyspawns = GetEnemySpawns( Spawn.allowedTeamNumber )
+			SpawnsTable[ #SpawnsTable + 1 ] = SpawnEntry
+		end
+
+		local filename = StringFormat( "%scustomspawns/%s.json", Shine.Config.ExtensionDir, DumpName )
+		self:Notify(Client, "Spawn Dump has been saved to %s!", true, filename)
+		Shine.SaveJSONFile( SpawnsTable, filename )
+	end
+
+	local DumpSpawnsCommand = self:BindCommand( "sh_dumpspawns", "dumpspawns", DumpSpawns )
+	DumpSpawnsCommand:AddParam{ Type = "string", Optional = true, Default = StringFormat("%s_dumped", Lower( Shared.GetMapName()))}
+	DumpSpawnsCommand:Help( "<filename> Dumps the techpoints of this maps into a valid mapconfig file (with the given name)" )
 end
 
 function Plugin:CleanUp()
