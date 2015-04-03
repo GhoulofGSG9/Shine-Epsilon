@@ -33,7 +33,6 @@ local Shine = Shine
 local SetupClassHook = Shine.Hook.SetupClassHook
 local SetupGlobalHook = Shine.Hook.SetupGlobalHook
 local StringFormat = string.format
-local CreateTimer = Shine.Timer.Create
 local GetEntitiesForTeam = GetEntitiesForTeam
 
 function Plugin:Initialise()
@@ -156,7 +155,7 @@ function Plugin:ProcessBuyAction()
 	if self.dt.Enabled then return true end
 end
 
-function Plugin:CanEntDoDamageTo( Attacker, Target, ... )
+function Plugin:CanEntDoDamageTo( _, Target )
 	if not self.dt.Enabled then return end
 
 	if self.ProtectedEnts[ Target:GetId() ] then
@@ -166,16 +165,27 @@ function Plugin:CanEntDoDamageTo( Attacker, Target, ... )
 	return true
 end
 
--- instantly spawn dead aliens
-function Plugin:AlTeamUpdate( AlTeam, timePassed )
+local function RespawnAllDeadPlayer( Team )
+	local spectators = Team:GetSortedRespawnQueue()
+	for i = 1, #spectators do
+		local spec = spectators[ i ]
+		Team:RemovePlayerFromRespawnQueue( spec )
+		local success, newAlien = Team:ReplaceRespawnPlayer( spec, nil, nil )
+		if success then newAlien:SetCameraDistance( 0 ) end
+	end
+end
+
+-- instantly respawns dead aliens
+function Plugin:AlTeamUpdate( AlTeam )
 	if self.dt.Enabled then
-		local alienSpectators = AlTeam:GetSortedRespawnQueue()
-		for i = 1, #alienSpectators do
-			local spec = alienSpectators[ i ]
-			AlTeam:RemovePlayerFromRespawnQueue( spec )
-			local success, newAlien = AlTeam:ReplaceRespawnPlayer( spec, nil, nil )
-			newAlien:SetCameraDistance( 0 )
-		end
+		RespawnAllDeadPlayer( AlTeam )
+	end
+end
+
+-- instantly respawn dead marines
+function Plugin:MarTeamUpdate( MarTeam )
+	if self.dt.Enabled then
+		RespawnAllDeadPlayer( MarTeam )
 	end
 end
 
@@ -190,7 +200,7 @@ function Plugin:AlTeamUpdateBioMassLevel( AlienTeam )
 end
 
 -- set all evolution times to 1 second
-function Plugin:SetGestationData( Embryo, ... )
+function Plugin:SetGestationData( Embryo )
 	if self.dt.Enabled then Embryo.gestationTime = 1 end
 end
 
@@ -221,21 +231,8 @@ end
 
 -- lets players use macs to instant heal since the immobile mac
 -- cannot move, it may get stuck trying to weld distant objects
-function Plugin:MACOnUse( Mac, Player, ... )
+function Plugin:MACOnUse( _, Player )
 	if self.dt.Enabled then Player:AddHealth( 999, nil, false, nil ) end
-end
-
--- instantly respawn dead marines
-function Plugin:MarTeamUpdate( MarTeam, timePassed )
-	if self.dt.Enabled then
-		local specs = MarTeam:GetSortedRespawnQueue()
-		for i = 1, #specs do
-			local spec = specs[i]
-			MarTeam:RemovePlayerFromRespawnQueue( spec )
-			local success, newMarine = MarTeam:ReplaceRespawnPlayer( spec, nil, nil )
-			newMarine:SetCameraDistance( 0 )
-		end
-	end
 end
 
 function Plugin:AddAssistKill()
@@ -250,7 +247,7 @@ function Plugin:AddDeaths()
 	if self.dt.Enabled then return true end
 end
 
-function Plugin:AddScore(points, res, wasKill)
+function Plugin:AddScore()
 	if self.dt.Enabled then return true end
 end
 

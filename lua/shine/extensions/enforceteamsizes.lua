@@ -54,7 +54,7 @@ function Plugin:ClientDisconnect( Client )
     self:PostJoinTeam( GetGamerules(), Player, Player:GetTeamNumber() )
 end
 
-function Plugin:PostJoinTeam( Gamerules, Player, OldTeam )
+function Plugin:PostJoinTeam( Gamerules, _, OldTeam )
     if OldTeam < 0 then return end
 
     if self.Config.Teams[OldTeam] and #self.Config.Teams[OldTeam].InformAboutFreeSpace ~= 0 and
@@ -70,7 +70,7 @@ function Plugin:PostJoinTeam( Gamerules, Player, OldTeam )
     end
 end
 
-function Plugin:JoinTeam( Gamerules, Player, NewTeam, Force, ShineForce )
+function Plugin:JoinTeam( Gamerules, Player, NewTeam, _, ShineForce )
     if ShineForce or not self.Config.Teams[NewTeam] then return end
 
     --Check if team is above MaxPlayers
