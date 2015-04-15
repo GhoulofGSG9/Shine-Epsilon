@@ -18,6 +18,12 @@ Plugin.DefaultConfig =
 }
 Plugin.CheckConfig = true
 
+function Plugin:Initialise()
+    self.Enabled = true
+    return true
+end
+
+
 function Plugin:ClientConnect()
     self:DestroyAllTimers()
 end
@@ -29,6 +35,11 @@ function Plugin:ClientDisconnect()
         Notify( "[PasswordReset] Reseting password to default one" )
         Server.SetPassword( tostring( self.Config.DefaultPassword ) or "" )
     end )
+end
+
+function Plugin:CleanUp()
+    self.BaseClass.CleanUp()
+    self.Enabled = false
 end
 
 Shine:RegisterExtension( "passwordreset", Plugin )

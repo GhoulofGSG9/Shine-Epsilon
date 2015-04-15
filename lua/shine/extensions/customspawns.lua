@@ -427,7 +427,7 @@ function Plugin:CreateCommands()
 		end
 
 		local filename = StringFormat( "%scustomspawns/%s.json", Shine.Config.ExtensionDir, DumpName )
-		self:Notify(Client, "Spawn Dump has been saved to %s!", true, filename)
+		self:Notify( Client, "Spawn Dump has been saved to %s!", true, filename)
 		Shine.SaveJSONFile( SpawnsTable, filename )
 	end
 

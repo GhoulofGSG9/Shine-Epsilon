@@ -83,4 +83,9 @@ function Plugin:OnSpawnInitialStructures( Team, TechPoint )
 	end
 end
 
+function Plugin:CleanUp()
+	self.BaseClass.CleanUp()
+	self.Enabled = false
+end
+
 Shine:RegisterExtension( "extraips", Plugin )

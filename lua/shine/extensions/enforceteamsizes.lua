@@ -80,5 +80,11 @@ function Plugin:JoinTeam( Gamerules, Player, NewTeam, _, ShineForce )
         return false
     end
 end
+
+function Plugin:CleanUp()
+    self.BaseClass.CleanUp()
+    self.Enabled = false
+end
+
 Shine:RegisterExtension("enforceteamsizes", Plugin )
 
