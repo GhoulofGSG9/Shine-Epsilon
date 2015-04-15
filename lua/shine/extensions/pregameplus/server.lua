@@ -1,5 +1,4 @@
 local Plugin = Plugin
-Plugin.Version = "1.3"
 
 Plugin.HasConfig = true 
 Plugin.ConfigName = "PregamePlus.json"
@@ -43,6 +42,7 @@ function Plugin:Initialise()
     end
 	
 	self.Enabled = true
+
 	self.dt.AllowOnosExo = self.Config.AllowOnosExo
 	self.dt.AllowMines = self.Config.AllowMines
 	self.dt.AllowCommanding = self.Config.AllowCommanding
@@ -50,12 +50,15 @@ function Plugin:Initialise()
 	self.dt.UpgradeLevel = math.Clamp( self.Config.PregameAlienUpgradesLevel, 0, 3 )
 	self.dt.WeaponLevel = math.Clamp( self.Config.PregameWeaponLevel, 0, 3 )
 	self.dt.ArmorLevel = math.Clamp( self.Config.PregameArmorLevel, 0, 3 )
-	
-	self.dt.Enabled = false
+
+	self.dt.StatusX = math.Clamp(self.Config.StatusTextPosX, 0 , 1)
+	self.dt.StatusY = math.Clamp(self.Config.StatusTextPosY, 0 , 1)
+	self.dt.StatusR = math.Clamp(self.Config.StatusTextColour[1], 0 , 255 )
+	self.dt.StatusG = math.Clamp(self.Config.StatusTextColour[2], 0 , 255 )
+	self.dt.StatusB = math.Clamp(self.Config.StatusTextColour[3], 0 , 255 )
+
 	self.Ents = {}
 	self.ProtectedEnts = {}
-
-	self.firstreset = true
 
 	self:SetupHooks()
 
@@ -251,26 +254,20 @@ function Plugin:AddScore()
 	if self.dt.Enabled then return true end
 end
 
-function Plugin:SendText( Player )
+function Plugin:SendText()
 	local Text = StringFormat("%s\n%s\n%s", StringFormat(self.Config.Strings.Status, self.dt.Enabled and "enabled" or "disabled"),
 		self.Config.CheckLimit and StringFormat( self.Config.Strings.Limit, self.dt.Enabled and "off" or "on", 
 		self.dt.Enabled and "being above" or "being under", self.Config.PlayerLimit ) or self.Config.Strings.NoLimit, self.Config.ExtraMessageLine )
-	local r,g,b = unpack( self.Config.StatusTextColour )
-	local Message = Shine.BuildScreenMessage( 70, self.Config.StatusTextPosX, self.Config.StatusTextPosY, Text, 1800, r, g, b, 0, 1, 0 )
-	Shine:SendText( Player, Message )
+	self.dt.StatusText = Text
+	self.dt.ShowStatus = true
 end
 
 function Plugin:UpdateText( NewText )
-	local Message = {}
-	Message.ID = 70
-	Message.Message = NewText
-	Shine:UpdateText( nil, Message )
+	self.dt.StatusText = NewText
 end
 
 function Plugin:RemoveText( Player )
-	local Message = {}
-	Message.ID = 70
-	Shine:RemoveText( Player, Message )
+	self.dt.ShowStatus = false
 end
 
 function Plugin:StartText()
@@ -421,9 +418,8 @@ function Plugin:CheckLimit( Gamerules )
 	end
 end
 
-function Plugin:PostJoinTeam( Gamerules, Player )
+function Plugin:PostJoinTeam( Gamerules )
 	if Gamerules:GetGameState() == kGameState.NotStarted then
-		self:SendText( Player )
 		self:CheckLimit( Gamerules )
 	end
 end

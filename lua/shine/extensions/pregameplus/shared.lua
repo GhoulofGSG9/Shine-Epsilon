@@ -1,4 +1,5 @@
 local Plugin = {}
+Plugin.Version = "1.4"
 
 local Shine = Shine
 local SetupClassHook = Shine.Hook.SetupClassHook
@@ -6,6 +7,13 @@ local SetupGlobalHook = Shine.Hook.SetupGlobalHook
 
 function Plugin:SetupDataTable()
 	self:AddDTVar( "boolean", "Enabled", false )
+	self:AddDTVar( "boolean", "ShowStatus", false )
+	self:AddDTVar( "string (255)", "StatusText", "" )
+	self:AddDTVar( "float (0 to 1 by 0.05)", "StatusX", 0.05)
+	self:AddDTVar( "float (0 to 1 by 0.05)", "StatusY", 0.45)
+	self:AddDTVar( "integer (0 to 255)", "StatusR", 0 )
+	self:AddDTVar( "integer (0 to 255)", "StatusG", 255 )
+	self:AddDTVar( "integer (0 to 255)", "StatusB", 255 )
 	self:AddDTVar( "boolean", "AllowOnosExo", true )
 	self:AddDTVar( "boolean", "AllowMines", true )
 	self:AddDTVar( "boolean", "AllowCommanding", true )
@@ -15,6 +23,15 @@ function Plugin:SetupDataTable()
 	self:AddDTVar( "integer (0 to 3)", "ArmorLevel", 3 )
 end
 
+function Plugin:NetworkUpdate( Key, _, NewValue )
+	if Server then return end
+
+	if Key == "ShowStatus" then
+		self:ShowStatus( NewValue )
+	elseif Key == "StatusText" then
+		self:UpdateStatusText( NewValue )
+	end
+end
 local function SetupHooks()
 	SetupClassHook( "AlienTeamInfo", "OnUpdate", "AlienTeamInfoUpdate", "PassivePost" )
 	SetupClassHook( "Player", "GetGameStarted", "GetGameStarted", "ActivePre" )
@@ -108,6 +125,7 @@ end
 
 function Plugin:AlienTeamInfoUpdate( AlienTeamInfo )
 	if not self.dt.Enabled then return end
+
 	AlienTeamInfo.bioMassLevel = self.dt.BioLevel
 	AlienTeamInfo.numHives = 3
 	AlienTeamInfo.veilLevel = self.dt.UpgradeLevel
