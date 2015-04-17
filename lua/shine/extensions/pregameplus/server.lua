@@ -362,10 +362,6 @@ function Plugin:Disable()
 	rules:SetAllTech( false )
 end
 
-function Plugin:CreateLimitTimer( On, Gamerules )
-
-end
-
 function Plugin:CheckLimit( Gamerules )
 	if not self.Config.CheckLimit and Gamerules:GetGameState() ~= kGameState.NotStarted then return end
 
@@ -379,7 +375,7 @@ function Plugin:CheckLimit( Gamerules )
 				not self.dt.Enabled and "disabled" or "enabled" ), StringFormat( self.Config.Locales.Countdown,
 				not self.dt.Enabled and "on" or "off"), self.Config.ExtraMessageLine ))
 
-			self:CreateTimer( "Countdown", self.dt.StatusDelay, 1, function( Timer )
+			self:CreateTimer( "Countdown", self.dt.StatusDelay, 1, function()
 				self.dt.Countdown = false
 				Gamerules:ResetGame()
 			end)

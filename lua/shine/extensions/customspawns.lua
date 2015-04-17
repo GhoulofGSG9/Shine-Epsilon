@@ -409,6 +409,7 @@ function Plugin:CreateCommands()
 				return t1
 			end
 
+			--noinspection ArrayElementZero
 			local spawns = table.Copy(Spawns[0]) --localize, so we don't overriding the original table
 
 			if TeamNumber < 2 then
