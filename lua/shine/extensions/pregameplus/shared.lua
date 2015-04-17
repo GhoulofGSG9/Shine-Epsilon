@@ -2,18 +2,18 @@ local Plugin = {}
 Plugin.Version = "1.4"
 
 local Shine = Shine
-local SetupClassHook = Shine.Hook.SetupClassHook
-local SetupGlobalHook = Shine.Hook.SetupGlobalHook
 
 function Plugin:SetupDataTable()
 	self:AddDTVar( "boolean", "Enabled", false )
 	self:AddDTVar( "boolean", "ShowStatus", false )
+	self:AddDTVar( "boolean", "Countdown", false )
 	self:AddDTVar( "string (255)", "StatusText", "" )
 	self:AddDTVar( "float (0 to 1 by 0.05)", "StatusX", 0.05)
 	self:AddDTVar( "float (0 to 1 by 0.05)", "StatusY", 0.45)
 	self:AddDTVar( "integer (0 to 255)", "StatusR", 0 )
 	self:AddDTVar( "integer (0 to 255)", "StatusG", 255 )
 	self:AddDTVar( "integer (0 to 255)", "StatusB", 255 )
+	self:AddDTVar( "integer (0 to 1023)", "StatusDelay", 30 ) --2^10
 	self:AddDTVar( "boolean", "AllowOnosExo", true )
 	self:AddDTVar( "boolean", "AllowMines", true )
 	self:AddDTVar( "boolean", "AllowCommanding", true )
@@ -30,47 +30,21 @@ function Plugin:NetworkUpdate( Key, _, NewValue )
 		self:ShowStatus( NewValue )
 	elseif Key == "StatusText" then
 		self:UpdateStatusText( NewValue )
+	elseif Key == "Countdown" then
+		self:UpdateStatusCountdown( NewValue )
 	end
 end
-local function SetupHooks()
+
+function Plugin.SetupSharedHooks()
+	local SetupClassHook = Shine.Hook.SetupClassHook
+	local SetupGlobalHook = Shine.Hook.SetupGlobalHook
+
 	SetupClassHook( "AlienTeamInfo", "OnUpdate", "AlienTeamInfoUpdate", "PassivePost" )
 	SetupClassHook( "Player", "GetGameStarted", "GetGameStarted", "ActivePre" )
 	SetupClassHook( "Player", "GetIsPlaying", "GetIsPlaying", "ActivePre" )
 	SetupClassHook( "TechNode", "GetResearched", "GetResearched", "ActivePre" )
 	SetupClassHook( "TechNode", "GetHasTech", "GetHasTech", "ActivePre" )
 	SetupGlobalHook( "LookupTechData", "LookupTechData", "ActivePre" )
-	SetupGlobalHook( "ModularExo_GetIsConfigValid", "ModularExo_GetIsConfigValid", ReplaceModularExo_GetIsConfigValid )
-	SetupGlobalHook( "PlayerUI_GetPlayerResources", "PlayerUI_GetPlayerResources", "ActivePre" )
-end
-
-function Plugin:Initialise()
-	self.Enabled = true
-	self:SimpleTimer( 1, function() SetupHooks() end)
-	self.Gamemode = Shine.GetGamemode()
-	return true
-end
-
---stuff for modular Exo mod ( guys really use the techtree )
-local function ReplaceModularExo_GetIsConfigValid( OldFunc, ... )
-	local Hook = Shine.Hook.Call( "ModularExo_GetIsConfigValid", ... )
-	if not Hook then return OldFunc(...) end
-	
-	local a, b, resourceCost, powerSupply, powerCost, exoTexturePath = OldFunc(...)
-	resourceCost = resourceCost and 0
-	
-	return a, b, resourceCost, powerSupply, powerCost, exoTexturePath
-end
-
-function Plugin:ModularExo_GetIsConfigValid()
-	if self.dt.Enabled then
-		return self.dt.AllowOnosExo
-	end
-end
-
-function Plugin:PlayerUI_GetPlayerResources()
-	if self.dt.Enabled then 
-		return 100
-	end
 end
 
 function Plugin:LookupTechData( techId, fieldName )
