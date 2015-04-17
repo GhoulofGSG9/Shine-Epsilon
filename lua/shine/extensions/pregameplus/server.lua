@@ -353,6 +353,9 @@ function Plugin:Disable()
 	if not self.dt.Enabled then return end
 
 	self:DestroyEnts()
+	self:DestroyTimer( "Countdown" )
+
+	self.dt.Countdown = false
 
 	self.dt.Enabled = false
 	
@@ -363,7 +366,7 @@ function Plugin:Disable()
 end
 
 function Plugin:CheckLimit( Gamerules )
-	if not self.Config.CheckLimit and Gamerules:GetGameState() ~= kGameState.NotStarted then return end
+	if not self.Config.CheckLimit or Gamerules:GetGameState() ~= kGameState.NotStarted then return end
 
 	local PlayerCount = #GetEntitiesForTeam( "Player", 1 ) + #GetEntitiesForTeam( "Player", 2 )
 	local toogle = PlayerCount >= self.Config.PlayerLimit and self.dt.Enabled or not self.dt.Enabled
@@ -376,7 +379,6 @@ function Plugin:CheckLimit( Gamerules )
 				not self.dt.Enabled and "on" or "off"), self.Config.ExtraMessageLine ))
 
 			self:CreateTimer( "Countdown", self.dt.StatusDelay, 1, function()
-				self.dt.Countdown = false
 				Gamerules:ResetGame()
 			end)
 		end
