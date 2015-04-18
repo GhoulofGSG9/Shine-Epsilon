@@ -309,10 +309,7 @@ end
 local function CheckState()
 	local self = Plugin
 
-	local Gamerules = GetGamerules()
-	local State = Gamerules:GetGameState()
-
-	if State == kGameState.NotStarted then
+	if GetGamerules():GetGameState() == kGameState.NotStarted then
 		self:Enable()
 	end
 end
@@ -350,13 +347,13 @@ function Plugin:Disable()
 
 	self:RemoveText()
 
+	--stop the ongoing countdown
+	self:DestroyTimer( "Countdown" )
+	self.dt.Countdown = false
+
 	if not self.dt.Enabled then return end
 
 	self:DestroyEnts()
-	self:DestroyTimer( "Countdown" )
-
-	self.dt.Countdown = false
-
 	self.dt.Enabled = false
 	
 	local rules = GetGamerules()
