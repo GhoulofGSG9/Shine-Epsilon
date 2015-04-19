@@ -257,19 +257,11 @@ function Plugin:AddScore()
 end
 
 function Plugin:SendText()
-	local Text = StringFormat("%s\n%s\n%s", StringFormat(self.Config.Locales.Status, self.dt.Enabled and "enabled" or "disabled"),
-		self.Config.CheckLimit and StringFormat( self.Config.Locales.Limit, self.dt.Enabled and "off" or "on",
-		self.dt.Enabled and "being at" or "being under", self.Config.PlayerLimit ) or self.Config.Locales.NoLimit, self.Config.ExtraMessageLine )
 	self.dt.ShowStatus = true
-	self.dt.StatusText = Text
-end
-
-function Plugin:UpdateText( NewText )
-	self.dt.StatusText = NewText
-end
-
-function Plugin:RemoveText()
-	self.dt.ShowStatus = false
+	self.dt.StatusText = StringFormat("%s\n%s\n%s", StringFormat(self.Config.Locales.Status, self.dt.Enabled and "enabled" or "disabled"),
+		self.Config.CheckLimit and StringFormat( self.Config.Locales.Limit, self.dt.Enabled and "off" or "on",
+			self.dt.Enabled and "being at" or "being under", self.Config.PlayerLimit )
+		or self.Config.Locales.NoLimit,	self.Config.ExtraMessageLine )
 end
 
 function Plugin:DestroyEnts()
@@ -300,24 +292,20 @@ local function SpawnBuildings( team )
 			MakeTechEnt(techPoint, PrototypeLab.kMapName, -3.5, 2, teamNr)
 		end
 
-		for i = 1, 3 do
-			MakeTechEnt(techPoint, MAC.kMapName, 3.5, 2, teamNr)
-		end
-	end
-end
-
-local function CheckState()
-	local self = Plugin
-
-	if GetGamerules():GetGameState() == kGameState.NotStarted then
-		self:Enable()
+		MakeTechEnt(techPoint, MAC.kMapName, 3.5, 2, teamNr)
+		MakeTechEnt(techPoint, MAC.kMapName, 3.5, 2, teamNr)
+		MakeTechEnt(techPoint, MAC.kMapName, 3.5, 2, teamNr)
 	end
 end
 
 function Plugin:OnResetGame()
 	self:Disable()
 
-	self:SimpleTimer(0.1, CheckState)
+	self:SimpleTimer(0.1, function()
+		if GetGamerules():GetGameState() == kGameState.NotStarted then
+			self:Enable()
+		end
+	end)
 end
 
 function Plugin:Enable()
@@ -345,7 +333,7 @@ end
 
 function Plugin:Disable()
 
-	self:RemoveText()
+	self.dt.ShowStatus = false
 
 	--stop the ongoing countdown
 	self:DestroyTimer( "Countdown" )
@@ -363,7 +351,7 @@ function Plugin:Disable()
 end
 
 function Plugin:CheckLimit( Gamerules )
-	if not self.Config.CheckLimit or Gamerules:GetGameState() ~= kGameState.NotStarted then return end
+	if not self.Config.CheckLimit or not self.dt.ShowStatus then return end
 
 	local PlayerCount = #GetEntitiesForTeam( "Player", 1 ) + #GetEntitiesForTeam( "Player", 2 )
 	local toogle = PlayerCount >= self.Config.PlayerLimit and self.dt.Enabled or not self.dt.Enabled
@@ -371,9 +359,9 @@ function Plugin:CheckLimit( Gamerules )
 	if toogle then
 		if not self:GetTimer( "Countdown" ) then
 			self.dt.Countdown = true
-			self:UpdateText( StringFormat( "%s\n%s\n%s", StringFormat( self.Config.Locales.Status,
+			self.dt.StatusText = StringFormat( "%s\n%s\n%s", StringFormat( self.Config.Locales.Status,
 				not self.dt.Enabled and "disabled" or "enabled" ), StringFormat( self.Config.Locales.Countdown,
-				not self.dt.Enabled and "on" or "off"), self.Config.ExtraMessageLine ))
+				not self.dt.Enabled and "on" or "off"), self.Config.ExtraMessageLine )
 
 			self:CreateTimer( "Countdown", self.dt.StatusDelay, 1, function()
 				Gamerules:ResetGame()
@@ -393,7 +381,7 @@ end
 function Plugin:ClientDisconnect( Client )
 	local Player = Client:GetControllingPlayer()
 	if Player then
-		self:PostJoinTeam(GetGamerules())
+		self:CheckLimit(GetGamerules())
 	end
 end
 
