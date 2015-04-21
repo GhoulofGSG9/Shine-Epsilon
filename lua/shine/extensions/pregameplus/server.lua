@@ -31,6 +31,42 @@ Plugin.CheckConfigTypes = true
 local Shine = Shine
 local StringFormat = string.format
 
+--Hacky stuff
+local function ReplaceGameStarted1( OldFunc, ... )
+	local Hook = Shine.Hook.Call( "CanEntDoDamageTo", ... )
+	if not Hook then return OldFunc(...) end
+
+	local gameinfo = GetGameInfoEntity()
+	local oldGameInfoState = gameinfo:GetState()
+	gameinfo:SetState( kGameState.Started )
+	local temp = OldFunc(...)
+	gameinfo:SetState( oldGameInfoState )
+
+	return temp
+end
+
+local function ReplaceGameStarted2( OldFunc, ... )
+	local Hook = Shine.Hook.Call("ProcessBuyAction", ...)
+	if not Hook then return OldFunc(...) end
+
+	local oldGetGameStarted = NS2Gamerules.GetGameStarted
+	NS2Gamerules.GetGameStarted = function() return true end
+	local temp = OldFunc(...)
+	NS2Gamerules.GetGameStarted = oldGetGameStarted
+	return temp
+end
+
+--stuff for modular Exo mod ( guys really use the techtree )
+local function ReplaceModularExo_GetIsConfigValid( OldFunc, ... )
+	local Hook = Shine.Hook.Call( "ModularExo_GetIsConfigValid", ... )
+	if not Hook then return OldFunc(...) end
+
+	local a, b, resourceCost, powerSupply, powerCost, exoTexturePath = OldFunc(...)
+	resourceCost = resourceCost and 0
+
+	return a, b, resourceCost, powerSupply, powerCost, exoTexturePath
+end
+
 --Hooks
 do
 	local SetupClassHook = Shine.Hook.SetupClassHook
@@ -117,42 +153,6 @@ local function MakeTechEnt( techPoint, mapName, rightOffset, forwardOffset, team
 	local ID = newEnt:GetId()
 	table.insert( Plugin.Ents, ID )
 	Plugin.ProtectedEnts[ ID ] = true
-end
-
---Hacky stuff
-local function ReplaceGameStarted1( OldFunc, ... )
-	local Hook = Shine.Hook.Call( "CanEntDoDamageTo", ... )
-	if not Hook then return OldFunc(...) end
-
-	local gameinfo = GetGameInfoEntity()
-	local oldGameInfoState = gameinfo:GetState()
-	gameinfo:SetState( kGameState.Started )
-	local temp = OldFunc(...)
-	gameinfo:SetState( oldGameInfoState )
-
-	return temp
-end
-
-local function ReplaceGameStarted2( OldFunc, ... )
-	local Hook = Shine.Hook.Call("ProcessBuyAction", ...)
-	if not Hook then return OldFunc(...) end
-
-	local oldGetGameStarted = NS2Gamerules.GetGameStarted
-	NS2Gamerules.GetGameStarted = function() return true end
-	local temp = OldFunc(...)
-	NS2Gamerules.GetGameStarted = oldGetGameStarted
-	return temp
-end
-
---stuff for modular Exo mod ( guys really use the techtree )
-local function ReplaceModularExo_GetIsConfigValid( OldFunc, ... )
-	local Hook = Shine.Hook.Call( "ModularExo_GetIsConfigValid", ... )
-	if not Hook then return OldFunc(...) end
-
-	local a, b, resourceCost, powerSupply, powerCost, exoTexturePath = OldFunc(...)
-	resourceCost = resourceCost and 0
-
-	return a, b, resourceCost, powerSupply, powerCost, exoTexturePath
 end
 
 function Plugin:ProcessBuyAction()

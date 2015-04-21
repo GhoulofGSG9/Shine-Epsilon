@@ -3,11 +3,15 @@ local Shine = Shine
 
 --Hooks
 do
-	local SetupGlobalHook = Shine.Hook.SetupGlobalHook
+	Shine.Hook.Add( "Think", "LoadPGPHooks", function()
+		local SetupGlobalHook = Shine.Hook.SetupGlobalHook
 
-	SetupGlobalHook( "PlayerUI_GetPlayerResources", "PlayerUI_GetPlayerResources", "ActivePre" )
-	SetupGlobalHook( "PlayerUI_GetWeaponLevel", "PlayerUI_GetWeaponLevel", "ActivePre" )
-	SetupGlobalHook( "PlayerUI_GetArmorLevel", "PlayerUI_GetArmorLevel", "ActivePre" )
+		SetupGlobalHook( "PlayerUI_GetPlayerResources", "PlayerUI_GetPlayerResources", "ActivePre" )
+		SetupGlobalHook( "PlayerUI_GetWeaponLevel", "PlayerUI_GetWeaponLevel", "ActivePre" )
+		SetupGlobalHook( "PlayerUI_GetArmorLevel", "PlayerUI_GetArmorLevel", "ActivePre" )
+
+		Shine.Hook.Remove( "Think", "LoadPGPHooks")
+	end)
 end
 
 function Plugin:Initialise()

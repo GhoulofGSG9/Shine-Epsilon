@@ -40,12 +40,19 @@ do
 	local SetupClassHook = Shine.Hook.SetupClassHook
 	local SetupGlobalHook = Shine.Hook.SetupGlobalHook
 
-	SetupClassHook( "AlienTeamInfo", "OnUpdate", "AlienTeamInfoUpdate", "PassivePost" )
-	SetupClassHook( "Player", "GetGameStarted", "GetGameStarted", "ActivePre" )
-	SetupClassHook( "Player", "GetIsPlaying", "GetIsPlaying", "ActivePre" )
 	SetupClassHook( "TechNode", "GetResearched", "GetResearched", "ActivePre" )
 	SetupClassHook( "TechNode", "GetHasTech", "GetHasTech", "ActivePre" )
 	SetupGlobalHook( "LookupTechData", "LookupTechData", "ActivePre" )
+
+	Shine.Hook.Add( "Think", "LoadSharedPGPHooks", function()
+
+		SetupClassHook( "Player", "GetGameStarted", "GetGameStarted", "ActivePre" )
+		SetupClassHook( "Player", "GetIsPlaying", "GetIsPlaying", "ActivePre" )
+
+		SetupClassHook( "AlienTeamInfo", "OnUpdate", "AlienTeamInfoUpdate", "PassivePost" )
+
+		Shine.Hook.Remove( "Think", "LoadSharedPGPHooks")
+	end)
 end
 
 function Plugin:LookupTechData( techId, fieldName )
