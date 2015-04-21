@@ -31,6 +31,39 @@ Plugin.CheckConfigTypes = true
 local Shine = Shine
 local StringFormat = string.format
 
+--Hooks
+do
+	local SetupClassHook = Shine.Hook.SetupClassHook
+	local SetupGlobalHook = Shine.Hook.SetupGlobalHook
+
+	SetupClassHook( "Alien", "ProcessBuyAction", "PreProcessBuyAction", ReplaceGameStarted2 )
+	SetupClassHook( "AlienTeam", "Update", "AlTeamUpdate", "PassivePost")
+	SetupClassHook( "AlienTeam", "UpdateBioMassLevel", "AlTeamUpdateBioMassLevel", "ActivePre")
+	SetupClassHook( "Crag", "GetMaxSpeed", "CragGetMaxSpeed", "ActivePre")
+	SetupClassHook( "InfantryPortal", "FillQueueIfFree", "FillQueueIfFree", "Halt" )
+	SetupClassHook( "MAC", "GetMoveSpeed", "MACGetMoveSpeed", "ActivePre" )
+	SetupClassHook( "MAC", "OnUse", "MACOnUse", "PassivePost" )
+	SetupClassHook( "MarineTeam", "Update", "MarTeamUpdate", "PassivePost" )
+	SetupClassHook( "ScoringMixin", "AddAssistKill", "AddAssistKill", "ActivePre" )
+	SetupClassHook( "ScoringMixin", "AddDeaths", "AddDeaths", "ActivePre" )
+	SetupClassHook( "ScoringMixin", "AddKill", "AddKill", "ActivePre" )
+	SetupClassHook( "ScoringMixin", "AddScore", "AddScore", "ActivePre" )
+	SetupClassHook( "Shift", "GetMaxSpeed", "ShiftGetMaxSpeed", "ActivePre" )
+	SetupClassHook( "TeleportMixin", "GetCanTeleport", "ShiftGetCanTeleport", "ActivePre" )
+	SetupGlobalHook( "CanEntityDoDamageTo", "CanEntDoDamageTo", ReplaceGameStarted1 )
+
+	SetupClassHook( "NS2Gamerules", "ResetGame", "OnResetGame", "PassivePre" )
+
+	--The ModularExo Mod gets loaded by the entry system, so it's not loaded yet
+	--SetGestationData gets overloaded by the comp mod
+	Shine.Hook.Add( "Think", "LoadPGPHooks", function()
+		SetupClassHook( "Embryo", "SetGestationData", "SetGestationData", "PassivePost" )
+		SetupGlobalHook( "ModularExo_GetIsConfigValid", "ModularExo_GetIsConfigValid", ReplaceModularExo_GetIsConfigValid )
+
+		Shine.Hook.Remove( "Think", "LoadPGPHooks")
+	end)
+end
+
 function Plugin:Initialise()
 	local Gamemode = Shine.GetGamemode()
 
@@ -58,8 +91,6 @@ function Plugin:Initialise()
 
 	self.Ents = {}
 	self.ProtectedEnts = {}
-
-	self:SetupHooks()
 
 	--if the plugin gets enabled at a later point then the first load
 	self:OnResume()
@@ -122,38 +153,6 @@ local function ReplaceModularExo_GetIsConfigValid( OldFunc, ... )
 	resourceCost = resourceCost and 0
 
 	return a, b, resourceCost, powerSupply, powerCost, exoTexturePath
-end
-
-function Plugin:SetupHooks()
-
-	self.SetupSharedHooks()
-
-	local SetupClassHook = Shine.Hook.SetupClassHook
-	local SetupGlobalHook = Shine.Hook.SetupGlobalHook
-
-	SetupClassHook( "Alien", "ProcessBuyAction", "PreProcessBuyAction", ReplaceGameStarted2 )
-	SetupClassHook( "AlienTeam", "Update", "AlTeamUpdate", "PassivePost")
-	SetupClassHook( "AlienTeam", "UpdateBioMassLevel", "AlTeamUpdateBioMassLevel", "ActivePre")
-	SetupClassHook( "Crag", "GetMaxSpeed", "CragGetMaxSpeed", "ActivePre")
-	SetupClassHook( "InfantryPortal", "FillQueueIfFree", "FillQueueIfFree", "Halt" )
-	SetupClassHook( "MAC", "GetMoveSpeed", "MACGetMoveSpeed", "ActivePre" )
-	SetupClassHook( "MAC", "OnUse", "MACOnUse", "PassivePost" )
-	SetupClassHook( "MarineTeam", "Update", "MarTeamUpdate", "PassivePost" )
-	SetupClassHook( "ScoringMixin", "AddAssistKill", "AddAssistKill", "ActivePre" )
-	SetupClassHook( "ScoringMixin", "AddDeaths", "AddDeaths", "ActivePre" )
-	SetupClassHook( "ScoringMixin", "AddKill", "AddKill", "ActivePre" )
-	SetupClassHook( "ScoringMixin", "AddScore", "AddScore", "ActivePre" )
-	SetupClassHook( "Shift", "GetMaxSpeed", "ShiftGetMaxSpeed", "ActivePre" )
-	SetupClassHook( "TeleportMixin", "GetCanTeleport", "ShiftGetCanTeleport", "ActivePre" )
-	SetupGlobalHook( "CanEntityDoDamageTo", "CanEntDoDamageTo", ReplaceGameStarted1 )
-
-	SetupClassHook( "NS2Gamerules", "ResetGame", "OnResetGame", "PassivePre" )
-    SetupClassHook( "Embryo", "SetGestationData", "SetGestationData", "PassivePost" )
-
-	--The ModularExo Mod gets loaded by the entry system, so it's not loaded yet
-	self:SimpleTimer(1, function()
-		SetupGlobalHook( "ModularExo_GetIsConfigValid", "ModularExo_GetIsConfigValid", ReplaceModularExo_GetIsConfigValid )
-	end)
 end
 
 function Plugin:ProcessBuyAction()

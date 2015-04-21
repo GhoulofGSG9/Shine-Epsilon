@@ -1,9 +1,8 @@
 local Plugin = Plugin
 local Shine = Shine
 
-function Plugin:SetupHooks()
-	self.SetupSharedHooks()
-
+--Hooks
+do
 	local SetupGlobalHook = Shine.Hook.SetupGlobalHook
 
 	SetupGlobalHook( "PlayerUI_GetPlayerResources", "PlayerUI_GetPlayerResources", "ActivePre" )
@@ -13,9 +12,6 @@ end
 
 function Plugin:Initialise()
 	self.Enabled = true
-
-	self:SetupHooks()
-
 	return true
 end
 

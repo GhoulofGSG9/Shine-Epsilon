@@ -35,7 +35,8 @@ function Plugin:NetworkUpdate( Key, _, NewValue )
 	end
 end
 
-function Plugin.SetupSharedHooks()
+--Hooks
+do
 	local SetupClassHook = Shine.Hook.SetupClassHook
 	local SetupGlobalHook = Shine.Hook.SetupGlobalHook
 
