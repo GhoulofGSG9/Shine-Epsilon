@@ -45,19 +45,15 @@ function Plugin:ShowStatus( NewStatus )
 			--server-side. This means the status can change even before the message's position was networked.
 			if not self:GetTimer( "StatusSetup" )then
 				self:CreateTimer( "StatusSetup", 0.5, 1, function()
-					self.Status = Shine:AddMessageToQueue( 70, self.dt.StatusX, self.dt.StatusY, self.dt.StatusText, 1,
-						self.dt.StatusR, self.dt.StatusG, self.dt.StatusB, 0, 1,0 )
-					self.Status.UpdateText = function(TextObject)
-						if self.dt.Countdown then
-							local Text = string.gsub( TextObject.Text, "<t>",
-								string.TimeToString( TextObject.Duration ) )
-							TextObject.Obj:SetText( Text )
-						end
-
-						if TextObject.Duration == 0 then
-							TextObject.Duration = 1
-						end
-					end
+					self.Status = Shine.ScreenText.Add( "PGPStatus", {
+						X =self.dt.StatusX,
+						Y = self.dt.StatusY,
+						Text = self.dt.StatusText,
+						R = self.dt.StatusR,
+						G = self.dt.StatusG,
+						B = self.dt.StatusB,
+						Alignment = 0
+					})
 				end)
 			end
 		else
@@ -72,22 +68,38 @@ function Plugin:UpdateStatusText( NewText )
 	if not self.Status then
 		self:ShowStatus(true)
 	else
-		self.Status.Text = NewText
-		if not self.dt.Countdown then
-			self.Status.Obj:SetText( NewText )
-		end
+		self.Status.Obj:SetText( NewText )
+		self.Status.Obj:SetIsVisible(true)
 	end
 end
 
 function Plugin:UpdateStatusCountdown( NewStatus )
-	if NewStatus then
-		self.Status.Duration = self.dt.StatusDelay
+	if NewStatus ~= "" then
+		if self.Status then
+			self.Status.Obj:SetIsVisible(false)
+		end
+
+		self.Countdown = Shine.ScreenText.Add( "PGPCoundown", {
+			X =self.dt.StatusX,
+			Y = self.dt.StatusY,
+			Text = NewStatus,
+			R = self.dt.StatusR,
+			G = self.dt.StatusG,
+			B = self.dt.StatusB,
+			Alignment = 0,
+			Duration = self.dt.StatusDelay
+		})
+	else
+		Shine.ScreenText.Remove("PGPCoundown")
 	end
 end
 
 function Plugin:Cleanup()
-	Shine:RemoveMessage(70)
+	Shine.ScreenText.Remove("PGPStatus")
 	self.Status = nil
+
+	Shine.ScreenText.Remove("PGPCoundown")
+	self.Countdown = nil
 
 	self.BaseClass.Cleanup( self )
 

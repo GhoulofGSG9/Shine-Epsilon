@@ -6,7 +6,7 @@ local Shine = Shine
 function Plugin:SetupDataTable()
 	self:AddDTVar( "boolean", "Enabled", false )
 	self:AddDTVar( "boolean", "ShowStatus", false )
-	self:AddDTVar( "boolean", "Countdown", false )
+	self:AddDTVar( "string (255)", "CountdownText", "" )
 	self:AddDTVar( "string (255)", "StatusText", "" )
 	self:AddDTVar( "float (0 to 1 by 0.05)", "StatusX", 0.05)
 	self:AddDTVar( "float (0 to 1 by 0.05)", "StatusY", 0.45)
@@ -30,7 +30,7 @@ function Plugin:NetworkUpdate( Key, _, NewValue )
 		self:ShowStatus( NewValue )
 	elseif Key == "StatusText" then
 		self:UpdateStatusText( NewValue )
-	elseif Key == "Countdown" then
+	elseif Key == "CountdownText" then
 		self:UpdateStatusCountdown( NewValue )
 	end
 end

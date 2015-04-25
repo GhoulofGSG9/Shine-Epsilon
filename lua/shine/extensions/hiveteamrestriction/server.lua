@@ -88,7 +88,7 @@ end
 
 function Plugin:JoinTeam( _, Player, NewTeam, _, ShineForce )
     if ShineForce or self.Config.AllowSpectating and NewTeam == kSpectatorIndex or NewTeam == kTeamReadyRoom then
-        self:DestroyTimer( StringFormat( "Kick_%s", SteamId ))
+        self:DestroyTimer( StringFormat( "Kick_%s", Player:GetSteamId() ))
         return
     end
 
@@ -135,7 +135,6 @@ function Plugin:Check( Player, Extravalue )
     --check hive timeouts
     if not Playerdata then return end
 
-    PrintTable(Playerdata)
     if not self.Passed then self.Passed = {} end
 	local passed = self.Passed[SteamId]
 
@@ -144,7 +143,6 @@ function Plugin:Check( Player, Extravalue )
 		self.Passed[SteamId] = passed
     end
 
-    Print(tostring(passed))
     if not passed then
 	    self:Notify( Player, self.BlockMessage)
 	    if self.Config.ShowSwitchAtBlock then
@@ -224,7 +222,9 @@ function Plugin:CheckValues( Playerdata, SteamId )
 end
 
 function Plugin:BuildBlockMessage()
-	local MessageLines = {}
+	local MessageLines = {
+		self.Config.BlockMessage
+	}
 	local Config = self.Config
 
 
@@ -268,13 +268,26 @@ function Plugin:BuildBlockMessage()
 		end
 	end
 
-	self.BlockMessage = StringFormat( self.Config.BlockMessage, table.concat(MessageLines, "\n") )
+	self.BlockMessage = MessageLines
 end
 
 function Plugin:Notify( Player, Message, Format, ... )
-   if not Player or not Message then return end
+	if not Player or not Message then return end
 
-   Shine:NotifyDualColour( Player, 100, 255, 100, StringFormat("[%s]", self.Name), 255, 255, 255, Message, Format, ... )
+	if type(Message) == "table" then
+	   for i, line in ipairs(Message) do
+		   if i == 1 then
+			   Shine:NotifyDualColour( Player, 100, 255, 100, StringFormat("[%s]", self.Name),
+				   255, 255, 255, line )
+		   else
+			   Shine:NotifyColour(Player, 255, 255, 255, line )
+		   end
+	   end
+	else
+		Shine:NotifyDualColour( Player, 100, 255, 100, StringFormat("[%s]", self.Name),
+			255, 255, 255, Message, Format, ... )
+	end
+
 end
 
 Plugin.DisconnectReason = "You didn't fit to the set hive stats restrictions"

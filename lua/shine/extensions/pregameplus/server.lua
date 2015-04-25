@@ -257,10 +257,10 @@ end
 
 function Plugin:SendText()
 	self.dt.ShowStatus = true
-	self.dt.StatusText = StringFormat("%s\n%s\n%s", StringFormat(self.Config.Locales.Status, self.dt.Enabled and "enabled" or "disabled"),
-		self.Config.CheckLimit and StringFormat( self.Config.Locales.Limit, self.dt.Enabled and "off" or "on",
+	self.dt.StatusText = StringFormat("%s\n%s\n%s", StringFormat(self.Config.Strings.Status, self.dt.Enabled and "enabled" or "disabled"),
+		self.Config.CheckLimit and StringFormat( self.Config.Strings.Limit, self.dt.Enabled and "off" or "on",
 			self.dt.Enabled and "being at" or "being under", self.Config.PlayerLimit )
-		or self.Config.Locales.NoLimit,	self.Config.ExtraMessageLine )
+		or self.Config.Strings.NoLimit,	self.Config.ExtraMessageLine )
 end
 
 function Plugin:DestroyEnts()
@@ -336,7 +336,7 @@ function Plugin:Disable()
 
 	--stop the ongoing countdown
 	self:DestroyTimer( "Countdown" )
-	self.dt.Countdown = false
+	self.dt.CountdownText = ""
 
 	if not self.dt.Enabled then return end
 
@@ -363,10 +363,9 @@ function Plugin:CheckLimit( Gamerules )
 
 	if toogle then
 		if not self:GetTimer( "Countdown" ) then
-			self.dt.Countdown = true
-			self.dt.StatusText = StringFormat( "%s\n%s\n%s", StringFormat( self.Config.Locales.Status,
-				not self.dt.Enabled and "disabled" or "enabled" ), StringFormat( self.Config.Locales.Countdown,
-				not self.dt.Enabled and "on" or "off"), self.Config.ExtraMessageLine )
+			self.dt.CountdownText = StringFormat( "%s\n%s\n%s", StringFormat( self.Config.Strings.Status,
+				not self.dt.Enabled and "disabled" or "enabled" ), StringFormat( self.Config.Strings.Countdown,
+				not self.dt.Enabled and "on" or "off", "%s"), self.Config.ExtraMessageLine )
 
 			self:CreateTimer( "Countdown", self.dt.StatusDelay, 1, function()
 				Gamerules:ResetGame()
@@ -374,7 +373,7 @@ function Plugin:CheckLimit( Gamerules )
 		end
 	elseif self.dt.Countdown then
 		self:DestroyTimer( "Countdown" )
-		self.dt.Countdown = false
+		self.dt.CountdownText = ""
 		self:SendText()
 	end
 end
