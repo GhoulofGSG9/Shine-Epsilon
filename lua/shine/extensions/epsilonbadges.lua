@@ -12,7 +12,7 @@ Plugin.Version = "1.5"
 
 Plugin.HasConfig = true
 
-Plugin.ConfigName = "epsilonbadges.json"
+Plugin.ConfigName = "EpsilonBadges.json"
 Plugin.DefaultConfig =
 {
     Flags = true,

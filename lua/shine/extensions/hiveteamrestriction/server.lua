@@ -14,7 +14,7 @@ Plugin.Version = "1.0"
 Plugin.NS2Only = true
 
 Plugin.HasConfig = true
-Plugin.ConfigName = "hiveteamrestriction.json"
+Plugin.ConfigName = "HiveTeamRestriction.json"
 
 Plugin.DefaultConfig = {
     RestrictionMode = 0,
@@ -47,8 +47,8 @@ Plugin.DefaultConfig = {
 		Max = 3
 	},
     ShowInform = true,
-    InformMessage = "This Server is Hive stats restricted",
-    BlockMessage = "You don't fit to the Hive stats limits on this server.\n %s",
+    InformMessage = "This server is Hive stats restricted",
+    BlockMessage = "You don't fit to the Hive stats limits on this server:",
     KickMessage = "You will be kicked in %s seconds",
 	WaitMessage = "Please wait while your Hive stats are getting fetched",
     Kick = true,

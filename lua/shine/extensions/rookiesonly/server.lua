@@ -6,7 +6,7 @@ local Plugin = Plugin
 
 Plugin.Version = "1.0"
 
-Plugin.ConfigName = "rookiesonly.json"
+Plugin.ConfigName = "RookiesOnly.json"
 Plugin.DefaultConfig =
 {
     Mode = 1, -- 1: Level 2: Playtime

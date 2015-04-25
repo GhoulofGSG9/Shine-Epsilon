@@ -18,11 +18,11 @@ Plugin.DefaultConfig = {
 	PregameBiomassLevel = 9,
 	PregameAlienUpgradesLevel = 3,
 	ExtraMessageLine = "",
-	Locales = {
+	Strings = {
 		Status = "Pregame \"Sandbox\" - Mode is %s. A match has not started.",
 		Limit = "Turns %s when %s %s players.",
 		NoLimit = "No player limit.",
-		Countdown = "Pregame \"Sandbox\" - Mode turning %s in <t> seconds.",
+		Countdown = "Pregame \"Sandbox\" - Mode turning %s in %s seconds.",
 	}
 }
 Plugin.CheckConfig = true

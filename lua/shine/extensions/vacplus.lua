@@ -6,7 +6,7 @@ local Plugin = {}
 Plugin.Version = "1.0"
 Plugin.HasConfig = true
 
-Plugin.ConfigName = "vacplus.json"
+Plugin.ConfigName = "VACPlus.json"
 Plugin.DefaultConfig =
 {
     CheckVACBans = true,

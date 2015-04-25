@@ -7,7 +7,7 @@ local Shine = Shine
 local Plugin = {}
 
 Plugin.HasConfig = true
-Plugin.ConfigName = "enforceteamsizes.json"
+Plugin.ConfigName = "EnforceTeamsizes.json"
 
 --[[
 --TeamNumbers:
