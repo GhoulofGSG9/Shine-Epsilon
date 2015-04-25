@@ -1,3 +1,4 @@
+--noinspection UnusedDef
 local Plugin = Plugin
 local Shine = Shine
 
