@@ -5,7 +5,6 @@ local Shine = Shine
 local Plugin = Plugin
 
 Plugin.Version = "1.0"
-Plugin.HasConfig = true
 
 Plugin.ConfigName = "rookiesonly.json"
 Plugin.DefaultConfig =
@@ -23,24 +22,15 @@ Plugin.DefaultConfig =
     WaitMessage = "Please wait while your data is retrieved",
     ShowSwitchAtBlock = false
 }
-Plugin.CheckConfig = true
-Plugin.CheckConfigTypes = true
 
 Plugin.Name = "Rookies Only"
 Plugin.DisconnectReason = "You are not a rookie anymore"
 
-function Plugin:Initialise()
-    local Gamemode = Shine.GetGamemode()
-    if Gamemode ~= "ns2" then
-        return false, string.format( "The rookie-only plugin does not work with %s.", Gamemode )
-    end
+function Plugin:CheckForSteamTime() --This plugin does not use steam times at all
+end
 
-    self.Enabled = true
-
+function Plugin:BuildBlockMessage()
     self.BlockMessage = self.Config.BlockMessage
-    self.Config.Mode = math.Clamp( self.Config.Mode, 1, 2 )
-
-    return true
 end
 
 function Plugin:CheckValues( Playerdata )

@@ -5,8 +5,7 @@ local Shine = Shine
 local InfoHub = Shine.PlayerInfoHub
 local Plugin = Plugin
 
-Plugin.Version = "1.5"
-Plugin.HasConfig = true
+Plugin.Version = "1.6"
 
 Plugin.ConfigName = "norookies.json"
 Plugin.DefaultConfig =
@@ -28,27 +27,20 @@ Plugin.DefaultConfig =
     KickMessage = "You will be kicked in %s seconds",
     WaitMessage = "Please wait while your data is retrieved",
 }
-Plugin.CheckConfig = true
-Plugin.CheckConfigTypes = true
 
 Plugin.Name = "No Rookies"
 Plugin.DisconnectReason = "You didn't fit to the required playtime"
-local Enabled = true
 
-function Plugin:Initialise()
-    local Gamemode = Shine.GetGamemode()
-    if Gamemode ~= "ns2" then
-        return false, string.format( "The norookie plugin does not work with %s.", Gamemode )
+local Enabled = true --used to temp disable the plugin in case the given player limit is reached
+
+function Plugin:CheckForSteamTime()
+	if self.Config.UseSteamTime or self.Config.ForceSteamTime then
+		InfoHub:Request( self.Name, "STEAMPLAYTIME" )
     end
+end
 
-    if self.Config.UseSteamTime or self.Config.ForceSteamTime then
-        InfoHub:Request( self.Name, "STEAMPLAYTIME")
-    end
-
+function Plugin:BuildBlockMessage()
     self.BlockMessage = self.Config.BlockMessage
-	self.Enabled = true
-
-	return true
 end
 
 function Plugin:SetGameState( _, NewState )

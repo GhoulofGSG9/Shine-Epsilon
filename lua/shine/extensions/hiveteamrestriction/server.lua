@@ -11,6 +11,7 @@ local StringFormat = string.format
 local Plugin = Plugin
 
 Plugin.Version = "1.0"
+Plugin.NS2Only = true
 
 Plugin.HasConfig = true
 Plugin.ConfigName = "hiveteamrestriction.json"
@@ -57,20 +58,20 @@ Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
 
 Plugin.Name = "Hive Team Restriction"
+
 function Plugin:Initialise()
-    local Gamemode = Shine.GetGamemode()
-    if Gamemode ~= "ns2" then        
-        return false, StringFormat( "The hive team restriction plugin does not work with %s.", Gamemode )
-    end
+	self.Enabled = true
 
-    if self.Config.CheckPlayTime.Enable and self.Config.CheckPlayTime.UseSteamPlayTime then
-        InfoHub.Request( self.Name, "STEAMPLAYTIME" )
-    end
-
+    self:CheckForSteamTime()
     self:BuildBlockMessage()
 
-    self.Enabled = true
     return true
+end
+
+function Plugin:CheckForSteamTime()
+	if self.Config.CheckPlayTime.Enable and self.Config.CheckPlayTime.UseSteamPlayTime then
+		InfoHub:Request( self.Name, "STEAMPLAYTIME" )
+	end
 end
 
 function Plugin:ClientConfirmConnect( Client )
@@ -119,7 +120,7 @@ function Plugin:Check( Player, Extravalue )
     if not Player then return end
 
 	local Client = Player:GetClient()
-    if not Shine:IsValidClient( Client ) or Shine:HasAccess( Client, "sh_ignorerating" ) then return end
+    --if not Shine:IsValidClient( Client ) or Shine:HasAccess( Client, "sh_ignorestatscheck" ) then return end
     
     local SteamId = Client:GetUserId()
     if not SteamId or SteamId < 1 then return end
@@ -128,12 +129,13 @@ function Plugin:Check( Player, Extravalue )
         self:Notify( Player, self.Config.WaitMessage )
         return false
     end
-    
+
     local Playerdata = InfoHub:GetHiveData( SteamId )
 
     --check hive timeouts
     if not Playerdata then return end
 
+    PrintTable(Playerdata)
     if not self.Passed then self.Passed = {} end
 	local passed = self.Passed[SteamId]
 
@@ -142,6 +144,7 @@ function Plugin:Check( Player, Extravalue )
 		self.Passed[SteamId] = passed
     end
 
+    Print(tostring(passed))
     if not passed then
 	    self:Notify( Player, self.BlockMessage)
 	    if self.Config.ShowSwitchAtBlock then
