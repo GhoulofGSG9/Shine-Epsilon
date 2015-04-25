@@ -1,7 +1,6 @@
 --[[
-    Shine Ns2Stats Badges
+    Shine Epsilon Badges
 ]]
-
 local Shine = Shine
 local InfoHub = Shine.PlayerInfoHub
 
