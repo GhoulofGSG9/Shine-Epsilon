@@ -262,7 +262,7 @@ function PlayerInfoHub:GetHiveData( SteamId )
 	if Shine.IsNS2Combat then return end
 
 	local data = GetHiveDataBySteamId(SteamId)
-	if data and data.steamid == SteamId then
+	if data and data.steamId == SteamId then
 		return data
 	end
 end

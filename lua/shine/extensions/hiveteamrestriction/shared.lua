@@ -1,5 +1,5 @@
 --[[
-    Shine Hive Team Restriction - Server - Shared
+    Shine Hive Team Restriction - Shared
 ]]
 local Shine = Shine
 

@@ -103,6 +103,8 @@ function Plugin:OnReceiveHiveData( Client )
 end
 
 function Plugin:AutoCheck( Client )
+	if self.Config.AllowSpectating then return end
+
     local Player = Client:GetControllingPlayer()
     local SteamId = Client:GetUserId()
 
