@@ -62,11 +62,13 @@ end
 
 function Plugin:CheckValues( Playerdata, SteamId, ComCheck )
     PROFILE("NoRookies:CheckValues()")
-    if not Enabled then return true end
+    if not Enabled then return end
 
-    local Playtime = Playerdata.playTime
+    --check the config first if we should process check on players joining a team
+    if not ComCheck and not self.Config.BlockTeams then return true end
+
     --check if Player fits to the PlayTime
-
+    local Playtime = Playerdata.playTime
     if self.Config.UseSteamTime then
 	    local SteamTime = InfoHub:GetSteamData( SteamId ).PlayTime
 	    if SteamTime and SteamTime > Playtime then

@@ -138,11 +138,11 @@ function Plugin:Check( Player, Extravalue )
 	local passed = self.Passed[SteamId]
 
     if passed == nil then
-		passed = self:CheckValues( Playerdata, SteamId, Extravalue )
+		passed = self:CheckValues( Playerdata, SteamId, Extravalue ) -- returns nil = temporarily allowed
 		self.Passed[SteamId] = passed
     end
 
-    if not passed then
+    if passed == false then
 	    self:Notify( Player, self.BlockMessage)
 	    if self.Config.ShowSwitchAtBlock then
 		    self:SendNetworkMessage( Client, "ShowSwitch", {}, true )
