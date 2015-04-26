@@ -39,3 +39,6 @@ These are all the plug-ins that are shipped with Epsilon Package:
 * [PasswordReset](https://github.com/GhoulofGSG9/Shine-Epsilon/wiki/PasswordReset)
 * [VACPlus](https://github.com/GhoulofGSG9/Shine-Epsilon/wiki/VACPlus)
 
+##Source Code and Issue tracker
+
+Both can be found at the project's [Github repo](https://github.com/GhoulofGSG9/Shine-Epsilon). Any kind of issue reports or pull request are welcomed.
