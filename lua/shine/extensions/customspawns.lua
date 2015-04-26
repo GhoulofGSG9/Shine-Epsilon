@@ -309,7 +309,7 @@ function Plugin:OnGetTeamNumberAllowed( TechPoint )
 		if error then
 			Shared.Message(StringFormat("[CustomSpawns] Error, %s", error))
 			Shared.Message("[CustomSpawns] Unloading the plugin now ...")
-			Shine.UnloadExtension( "customspawns" )
+			Shine:UnloadExtension( "customspawns" )
 		else
 			--doing this here as map has been completly loaded at this point.
 			self:CreateCommands()

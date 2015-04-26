@@ -65,11 +65,8 @@ function Plugin:ShowStatus( NewStatus )
 end
 
 function Plugin:UpdateStatusText( NewText )
-	if not self.Status then
-		self:ShowStatus(true)
-	else
+	if self.Status then
 		self.Status.Obj:SetText( NewText )
-		self.Status.Obj:SetIsVisible(true)
 	end
 end
 

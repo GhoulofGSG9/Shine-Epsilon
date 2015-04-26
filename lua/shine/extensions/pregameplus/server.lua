@@ -256,11 +256,11 @@ function Plugin:AddScore()
 end
 
 function Plugin:SendText()
-	self.dt.ShowStatus = true
 	self.dt.StatusText = StringFormat("%s\n%s\n%s", StringFormat(self.Config.Strings.Status, self.dt.Enabled and "enabled" or "disabled"),
 		self.Config.CheckLimit and StringFormat( self.Config.Strings.Limit, self.dt.Enabled and "off" or "on",
 			self.dt.Enabled and "being at" or "being under", self.Config.PlayerLimit )
 		or self.Config.Strings.NoLimit,	self.Config.ExtraMessageLine )
+	self.dt.ShowStatus = true
 end
 
 function Plugin:DestroyEnts()
