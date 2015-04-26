@@ -19,13 +19,13 @@ Plugin.DefaultConfig =
     InformMessage = "This server is not rookie friendly",
     BlockTeams = true,
     ShowSwitchAtBlock = false,
-    BlockCC = true,
+    BlockCC = false,
     AllowSpectating = false,
     BlockMessage = "This server is not rookie friendly",
     Kick = true,
     Kicktime = 20,
     KickMessage = "You will be kicked in %s seconds",
-    WaitMessage = "Please wait while your data is retrieved",
+    WaitMessage = "Please wait while we fetch your stats.",
 }
 
 Plugin.Name = "No Rookies"

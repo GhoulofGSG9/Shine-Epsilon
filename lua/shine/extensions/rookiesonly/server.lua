@@ -19,7 +19,7 @@ Plugin.DefaultConfig =
     Kick = true,
     Kicktime = 20,
     KickMessage = "You will be kicked in %s seconds",
-    WaitMessage = "Please wait while your data is retrieved",
+    WaitMessage = "Please wait while we fetch your stats.",
     ShowSwitchAtBlock = false
 }
 

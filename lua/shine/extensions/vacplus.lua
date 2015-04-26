@@ -31,7 +31,7 @@ function Plugin:OnReceiveSteamData( Client, Data )
     if Shine:HasAccess( Client, "sh_ignorevacbans" ) then return end
 
     if type(Data.Bans) ~= "table" or Data.Bans.DaysSinceLastBan == 0 or
-            Data.Bans.DaysSinceLastBan > self.Config.MaxDaysSinceLastSteamBan then
+            (self.Config.MaxDaysSinceLastSteamBan > 0 and Data.Bans.DaysSinceLastBan > self.Config.MaxDaysSinceLastSteamBan) then
         return
     end
 

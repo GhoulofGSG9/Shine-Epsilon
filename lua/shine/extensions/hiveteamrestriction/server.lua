@@ -17,7 +17,6 @@ Plugin.HasConfig = true
 Plugin.ConfigName = "HiveTeamRestriction.json"
 
 Plugin.DefaultConfig = {
-    RestrictionMode = 0,
     AllowSpectating = true,
     ShowSwitchAtBlock = false,
 	CheckKD = {
@@ -120,7 +119,7 @@ function Plugin:Check( Player, Extravalue )
     if not Player then return end
 
 	local Client = Player:GetClient()
-    --if not Shine:IsValidClient( Client ) or Shine:HasAccess( Client, "sh_ignorestatscheck" ) then return end
+    if not Shine:IsValidClient( Client ) or Shine:HasAccess( Client, "sh_ignorestatscheck" ) then return end
     
     local SteamId = Client:GetUserId()
     if not SteamId or SteamId < 1 then return end
