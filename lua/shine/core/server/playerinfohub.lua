@@ -51,7 +51,7 @@ local function ProcessQueue()
 		end
 	end
 
-	Shine.TimedHTTPRequest(node[1], "GET", OnSuccess, OnTimeout)
+	Shine.TimedHTTPRequest(node[1], "GET", OnSuccess, OnTimeout, 15)
 end
 
 local function AddToHTTPQueue( Address, OnSuccess, OnTimeout)
