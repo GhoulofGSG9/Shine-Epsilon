@@ -75,10 +75,7 @@ function Plugin:CheckValues( Playerdata, SteamId, ComCheck )
     end
 
 	local Min = ComCheck and self.Config.MinComPlaytime or self.Config.MinPlaytime
-    local Max = ComCheck and self.Config.MaxComPlaytime or self.Config.MaxPlaytime
-
-    if Playtime < Min * 3600 or
-		    (Max > 0 and Playtime > Max * 3600) then
+    if Playtime < Min * 3600 then
 	    return false
     end
 
