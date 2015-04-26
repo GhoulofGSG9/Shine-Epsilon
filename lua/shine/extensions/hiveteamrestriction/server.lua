@@ -151,7 +151,6 @@ function Plugin:Check( Player, Extravalue )
 	    return false
     else
 		self:DestroyTimer( StringFormat( "Kick_%s", SteamId ))
-	    return true
     end
 end
 
