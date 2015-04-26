@@ -65,7 +65,10 @@ function Plugin:CheckValues( Playerdata, SteamId, ComCheck )
     if not Enabled then return end
 
     --check the config first if we should process check on players joining a team
-    if not ComCheck and not self.Config.BlockTeams then return true end
+    if not ComCheck then
+	    if not self.Config.BlockTeams then return true end
+	    if Shine.GetHumanPlayerCount() < self.Config.MinPlayer then return end
+    end
 
     --check if Player fits to the PlayTime
     local Playtime = Playerdata.playTime
