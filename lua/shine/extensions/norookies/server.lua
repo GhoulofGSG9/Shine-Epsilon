@@ -7,7 +7,7 @@ local Plugin = Plugin
 
 Plugin.Version = "1.6"
 
-Plugin.ConfigName = "norookies.json"
+Plugin.ConfigName = "NoRookies.json"
 Plugin.DefaultConfig =
 {
     UseSteamTime = true,
@@ -64,9 +64,15 @@ function Plugin:CheckValues( Playerdata, SteamId, ComCheck )
     PROFILE("NoRookies:CheckValues()")
     if not Enabled then return end
 
+    if not self.Passed then self.Passed = { [1] = {}, [2] = {} } end
+    if self.Passed[ComCheck and 2 or 1][SteamId] then return self.Passed[ComCheck and 2 or 1][SteamId] end
+
     --check the config first if we should process check on players joining a team
     if not ComCheck then
-	    if not self.Config.BlockTeams then return true end
+	    if not self.Config.BlockTeams then
+		    self.Passed[1][SteamId] = true
+		    return true
+	    end
 	    if Shine.GetHumanPlayerCount() < self.Config.MinPlayer then return end
     end
 
@@ -80,5 +86,8 @@ function Plugin:CheckValues( Playerdata, SteamId, ComCheck )
     end
 
 	local Min = ComCheck and self.Config.MinComPlaytime or self.Config.MinPlaytime
-    return Playtime >= Min * 3600
+    local Check = Playtime >= Min * 3600
+
+    self.Passed[ComCheck and 2 or 1][SteamId] = Check
+    return Check
 end

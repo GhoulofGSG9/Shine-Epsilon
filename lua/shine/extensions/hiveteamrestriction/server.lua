@@ -134,13 +134,7 @@ function Plugin:Check( Player, Extravalue )
     --check hive timeouts
     if not Playerdata then return end
 
-    if not self.Passed then self.Passed = {} end
-	local passed = self.Passed[SteamId]
-
-    if passed == nil then
-		passed = self:CheckValues( Playerdata, SteamId, Extravalue ) -- returns nil = temporarily allowed
-		self.Passed[SteamId] = passed
-    end
+    local passed = self:CheckValues( Playerdata, SteamId, Extravalue )
 
     if passed == false then
 	    self:Notify( Player, self.BlockMessage)
@@ -157,6 +151,9 @@ end
 function Plugin:CheckValues( Playerdata, SteamId )
 	local Config = self.Config
 
+	if not self.Passed then self.Passed = {} end
+	if self.Passed[SteamId] then return self.Passed[SteamId] end
+
 	--check if Player fits to the PlayTime
 	if Config.CheckPlayTime.Enable then
 		local Playtime = Playerdata.playTime
@@ -172,6 +169,7 @@ function Plugin:CheckValues( Playerdata, SteamId )
 
 		if Playtime < Config.CheckPlayTime.Min * 3600 or
 				(Config.CheckPlayTime.Max > 0 and Playtime > Config.CheckPlayTime.Max * 3600) then
+			self.Passed[SteamId] = false
 			return false
 		end
 	end
@@ -180,6 +178,7 @@ function Plugin:CheckValues( Playerdata, SteamId )
 		local Skill = Playerdata.skill
 		if Skill < Config.CheckSkillRating.Min or
 				( Config.CheckSkillRating.Max > 0 and Skill > Config.CheckSkillRating.Max ) then
+			self.Passed[SteamId] = false
 			return false
 		end
 	end
@@ -192,6 +191,7 @@ function Plugin:CheckValues( Playerdata, SteamId )
 
 		if WL < Config.CheckWL.Min or
 				( Config.CheckWL.Max > 0 and WL > Config.CheckWL.Max ) then
+			self.Passed[SteamId] = false
 			return false
 		end
 	end
@@ -200,6 +200,7 @@ function Plugin:CheckValues( Playerdata, SteamId )
 		local Level = Playerdata.level
 		if Level < Config.CheckLevel.Min or
 				( Config.CheckLevel.Max > 0 and Level > Config.CheckLevel.Max ) then
+			self.Passed[SteamId] = false
 			return false
 		end
 	end
@@ -212,10 +213,12 @@ function Plugin:CheckValues( Playerdata, SteamId )
 
 		if KD < Config.CheckKD.Min or
 				( Config.CheckKD.Max > 0 and KD > Config.CheckKD.Max ) then
+			self.Passed[SteamId] = false
 			return false
 		end
 	end
 
+	self.Passed[SteamId] = true
 	return true
 end
 
@@ -224,7 +227,6 @@ function Plugin:BuildBlockMessage()
 		self.Config.BlockMessage
 	}
 	local Config = self.Config
-
 
 	if Config.CheckPlayTime.Enable then
 		MessageLines[#MessageLines + 1] = "Playtime (in hours):"
