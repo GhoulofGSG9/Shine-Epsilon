@@ -35,6 +35,17 @@ function Plugin:NetworkUpdate( Key, _, NewValue )
 	end
 end
 
+--stuff for modular Exo mod ( guys really use the techtree )
+local function ReplaceModularExo_GetIsConfigValid( OldFunc, ... )
+	local Hook = Shine.Hook.Call( "ModularExo_GetIsConfigValid", ... )
+	if not Hook then return OldFunc(...) end
+
+	local a, b, resourceCost, powerSupply, powerCost, exoTexturePath = OldFunc(...)
+	resourceCost = resourceCost and 0
+	
+	return a, b, resourceCost, powerSupply, powerCost, exoTexturePath
+end
+
 --Hooks
 do
 	local SetupClassHook = Shine.Hook.SetupClassHook
@@ -50,6 +61,8 @@ do
 		SetupClassHook( "Player", "GetIsPlaying", "GetIsPlaying", "ActivePre" )
 
 		SetupClassHook( "AlienTeamInfo", "OnUpdate", "AlienTeamInfoUpdate", "PassivePost" )
+
+		SetupGlobalHook( "ModularExo_GetIsConfigValid", "ModularExo_GetIsConfigValid", ReplaceModularExo_GetIsConfigValid )
 
 		Shine.Hook.Remove( "Think", "LoadSharedPGPHooks")
 	end)
@@ -115,6 +128,10 @@ function Plugin:AlienTeamInfoUpdate( AlienTeamInfo )
 	AlienTeamInfo.veilLevel = self.dt.UpgradeLevel
 	AlienTeamInfo.spurLevel = self.dt.UpgradeLevel
 	AlienTeamInfo.shellLevel = self.dt.UpgradeLevel
+end
+
+function Plugin:ModularExo_GetIsConfigValid()
+	return self.dt.Enabled
 end
 
 Shine:RegisterExtension( "pregameplus", Plugin )

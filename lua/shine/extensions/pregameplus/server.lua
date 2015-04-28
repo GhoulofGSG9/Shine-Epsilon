@@ -56,17 +56,6 @@ local function ReplaceGameStarted2( OldFunc, ... )
 	return temp
 end
 
---stuff for modular Exo mod ( guys really use the techtree )
-local function ReplaceModularExo_GetIsConfigValid( OldFunc, ... )
-	local Hook = Shine.Hook.Call( "ModularExo_GetIsConfigValid", ... )
-	if not Hook then return OldFunc(...) end
-
-	local a, b, resourceCost, powerSupply, powerCost, exoTexturePath = OldFunc(...)
-	resourceCost = resourceCost and 0
-
-	return a, b, resourceCost, powerSupply, powerCost, exoTexturePath
-end
-
 --Hooks
 do
 	local SetupClassHook = Shine.Hook.SetupClassHook
@@ -90,11 +79,9 @@ do
 
 	SetupClassHook( "NS2Gamerules", "ResetGame", "OnResetGame", "PassivePre" )
 
-	--The ModularExo Mod gets loaded by the entry system, so it's not loaded yet
 	--SetGestationData gets overloaded by the comp mod
 	Shine.Hook.Add( "Think", "LoadPGPHooks", function()
 		SetupClassHook( "Embryo", "SetGestationData", "SetGestationData", "PassivePost" )
-		SetupGlobalHook( "ModularExo_GetIsConfigValid", "ModularExo_GetIsConfigValid", ReplaceModularExo_GetIsConfigValid )
 
 		Shine.Hook.Remove( "Think", "LoadPGPHooks")
 	end)
