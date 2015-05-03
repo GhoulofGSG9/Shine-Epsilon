@@ -55,7 +55,7 @@ local BanTypes = {
 function Plugin:Kick( Client, BanType )
     local reason = string.format("The given user has been %s less than %s days ago", BanTypes[BanType],
         self.Config.MaxDaysSinceLastSteamBan)
-    if self.Config.Autoban then
+    if self.Config.AutoBan then
         Shared.ConsoleCommand( string.format("sh_ban %s %s %s",Client:GetUserId(), self.Config.BanTime, reason ))
     else
         Shared.ConsoleCommand( string.format("sh_kick %s %s",Client:GetUserId(), reason ))
