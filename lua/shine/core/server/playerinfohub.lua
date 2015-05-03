@@ -122,6 +122,7 @@ function PlayerInfoHub:OnConnect( Client )
 
 	local SteamId = Client:GetUserId()
 	if not SteamId or SteamId <= 0 then return end
+
 	local SteamId64 = StringFormat( "%s%s", 76561, SteamId + 197960265728 )
 
 	if not self.SteamData[ SteamId ] then
@@ -141,105 +142,118 @@ function PlayerInfoHub:OnConnect( Client )
 	 - -2 = Fetching
 	 - -1 = Timeout
 	 ]]
-	if not self.SteamData[ SteamId ].PlayTime and self.Requests.STEAMPLAYTIME[1] then
-		PlayerInfoHub.SteamData[ SteamId ].PlayTime = -2
-
-		AddToHTTPQueue( StringFormat( "http://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key=2EFCCE2AF701859CDB6BBA3112F95972&SteamId=%s&appids_filter[0]=4920", SteamId64 ), function( Response )
-			local Temp = JsonDecode( Response )
-
-			Temp = Temp and Temp.response and Temp.response.games and Temp.response.games[1]
-			if not Temp then
-				PlayerInfoHub.SteamData[ SteamId ].PlayTime = 0
-				return
-			else
-				PlayerInfoHub.SteamData[ SteamId ].PlayTime = Temp.playtime_forever and Temp.playtime_forever * 60 or 0
-			end
-
-			if not PlayerInfoHub.Requests.STEAMBADGES[1] or PlayerInfoHub.SteamData[ SteamId ].Badges.Normal ~= -2 and
+	if self.Requests.STEAMPLAYTIME[1] then
+		local function CallEvent()
+			if (not PlayerInfoHub.Requests.STEAMBADGES[1] or PlayerInfoHub.SteamData[ SteamId ].Badges.Normal ~= -2) and
 					(not PlayerInfoHub.Requests.STEAMBANS[1] or PlayerInfoHub.SteamData[ SteamId ].Bans ~= -2) then
 				Call( "OnReceiveSteamData", Client, PlayerInfoHub.SteamData[ SteamId ] )
 			end
-		end, function()
-			PlayerInfoHub.SteamData[ SteamId ].PlayTime = -1
-			if not PlayerInfoHub.Requests.STEAMBADGES[1] or PlayerInfoHub.SteamData[ SteamId ].Badges.Normal ~= -2 and
-					(not PlayerInfoHub.Requests.STEAMBANS[1] or PlayerInfoHub.SteamData[ SteamId ].Bans ~= -2) then
-				Call( "OnReceiveSteamData", Client, PlayerInfoHub.SteamData[ SteamId ] )
-			end
-		end )
+		end
+
+		if not self.SteamData[ SteamId ].PlayTime then
+			PlayerInfoHub.SteamData[ SteamId ].PlayTime = -2
+
+			AddToHTTPQueue( StringFormat( "http://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key=2EFCCE2AF701859CDB6BBA3112F95972&SteamId=%s&appids_filter[0]=4920", SteamId64 ), function( Response )
+				local Temp = JsonDecode( Response )
+
+				Temp = Temp and Temp.response and Temp.response.games and Temp.response.games[1]
+				if not Temp then
+					PlayerInfoHub.SteamData[ SteamId ].PlayTime = 0
+					return
+				else
+					PlayerInfoHub.SteamData[ SteamId ].PlayTime = Temp.playtime_forever and Temp.playtime_forever * 60 or 0
+				end
+
+				CallEvent()
+			end, function()
+				PlayerInfoHub.SteamData[ SteamId ].PlayTime = -1
+				CallEvent()
+			end )
+		elseif self.SteamData[ SteamId ].PlayTime ~= -2 then
+			CallEvent()
+		end
 	end
 
-	if not self.SteamData[ SteamId ].Bans and self.Requests.STEAMBANS[1] then
-		self.SteamData[ SteamId ].Bans = -2
-		AddToHTTPQueue( StringFormat( "http://api.steampowered.com/ISteamUser/GetPlayerBans/v1/?key=2EFCCE2AF701859CDB6BBA3112F95972&steamids=%s", SteamId64 ),function( Response )
-			local data = JsonDecode( Response )
-			PlayerInfoHub.SteamData[ SteamId ].Bans = data and data.players and data.players[1] or 0
-
+	if self.Requests.STEAMBANS[1] then
+		local function CallEvent()
 			if (not PlayerInfoHub.Requests.STEAMPLAYTIME[1] or PlayerInfoHub.SteamData[ SteamId ].Playtime ~= -2) and
 					(not PlayerInfoHub.Requests.STEAMBADGES[1] or PlayerInfoHub.SteamData[ SteamId ].Badges.Normal ~= -2) then
 				Call( "OnReceiveSteamData", Client, PlayerInfoHub.SteamData[ SteamId ] )
 			end
-		end, function()
-			PlayerInfoHub.SteamData[ SteamId ].Bans = -1
+		end
 
+		if not self.SteamData[ SteamId ].Bans then
+			self.SteamData[ SteamId ].Bans = -2
+			AddToHTTPQueue( StringFormat( "http://api.steampowered.com/ISteamUser/GetPlayerBans/v1/?key=2EFCCE2AF701859CDB6BBA3112F95972&steamids=%s", SteamId64 ),function( Response )
+				local data = JsonDecode( Response )
+				PlayerInfoHub.SteamData[ SteamId ].Bans = data and data.players and data.players[1] or 0
+				CallEvent()
+			end, function()
+				PlayerInfoHub.SteamData[ SteamId ].Bans = -1
+				CallEvent()
+			end)
+		elseif self.SteamData[ SteamId ].Bans ~= -2 then
+			CallEvent()
+		end
+	end
+
+	if self.Requests.GEODATA[1] then
+		if not self.GeoData[ SteamId ] then
+			self.GeoData[ SteamId ] = -2
+
+			AddToHTTPQueue( StringFormat( "https://freegeoip.net/json/%s", IPAddressToString( Server.GetClientAddress( Client ) ) ), function( Response )
+				local data = JsonDecode( Response )
+				PlayerInfoHub.GeoData[ SteamId ] = data or 0
+				Call( "OnReceiveGeoData", Client, PlayerInfoHub.GeoData[ SteamId ] )
+			end, function()
+				PlayerInfoHub.GeoData[ SteamId ] = -1
+				Call( "OnReceiveGeoData", Client, PlayerInfoHub.GeoData[ SteamId ] )
+			end)
+		elseif self.GeoData[ SteamId ] ~= -2 then
+			Call( "OnReceiveGeoData", Client, PlayerInfoHub.GeoData[ SteamId ] )
+		end
+	end
+
+	if self.Requests.STEAMBADGES[1] then
+		local function CallEvent()
 			if (not PlayerInfoHub.Requests.STEAMPLAYTIME[1] or PlayerInfoHub.SteamData[ SteamId ].Playtime ~= -2) and
-					(not PlayerInfoHub.Requests.STEAMBADGES[1] or PlayerInfoHub.SteamData[ SteamId ].Badges.Normal ~= -2) then
+					(not PlayerInfoHub.Requests.STEAMBANS[1] or PlayerInfoHub.SteamData[ SteamId ].Bans ~= -2) then
 				Call( "OnReceiveSteamData", Client, PlayerInfoHub.SteamData[ SteamId ] )
 			end
-		end)
-	end
+		end
 
-	if not self.GeoData[ SteamId ] and self.Requests.GEODATA[1] then
-		self.GeoData[ SteamId ] = -2
+		if not self.SteamData[ SteamId ].Badges.Normal then
+			PlayerInfoHub.SteamData[ SteamId ].Badges.Normal = -2
 
-		AddToHTTPQueue( StringFormat( "https://freegeoip.net/json/%s", IPAddressToString( Server.GetClientAddress( Client ) ) ), function( Response )
-			local data = JsonDecode( Response )
-			PlayerInfoHub.GeoData[ SteamId ] = data or 0
+			AddToHTTPQueue( StringFormat( "http://api.steampowered.com/IPlayerService/GetBadges/v1/?key=2EFCCE2AF701859CDB6BBA3112F95972&SteamId=%s", SteamId64 ),function( Response )
+				PlayerInfoHub.SteamData[ SteamId ].Badges.Normal = 0
+				PlayerInfoHub.SteamData[ SteamId ].Badges.Foil = 0
 
-			Call( "OnReceiveGeoData", Client, PlayerInfoHub.GeoData[ SteamId ] )
-		end, function()
-			PlayerInfoHub.GeoData[ SteamId ] = -1
-
-			Call( "OnReceiveGeoData", Client, PlayerInfoHub.GeoData[ SteamId ] )
-		end)
-	end
-
-	if not self.SteamData[ SteamId ].Badges.Normal and self.Requests.STEAMBADGES[1] then
-		PlayerInfoHub.SteamData[ SteamId ].Badges.Normal = -2
-
-		AddToHTTPQueue( StringFormat( "http://api.steampowered.com/IPlayerService/GetBadges/v1/?key=2EFCCE2AF701859CDB6BBA3112F95972&SteamId=%s", SteamId64 ),function( Response )
-			PlayerInfoHub.SteamData[ SteamId ].Badges.Normal = 0
-			PlayerInfoHub.SteamData[ SteamId ].Badges.Foil = 0
-
-			local data = JsonDecode( Response )
-			local badgedata = data and data.response.badges
-			if badgedata then
-				for _, badge in ipairs(badgedata) do
-					if badge.appid == 4920 then
-						if badge.border_color == 1 then
-							PlayerInfoHub.SteamData[ SteamId ].Badges.Foil = 1
-						else
-							PlayerInfoHub.SteamData[ SteamId ].Badges.Normal = badge.level
+				local data = JsonDecode( Response )
+				local badgedata = data and data.response.badges
+				if badgedata then
+					for _, badge in ipairs(badgedata) do
+						if badge.appid == 4920 then
+							if badge.border_color == 1 then
+								PlayerInfoHub.SteamData[ SteamId ].Badges.Foil = 1
+							else
+								PlayerInfoHub.SteamData[ SteamId ].Badges.Normal = badge.level
+							end
 						end
 					end
 				end
-			end
 
-			if not PlayerInfoHub.Requests.STEAMPLAYTIME[1] or PlayerInfoHub.SteamData[ SteamId ].Playtime ~= -2 and
-					(not PlayerInfoHub.Requests.STEAMBANS[1] or PlayerInfoHub.SteamData[ SteamId ].Bans ~= -2) then
-				Call( "OnReceiveSteamData", Client, PlayerInfoHub.SteamData[ SteamId ] )
-			end
-		end, function()
-			PlayerInfoHub.SteamData[ SteamId ].Badges.Normal = -1
-			PlayerInfoHub.SteamData[ SteamId ].Badges.Foil = -1
-
-			if not PlayerInfoHub.Requests.STEAMPLAYTIME[1] or PlayerInfoHub.SteamData[ SteamId ].Playtime ~= -2 and
-					(not PlayerInfoHub.Requests.STEAMBANS[1] or PlayerInfoHub.SteamData[ SteamId ].Bans ~= -2) then
-				Call( "OnReceiveSteamData", Client, PlayerInfoHub.SteamData[ SteamId ] )
-			end
-		end )
-	elseif self.Requests.STEAMBADGES[1] and PlayerInfoHub.SteamData[ SteamId ].Badges.Normal ~= -2 then
-		Call( "OnReceiveSteamData", Client, PlayerInfoHub.SteamData[ SteamId ] )
+				CallEvent()
+			end, function()
+				PlayerInfoHub.SteamData[ SteamId ].Badges.Normal = -1
+				PlayerInfoHub.SteamData[ SteamId ].Badges.Foil = -1
+				CallEvent()
+			end )
+		elseif PlayerInfoHub.SteamData[ SteamId ].Badges.Normal ~= -2 then
+			CallEvent()
+		end
 	end
+
 end
 
 Add( "ClientConnect", "GetPlayerInfo", function( Client )
