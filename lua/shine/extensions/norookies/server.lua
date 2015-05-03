@@ -31,6 +31,14 @@ Plugin.DefaultConfig =
 Plugin.Name = "No Rookies"
 Plugin.DisconnectReason = "You didn't fit to the required playtime"
 
+Plugin.Conflicts = {
+	DisableThem = {
+		"rookiesonly"
+	},
+	DisableUs = {
+		"hiveteamrestriction"
+	}
+}
 local Enabled = true --used to temp disable the plugin in case the given player limit is reached
 
 function Plugin:CheckForSteamTime()

@@ -13,6 +13,13 @@ local Plugin = Plugin
 Plugin.Version = "1.0"
 Plugin.NS2Only = true
 
+Plugin.Conflicts = {
+	DisableThem = {
+		"norookies",
+		"rookiesonly"
+	}
+}
+
 Plugin.HasConfig = true
 Plugin.ConfigName = "HiveTeamRestriction.json"
 

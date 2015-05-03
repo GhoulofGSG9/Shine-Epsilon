@@ -25,6 +25,13 @@ Plugin.DefaultConfig =
 Plugin.Name = "Rookies Only"
 Plugin.DisconnectReason = "You are not a rookie anymore"
 
+Plugin.Conflicts = {
+	DisableUs = {
+		"hiveteamrestriction",
+		"norookies"
+	}
+}
+
 function Plugin:CheckForSteamTime() --This plugin does not use steam times at all
 end
 
