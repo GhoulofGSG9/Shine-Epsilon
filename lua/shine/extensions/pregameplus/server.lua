@@ -93,7 +93,10 @@ function Plugin:Initialise()
     if Gamemode ~= "ns2" and Gamemode ~= "mvm" then        
         return false, StringFormat( "The pregameplus plugin does not work with %s.", Gamemode )
     end
-	
+
+	--Checks if all config strings are okay syntax wise
+	self:CheckConfigStrings()
+
 	self.Enabled = true
 
 	self.dt.AllowOnosExo = self.Config.AllowOnosExo
@@ -121,8 +124,19 @@ function Plugin:Initialise()
 	return true
 end
 
-local function GetPlayerinTeams()
-	return
+function Plugin:CheckConfigStrings()
+	local changed
+
+	for i, value in pairs( self.DefaultConfig.Strings ) do
+		if not self.Config.Strings[i] then
+			self.Config.Strings[i] = value
+			changed = true
+		end
+	end
+	
+	if changed then
+		self:SaveConfig()
+	end
 end
 
 local function MakeTechEnt( techPoint, mapName, rightOffset, forwardOffset, teamType )

@@ -42,7 +42,7 @@ local function ReplaceModularExo_GetIsConfigValid( OldFunc, ... )
 
 	local a, b, resourceCost, powerSupply, powerCost, exoTexturePath = OldFunc(...)
 	resourceCost = resourceCost and 0
-	
+
 	return a, b, resourceCost, powerSupply, powerCost, exoTexturePath
 end
 
