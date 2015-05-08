@@ -68,6 +68,17 @@ function Plugin:CheckCommLogin( _, Player )
     return self:Check( Player, true )
 end
 
+function Plugin:JoinTeam( _, Player, NewTeam, _, ShineForce )
+    if not self.Config.BlockTeams then return end
+
+    if ShineForce or self.Config.AllowSpectating and NewTeam == kSpectatorIndex or NewTeam == kTeamReadyRoom then
+        self:DestroyTimer( StringFormat( "Kick_%s", Player:GetSteamId() ))
+        return
+    end
+
+    return self:Check( Player )
+end
+
 function Plugin:CheckValues( Playerdata, SteamId, ComCheck )
     PROFILE("NoRookies:CheckValues()")
     if not Enabled then return end
