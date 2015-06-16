@@ -21,11 +21,12 @@ Plugin.DefaultConfig =
     ShowSwitchAtBlock = false,
     BlockCC = false,
     AllowSpectating = false,
-    BlockMessage = "This server is not rookie friendly",
+	BlockMessage = "This server is not rookie friendly",
     Kick = true,
     Kicktime = 20,
     KickMessage = "You will be kicked in %s seconds",
     WaitMessage = "Please wait while we fetch your stats.",
+	Debug = false,
 }
 
 Plugin.Name = "No Rookies"
@@ -40,6 +41,15 @@ Plugin.Conflicts = {
 	}
 }
 local Enabled = true --used to temp disable the plugin in case the given player limit is reached
+
+function Plugin:Initialise()
+	self.Enabled = true
+
+	self:CheckForSteamTime()
+	self:BuildBlockMessage()
+
+	return true
+end
 
 function Plugin:CheckForSteamTime()
 	if self.Config.UseSteamTime or self.Config.ForceSteamTime then
@@ -72,7 +82,7 @@ function Plugin:JoinTeam( _, Player, NewTeam, _, ShineForce )
     if not self.Config.BlockTeams then return end
 
     if ShineForce or self.Config.AllowSpectating and NewTeam == kSpectatorIndex or NewTeam == kTeamReadyRoom then
-        self:DestroyTimer( StringFormat( "Kick_%s", Player:GetSteamId() ))
+        self:DestroyTimer( string.format( "Kick_%s", Player:GetSteamId() ))
         return
     end
 
@@ -84,7 +94,7 @@ function Plugin:CheckValues( Playerdata, SteamId, ComCheck )
     if not Enabled then return end
 
     if not self.Passed then self.Passed = { [1] = {}, [2] = {} } end
-    if self.Passed[ComCheck and 2 or 1][SteamId] then return self.Passed[ComCheck and 2 or 1][SteamId] end
+    if self.Passed[ComCheck and 2 or 1][SteamId] ~= nil then return self.Passed[ComCheck and 2 or 1][SteamId] end
 
     --check the config first if we should process check on players joining a team
     if not ComCheck then
@@ -107,6 +117,18 @@ function Plugin:CheckValues( Playerdata, SteamId, ComCheck )
 	local Min = ComCheck and self.Config.MinComPlaytime or self.Config.MinPlaytime
     local Check = Playtime >= Min * 3600
 
+    if self.Config.Debug then
+	    Print(string.format("NoRookie Debug: Playtime of %s = %s secs, Passed Check %s? %s", SteamId, Playtime, ComCheck and 2 or 1, Check))
+    end
+
     self.Passed[ComCheck and 2 or 1][SteamId] = Check
     return Check
+end
+
+function Plugin:CleanUp()
+	Shine.PlayerInfoHub:RemoveRequest(self.Name)
+
+	self.BaseClass.Cleanup( self )
+
+	self.Enabled = false
 end

@@ -32,6 +32,15 @@ Plugin.Conflicts = {
 	}
 }
 
+function Plugin:Initialise()
+    self.Enabled = true
+
+    self:CheckForSteamTime()
+    self:BuildBlockMessage()
+
+    return true
+end
+
 function Plugin:CheckForSteamTime() --This plugin does not use steam times at all
 end
 
@@ -55,4 +64,12 @@ function Plugin:CheckValues( Playerdata, SteamId )
 
 	self.Passed[SteamId] = false
 	return false
+end
+
+function Plugin:CleanUp()
+    Shine.PlayerInfoHub:RemoveRequest(self.Name)
+
+    self.BaseClass.Cleanup( self )
+
+    self.Enabled = false
 end
