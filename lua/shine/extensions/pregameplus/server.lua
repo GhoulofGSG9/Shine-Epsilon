@@ -372,10 +372,9 @@ function Plugin:CheckLimit( Gamerules )
 				Gamerules:ResetGame()
 			end)
 		end
-	elseif self.dt.Countdown then
+	elseif self:TimerExists( "Countdown" ) then
 		self:DestroyTimer( "Countdown" )
 		self.dt.CountdownText = ""
-		self:SendText()
 	end
 end
 
