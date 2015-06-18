@@ -115,7 +115,7 @@ function Plugin:AutoCheck( Client )
     local Player = Client:GetControllingPlayer()
     local SteamId = Client:GetUserId()
 
-    if not Player or not InfoHub:GetIsRequestFinished( SteamId ) then return end
+    if not Player or not InfoHub:GetIsRequestFinished( SteamId, self.Name ) then return end
 
     self:Check( Player )
 end
@@ -131,7 +131,7 @@ function Plugin:Check( Player, Extravalue )
     local SteamId = Client:GetUserId()
     if not SteamId or SteamId < 1 then return end
 	
-    if not InfoHub:GetIsRequestFinished( SteamId ) then
+    if not InfoHub:GetIsRequestFinished( SteamId, self.Name ) then
         self:Notify( Player, self.Config.WaitMessage )
         return false
     end

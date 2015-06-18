@@ -130,10 +130,10 @@ function PlayerInfoHub:OnConnect( Client )
 		self.SteamData[ SteamId ].Badges = {}
 	end
 
-	if not self:GetHiveData( SteamId ) then
+	if not self:GetHiveData( SteamId ) and self.HiveQueue[ SteamId ] == nil then
 		self.HiveQueue[ SteamId ] = true
 		Shine.Timer.Create( StringFormat("HiveRequest%s", SteamId), 5, 1, function()
-			PlayerInfoHub.HiveQueue[ SteamId ] = nil
+			PlayerInfoHub.HiveQueue[ SteamId ] = false
 		end )
 	end
 
@@ -176,7 +176,7 @@ function PlayerInfoHub:OnConnect( Client )
 
 	if self.Requests.STEAMBANS[1] then
 		local function CallEvent()
-			if (not PlayerInfoHub.Requests.STEAMPLAYTIME[1] or PlayerInfoHub.SteamData[ SteamId ].Playtime ~= -2) and
+			if (not PlayerInfoHub.Requests.STEAMPLAYTIME[1] or PlayerInfoHub.SteamData[ SteamId ].PlayTime ~= -2) and
 					(not PlayerInfoHub.Requests.STEAMBADGES[1] or PlayerInfoHub.SteamData[ SteamId ].Badges.Normal ~= -2) then
 				Call( "OnReceiveSteamData", Client, PlayerInfoHub.SteamData[ SteamId ] )
 			end
@@ -216,7 +216,7 @@ function PlayerInfoHub:OnConnect( Client )
 
 	if self.Requests.STEAMBADGES[1] then
 		local function CallEvent()
-			if (not PlayerInfoHub.Requests.STEAMPLAYTIME[1] or PlayerInfoHub.SteamData[ SteamId ].Playtime ~= -2) and
+			if (not PlayerInfoHub.Requests.STEAMPLAYTIME[1] or PlayerInfoHub.SteamData[ SteamId ].PlayTime ~= -2) and
 					(not PlayerInfoHub.Requests.STEAMBANS[1] or PlayerInfoHub.SteamData[ SteamId ].Bans ~= -2) then
 				Call( "OnReceiveSteamData", Client, PlayerInfoHub.SteamData[ SteamId ] )
 			end
@@ -267,7 +267,7 @@ Add("OnSetPlayerLevel", "HiveRequestFinished", function(Player)
 
 	if SteamId then
 		Shine.Timer.Destroy(StringFormat("HiveRequest%s", SteamId))
-		PlayerInfoHub.HiveQueue[ SteamId ] = nil
+		PlayerInfoHub.HiveQueue[ SteamId ] = false
 		Call( "OnReceiveHiveData", Client, GetHiveDataBySteamId(SteamId) )
 	end
 end)
@@ -285,9 +285,52 @@ function PlayerInfoHub:GetSteamData( SteamId )
 	return self.SteamData[ SteamId ]
 end
 
-function PlayerInfoHub:GetIsRequestFinished( SteamId )
-	return (not self.Requests.STEAMPLAYTIME[1] or self.SteamData[ SteamId ].Playtime ~= -2 ) and
-			(not self.Requests.STEAMBADGES[1] or self.SteamData[ SteamId ].Badges.Normal ~= -2) and
-			(not self.Requests.STEAMBANS[1] or self.SteamData[ SteamId ].Bans ~= -2) and
-			(not self.Requests.GEODATA[1] or self.GeoData[ SteamId ] ~= -2) and not self.HiveQueue[ SteamId ]
+--[[
+-- Returns if the requests have been finsihed for given SteamId
+-- If a Name is give it will only check for requst registered with the given name
+ ]]
+function PlayerInfoHub:GetIsRequestFinished( SteamId, Name )
+
+	if not Name then
+		return (not self.Requests.STEAMPLAYTIME[1] or self.SteamData[ SteamId ].Playtime ~= -2 ) and
+				(not self.Requests.STEAMBADGES[1] or self.SteamData[ SteamId ].Badges.Normal ~= -2) and
+				(not self.Requests.STEAMBANS[1] or self.SteamData[ SteamId ].Bans ~= -2) and
+				(not self.Requests.GEODATA[1] or self.GeoData[ SteamId ] ~= -2) and self.HiveQueue[ SteamId ] == false
+	else
+		local result = self.HiveQueue[ SteamId ] == false
+		if not result then return false end --avoid any not needed for loop via if checks
+
+		for _, name in ipairs(self.Requests.STEAMPLAYTIME) do
+			if name == Name then
+				result = self.SteamData[ SteamId ].Playtime ~= -2
+				break
+			end
+		end
+		if not result then return false end
+
+		for _, name in ipairs(self.Requests.STEAMBADGES) do
+			if name == Name then
+				result = self.SteamData[ SteamId ].Badges.Normal ~= -2
+				break
+			end
+		end
+		if not result then return false end
+
+		for _, name in ipairs(self.Requests.STEAMBANS) do
+			if name == Name then
+				result = self.SteamData[ SteamId ].Bans ~= -2
+				break
+			end
+		end
+		if not result then return false end
+
+		for _, name in ipairs(self.Requests.GEODATA) do
+			if name == Name then
+				result = self.GeoData[ SteamId ] ~= -2
+				break
+			end
+		end
+
+		return result
+	end
 end

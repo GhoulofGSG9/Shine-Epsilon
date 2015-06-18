@@ -20,56 +20,64 @@ Shine.Hook.SetupClassHook("Player", "SetRookieMode", "OnSetRookie", "Halt")
 
 function Plugin:Initialise()
 	self.Enabled = true
-	self.PlayTimes = {}
+	self.Playtimes = {}
 
 	self.Config.MaxRookieTime = math.min(8, self.Config.MaxRookieTime)
 
 	if self.Config.UseSteamPlayTime then
-		InfoHub:Request( self.Name, "STEAMPLAYTIME" )
+		InfoHub:Request("nomorefakerookies", "STEAMPLAYTIME")
+	else
+		for _, player in ipairs(Shine.GetAllPlayers()) do
+			self:CheckPlayer(player)
+		end
 	end
 
 	return true
 end
 
-function Plugin:OnReceiveSteamData( Client, Data )
-	local SteamId = Client:GetUserID()
+function Plugin:OnReceiveSteamData(Client, Data)
+	local SteamId = Client:GetUserId()
 
 	if not self.Playtimes[SteamId] then self.Playtimes[SteamId] = -1 end
 
 	if Data.PlayTime > self.Playtimes[SteamId] then
 		self.Playtimes[SteamId] = Data.PlayTime
 	end
+
+	self:CheckPlayer(Client:GetControllingPlayer())
 end
 
-function Plugin:OnReceiveHiveData( Client, Data )
-	local SteamId = Client:GetUserID()
+function Plugin:OnReceiveHiveData(Client, Data)
+	local SteamId = Client:GetUserId()
 
 	if not self.Playtimes[SteamId] then self.Playtimes[SteamId] = -1 end
 
 	if Data and Data.playTime > self.Playtimes[SteamId] then
 		self.Playtimes[SteamId] = Data.playTime
 	end
+
+	self:CheckPlayer(Client:GetControllingPlayer())
 end
 
-function Plugin:OnSetRookie( Player, Mode, Force )
-	if Force then return end
-
+function Plugin:OnSetRookie(Player, Mode)
 	if not Mode then return end
 
 	return self:CheckPlayer(Player, Mode)
 end
 
-function Plugin:CheckPlayer( Player, Mode )
+function Plugin:CheckPlayer(Player, Mode)
+	if not Player then return end
+
 	local Client = Player:GetClient()
 	local SteamId = Client and Player:GetSteamId()
 
 	if not SteamId or SteamId < 1 then return end
-	if not InfoHub:GetIsRequestFinished( SteamId ) then return end
+	if not InfoHub:GetIsRequestFinished(SteamId, "nomorefakerookies") then return end
 
-	if self.PlayTimes[SteamId] <= self.Config.MaxRookieTime then return end --Real Rookies or Timeouts
+	if self.Playtimes[SteamId] <= self.Config.MaxRookieTime then return end --real rookies or timeouts
 
-	if Player:GetIsRookie() or Mode then --Player tried to fake Rookie
-		Player:SetRookie(false, true)
+	if Player:GetIsRookie() or Mode then --Player tried to fake rookie status
+		Player:SetRookieMode(false)
 		if self.Config.Ban then
 			local bancommand = string.format("sh_banid %s %s Banned by the nomorefakerookies plugin", SteamId,
 				self.Config.Bantime)
@@ -83,9 +91,11 @@ function Plugin:CheckPlayer( Player, Mode )
 end
 
 function Plugin:CleanUp()
+	InfoHub:RemoveRequest("nomorefakerookies", "STEAMPLAYTIME")
+
 	self.BaseClass.CleanUp()
 	self.Enabled = false
 end
 
-Shine:RegisterExtension( "nomorefakerookies", Plugin )
+Shine:RegisterExtension("nomorefakerookies", Plugin)
 
