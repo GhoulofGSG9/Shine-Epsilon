@@ -79,7 +79,7 @@ end
 function Plugin:OnReceiveGeoData( Client, GeoData )
     if not self.Config.Flags then return end
     
-    local Nationality = GeoData.country_code or "UNO"
+    local Nationality = type(GeoData) == "table" and GeoData.country_code or "UNO"
     local SetBagde = self:SetBadge( Client, Nationality, 2 )
     
     if not SetBagde then

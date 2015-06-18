@@ -72,6 +72,13 @@ end
 Shine.Hook.ReplaceLocalFunction( MarineTeam.SpawnInitialStructures, "SpawnInfantryPortal", SpawnInfantryPortal )
 
 Shine.Hook.SetupClassHook( "MarineTeam", "SpawnInitialStructures", "OnSpawnInitialStructures", "PassivePost")
+Shine.Hook.SetupClassHook( "MarineTeam", "ResetTeam", "PreMarineTeamReset", "PassivePre")
+
+function Plugin:PreMarineTeamReset()
+	count = 0
+	takenInfantryPortalPoints = {}
+end
+
 function Plugin:OnSpawnInitialStructures( Team, TechPoint )
 	local MinPlayers = self.Config.MinPlayers
 	local _, PlayerCount = Shine.GetAllPlayers()

@@ -56,17 +56,6 @@ local function ReplaceGameStarted2( OldFunc, ... )
 	return temp
 end
 
---stuff for modular Exo mod ( guys really use the techtree )
-local function ReplaceModularExo_GetIsConfigValid( OldFunc, ... )
-	local Hook = Shine.Hook.Call( "ModularExo_GetIsConfigValid", ... )
-	if not Hook then return OldFunc(...) end
-
-	local a, b, resourceCost, powerSupply, powerCost, exoTexturePath = OldFunc(...)
-	resourceCost = resourceCost and 0
-
-	return a, b, resourceCost, powerSupply, powerCost, exoTexturePath
-end
-
 --Hooks
 do
 	local SetupClassHook = Shine.Hook.SetupClassHook
@@ -90,11 +79,9 @@ do
 
 	SetupClassHook( "NS2Gamerules", "ResetGame", "OnResetGame", "PassivePre" )
 
-	--The ModularExo Mod gets loaded by the entry system, so it's not loaded yet
 	--SetGestationData gets overloaded by the comp mod
 	Shine.Hook.Add( "Think", "LoadPGPHooks", function()
 		SetupClassHook( "Embryo", "SetGestationData", "SetGestationData", "PassivePost" )
-		SetupGlobalHook( "ModularExo_GetIsConfigValid", "ModularExo_GetIsConfigValid", ReplaceModularExo_GetIsConfigValid )
 
 		Shine.Hook.Remove( "Think", "LoadPGPHooks")
 	end)
@@ -106,7 +93,10 @@ function Plugin:Initialise()
     if Gamemode ~= "ns2" and Gamemode ~= "mvm" then        
         return false, StringFormat( "The pregameplus plugin does not work with %s.", Gamemode )
     end
-	
+
+	--Checks if all config strings are okay syntax wise
+	self:CheckConfigStrings()
+
 	self.Enabled = true
 
 	self.dt.AllowOnosExo = self.Config.AllowOnosExo
@@ -134,8 +124,19 @@ function Plugin:Initialise()
 	return true
 end
 
-local function GetPlayerinTeams()
-	return
+function Plugin:CheckConfigStrings()
+	local changed
+
+	for i, value in pairs( self.DefaultConfig.Strings ) do
+		if not self.Config.Strings[i] then
+			self.Config.Strings[i] = value
+			changed = true
+		end
+	end
+	
+	if changed then
+		self:SaveConfig()
+	end
 end
 
 local function MakeTechEnt( techPoint, mapName, rightOffset, forwardOffset, teamType )
@@ -371,10 +372,9 @@ function Plugin:CheckLimit( Gamerules )
 				Gamerules:ResetGame()
 			end)
 		end
-	elseif self.dt.Countdown then
+	elseif self:TimerExists( "Countdown" ) then
 		self:DestroyTimer( "Countdown" )
 		self.dt.CountdownText = ""
-		self:SendText()
 	end
 end
 

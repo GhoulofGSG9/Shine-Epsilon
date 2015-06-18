@@ -65,17 +65,15 @@ function Plugin:ShowStatus( NewStatus )
 end
 
 function Plugin:UpdateStatusText( NewText )
-	if self.Status then
-		self.Status.Obj:SetText( NewText )
-	end
+	Shine.ScreenText.SetText("PGPStatus", NewText)
 end
 
 function Plugin:UpdateStatusCountdown( NewStatus )
+	if self.Status then
+		self.Status.Obj:SetIsVisible(NewStatus == "")
+	end
+	
 	if NewStatus ~= "" then
-		if self.Status then
-			self.Status.Obj:SetIsVisible(false)
-		end
-
 		self.Countdown = Shine.ScreenText.Add( "PGPCoundown", {
 			X =self.dt.StatusX,
 			Y = self.dt.StatusY,
