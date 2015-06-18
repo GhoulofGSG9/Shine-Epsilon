@@ -12,8 +12,6 @@ Plugin.DefaultConfig =
 Plugin.CheckConfig = true
 
 function Plugin:Initialise()
-	Print(IPAddressToString(Server.GetIpAddress()))
-
 	if self.Config.FakeIP == "127.0.0.1" then
 		return false, "Please setup the FakeSeverIp plugin correctly before using it!"
 	end
@@ -22,14 +20,12 @@ function Plugin:Initialise()
 	return true
 end
 
-local oldIPAddressToString = IPAddressToString
 local serverip = Server.GetIpAddress()
 
-function IPAddressToString(address)
+Shine.Hook.SetupGlobalHook("IPAddressToString", "OnIPAddressToString", "ActivePre")
+function Plugin:OnIPAddressToString(address)
 	if address == serverip then
 		return Plugin.Config.FakeIP
-	else
-		return oldIPAddressToString(address)
 	end
 end
 
