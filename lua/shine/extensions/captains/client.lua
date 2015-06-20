@@ -470,28 +470,27 @@ Plugin.MessageConfig =
 	g = 153,
 	b = 0,
 }
-function Plugin:CreateTextMessage()
+function Plugin:CreateTextMessage( Message )
+	Message = Message or StringFormat("%s\n%s\n%s", Messages[ 1 ], Messages[ self.dt.State + 2 ], Messages[ 6 ] )
 	Shine.ScreenText.Add( "CaptainStatus", {
 		X = self.MessageConfig.x,
 		Y = self.MessageConfig.y,
-		Text = StringFormat("%s\n%s\n%s", Messages[ 1 ], Messages[ self.dt.State + 2 ], Messages[ 6 ] );
+		Text = Message;
 		R = self.MessageConfig.r,
 		G = self.MessageConfig.g,
 		B = self.MessageConfig.b,
-		Alignment = 0
-
+		Alignment = 0,
+		FadeIn = 0
 	})
 end
 
 function Plugin:UpdateTextMessage( VoteTime )
-	if not self:TimerExists( "TextMessage" ) then
-		self:StartMessage()
-	elseif VoteTime then
+	if VoteTime then
 		local TimeMsg = StringFormat( Messages[ 7 ], string.DigitalTime( VoteTime ), Shine.VoteButton or "M" )
-		Shine.ScreenText.SetText("CaptainStatus", StringFormat("%s\n%s\n%s\n%s", Messages[ 1 ],
+		self:CreateTextMessage( StringFormat("%s\n%s\n%s\n%s", Messages[ 1 ],
 			Messages[ self.dt.State + 2 ], Messages[ 6 ], TimeMsg ) )
 	else
-		Shine.ScreenText.SetText("CaptainStatus", StringFormat("%s\n%s\n%s", Messages[ 1 ],
+        self:CreateTextMessage( StringFormat("%s\n%s\n%s", Messages[ 1 ],
 			Messages[ self.dt.State + 2 ], Messages[ 6 ] ))
 	end
 end
