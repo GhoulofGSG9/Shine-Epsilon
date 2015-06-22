@@ -10,7 +10,6 @@ local TableRemove = table.remove
 local Random = math.random
 local GetClientByNS2ID = Shine.GetClientByNS2ID
 local SetupClassHook = Shine.Hook.SetupClassHook
-local GetOwner = Server.GetOwner
 
 if not Shine.PlayerInfoHub then 
 	Script.Load( "lua/shine/core/server/playerinfohub.lua" )
@@ -337,7 +336,6 @@ function Plugin:PostJoinTeam( Gamerules, Player, OldTeam, NewTeam, Force, ShineF
 	end
 	
 	if self.Votes[ OldTeam ] then
-		local Client = GetOwner( Player )
 		local Vote = self.Votes[ OldTeam ]
 		if Vote:GetIsStarted() then
 			local OldVoteId = Vote:GetOptionName( Vote:GetVote( Client ) )
@@ -373,8 +371,7 @@ function Plugin:OnReceiveHiveData( Client, HiveInfo )
 end
 
 function Plugin:SendPlayerData( Client, Player, Disconnect )
-	local client = GetOwner( Player )
-	local steamId = client:GetUserId()
+	local steamId = Player:GetSteamId()
 
 	local TeamNumber = self:GetTeamNumber( steamId )
 	if Disconnect or Player:GetTeamNumber() == kSpectatorIndex then TeamNumber = 3 end
@@ -525,19 +522,21 @@ end
 function Plugin:CheckStart()
 	--Both teams are ready, start the countdown.
 	if self.Teams[ 1 ].Ready and self.Teams[ 2 ].Ready then
-		local CountdownTime = self.Config.CountdownTime
-		local GameStartTime = string.TimeToString( CountdownTime )
-		Shine:SendText( nil, Shine.BuildScreenMessage( 2, 0.5, 0.7, StringFormat( "Game starts in %s", GameStartTime ), 5, 255, 255, 255, 1, 3, 1 ) )
-		
-		--Game starts in 5 seconds!
-		self:CreateTimer( self.FiveSecondTimer, CountdownTime - 5, 1, function()
-			Shine:SendText( nil, Shine.BuildScreenMessage( 2, 0.5, 0.7, "Game starts in %s", 5, 255, 0, 0, 1, 3, 0 ) )
-		end )
-		
-		--If we get this far, then we can start.
-		self:CreateTimer( self.CountdownTimer, self.Config.CountdownTime, 1, function()
-			self:StartGame( GetGamerules() )
-		end )
+		if not self:TimerExists( self.CountdownTimer ) then
+			local CountdownTime = self.Config.CountdownTime
+			local GameStartTime = string.TimeToString( CountdownTime )
+			Shine:SendText( nil, Shine.BuildScreenMessage( 2, 0.5, 0.7, StringFormat( "Game starts in %s", GameStartTime ), 5, 255, 255, 255, 1, 3, 1 ) )
+
+			--Game starts in 5 seconds!
+			self:CreateTimer( self.FiveSecondTimer, CountdownTime - 5, 1, function()
+				Shine:SendText( nil, Shine.BuildScreenMessage( 2, 0.5, 0.7, "Game starts in %s", 5, 255, 0, 0, 1, 3, 0 ) )
+			end )
+
+			--If we get this far, then we can start.
+			self:CreateTimer( self.CountdownTimer, self.Config.CountdownTime, 1, function()
+				self:StartGame( GetGamerules() )
+			end )
+		end
 
 	--One or both teams are not ready, halt the countdown.
 	elseif self:TimerExists( self.CountdownTimer ) then
@@ -660,7 +659,7 @@ function Plugin:ReceiveOnResolutionChanged( Client )
 	end
 	
 	local SteamId = Client:GetUserId()
-	local TeamNumber = self.GetCaptainTeamNumbers( SteamId )
+	local TeamNumber = self:GetCaptainTeamNumbers( SteamId )
 	if self.GetCaptainTeamNumbers( SteamId ) then
 		self:SendNetworkMessage( nil, "SetCaptain", { steamid = SteamId, team = TeamNumber, add = true }, true )
 	end
@@ -701,7 +700,7 @@ function Plugin:CreateCommands()
 		local Vote = self.Votes[ TeamNumber ]
 		if Vote and Vote:GetIsStarted() then
 			local OldVoteId = Vote:GetOptionName( Vote:GetVote( Client ) )
-			local OldVoteClient = OldVoteId and GetClientByNS2ID( OldVoteId )
+		local OldVoteClient = OldVoteId and GetClientByNS2ID( OldVoteId )
 			if OldVoteId == TargetId then return end --revote
 			
 			Vote:AddVote( Client, Vote:OptionToId( TargetId ))
@@ -799,21 +798,22 @@ function Plugin:CreateCommands()
 	
 	-- rdy
 	local function Ready( Client )
+
 		if self.dt.State ~= 2 then return end 
 		local SteamId = Client:GetUserId()
 		local TeamNumber = self:GetCaptainTeamNumbers( SteamId )
 		if not TeamNumber then return end
 		
-		local Commander = GetGamerules():GetTeam( TeamNumber ):GetCommander()
+		local Commander = GetGamerules():GetTeam( self.Teams[ TeamNumber ].TeamNumber ):GetCommander()
 		local Ready = self.Teams[ TeamNumber ].Ready
 		if not Commander and not Ready then
 			self:Notify( Client:GetControllingPlayer(), "Your team needs to have a Commander before you can set it ready !")
 			return
 		end
 
-        self.Teams[ TeamNumber ].Ready = not self.Teams[ TeamNumber ].Ready
+        self.Teams[ TeamNumber ].Ready = not Ready
 		
-		self:Notify( nil, "%s is now %s", true, self:GetTeamName( TeamNumber ), Ready and "ready" or "not ready" )
+		self:Notify( nil, "%s is now %s", true, self:GetTeamName( TeamNumber ), not Ready and "ready" or "not ready" )
 	end
 	local CommandReady = self:BindCommand("sh_ready", { "rdy", "ready" }, Ready, true )
 	CommandReady:Help( "Sets your team to be ready [this command is only available for captains]" )

@@ -167,8 +167,8 @@ function Vote:GetWinners( num )
 	
 	local lastCount = self.VoteOptions[ num ].Count
 	if lastCount == 0 then return end
-	
-	if self.VoteOptions[ num + 1 ].Count == lastCount then
+
+	if #self.VoteOptions > num and self.VoteOptions[ num + 1 ].Count == lastCount then
 		for i = num, 1, -1 do
 			if Winners[ i ].Count == lastCount then
 				Winners[ i ] = nil

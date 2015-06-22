@@ -154,6 +154,7 @@ local Categories = {
 		},
 		{ "Set Ready!", function( self )
 				Shared.ConsoleCommand( "sh_ready" )
+				--Todo: This is bugyy as the sh_ready command can fail
 				self:SetText( self:GetText() == "Set Ready!" and "Set Not Ready!" or "Set Ready!" )
 			end, 0
 		}
