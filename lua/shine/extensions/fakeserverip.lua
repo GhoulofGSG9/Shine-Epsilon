@@ -20,12 +20,12 @@ function Plugin:Initialise()
 	return true
 end
 
-local serverip = Server.GetIpAddress()
-
 Shine.Hook.SetupGlobalHook("IPAddressToString", "OnIPAddressToString", "ActivePre")
+
+local serverip = Server.GetIpAddress()
 function Plugin:OnIPAddressToString(address)
 	if address == serverip then
-		return Plugin.Config.FakeIP
+		return self.Config.FakeIP
 	end
 end
 
