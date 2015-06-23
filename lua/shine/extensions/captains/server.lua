@@ -700,7 +700,7 @@ function Plugin:CreateCommands()
 		local Vote = self.Votes[ TeamNumber ]
 		if Vote and Vote:GetIsStarted() then
 			local OldVoteId = Vote:GetOptionName( Vote:GetVote( Client ) )
-		local OldVoteClient = OldVoteId and GetClientByNS2ID( OldVoteId )
+			local OldVoteClient = OldVoteId and GetClientByNS2ID( OldVoteId )
 			if OldVoteId == TargetId then return end --revote
 			
 			Vote:AddVote( Client, Vote:OptionToId( TargetId ))
