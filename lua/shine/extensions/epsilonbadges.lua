@@ -16,9 +16,12 @@ Plugin.ConfigName = "EpsilonBadges.json"
 Plugin.DefaultConfig =
 {
     Flags = true,
+    FlagsRow = 2,
     SteamBadges = true,
+    SteamBadgesRow = 5,
 }
 Plugin.CheckConfig = true
+Plugin.CheckConfigTypes = true
 
 function Plugin:Initialise()
 	self.Enabled = true
@@ -68,11 +71,11 @@ function Plugin:OnReceiveSteamData( Client, SteamData )
     if not self.Config.SteamBadges then return end
     
     if SteamData.Badges.Normal and SteamData.Badges.Normal > 0 then
-        self:SetBadge( Client, SteamBadges[SteamData.Badges.Normal] )
+        self:SetBadge( Client, SteamBadges[SteamData.Badges.Normal], self.Config.SteamBadgesRow )
     end
         
     if SteamData.Badges.Foil and SteamData.Badges.Foil == 1 then
-        self:SetBadge( Client, "steam_Sanji Survivor" )
+        self:SetBadge( Client, "steam_Sanji Survivor", self.Config.SteamBadgesRow )
     end
 end
 
@@ -80,11 +83,11 @@ function Plugin:OnReceiveGeoData( Client, GeoData )
     if not self.Config.Flags then return end
     
     local Nationality = type(GeoData) == "table" and GeoData.country_code or "UNO"
-    local SetBagde = self:SetBadge( Client, Nationality, 2 )
+    local SetBagde = self:SetBadge( Client, Nationality, self.Config.FlagsRow )
     
     if not SetBagde then
         Nationality = "UNO"
-        self:SetBadge( Client, Nationality, 2 )
+        self:SetBadge( Client, Nationality, self.Config.FlagsRow )
     end
 end
 
