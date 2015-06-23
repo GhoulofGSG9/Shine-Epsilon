@@ -753,7 +753,7 @@ function Plugin:CreateCommands()
 		local TeamNumber, CaptainTeam = self:GetCaptainTeamNumbers( SteamId )
 		if not TeamNumber then return end
 		
-		local TargetPlayer = Client:GetControllingPlayer()
+		local TargetPlayer = Target:GetControllingPlayer()
 		if not TargetPlayer or TargetPlayer:GetTeamNumber() ~= CaptainTeam then
 			self:Notify( Client:GetControllingPlayer(), "You can only remove Players from your own team" )
 			return 
