@@ -414,24 +414,27 @@ function CaptainMenu:Destroy()
 	end
 end
 
+
 function Plugin:Initialise()
 	CaptainMenu:Create()
 	
 	self.Enabled = true
 	
 	self:SetupAdminMenuCommands()
-	
-	if not Loaded then 
-		Shine.VoteMenu:EditPage( "Main", function( self )
-			local MenuButton = self:AddSideButton( "Captain Mode Menu", function()
-				Shared.ConsoleCommand( "sh_captainmenu" )
-				self:SetIsVisible( false )
-			end )
-			MenuButton:SetIsVisible( Plugin.Enabled and Plugin.dt.State > 0 )
+
+	Shine.VoteMenu:EditPage( "Main", function( self )
+		local MenuButton = self:AddSideButton( "Captain Mode Menu", function()
+			if Plugin.dt.State > 1 and Plugin.Enabled then
+				CaptainMenu:SetIsVisible( true )
+			end
+
+			self:SetIsVisible( false )
 		end )
-		Loaded = true
-	end
-	
+
+		MenuButton:SetIsVisible(Plugin.dt.State > 1)
+		Plugin.MenuButton = MenuButton
+	end )
+
 	return true
 end
 
@@ -485,14 +488,14 @@ function Plugin:CreateTextMessage( Message )
 	})
 end
 
-function Plugin:UpdateTextMessage( VoteTime )
+function Plugin:UpdateTextMessage()
 	if VoteTime then
 		local TimeMsg = StringFormat( Messages[ 7 ], string.DigitalTime( VoteTime ), Shine.VoteButton or "M" )
 		self:CreateTextMessage( StringFormat("%s\n%s\n%s\n%s", Messages[ 1 ],
-			Messages[ self.dt.State + 2 ], Messages[ 6 ], TimeMsg ) )
+			Messages[ self.dt.State + 1 ], Messages[ 6 ], TimeMsg ) )
 	else
         self:CreateTextMessage( StringFormat("%s\n%s\n%s", Messages[ 1 ],
-			Messages[ self.dt.State + 2 ], Messages[ 6 ] ))
+			Messages[ self.dt.State + 1 ], Messages[ 6 ] ))
 	end
 end
 
@@ -501,19 +504,23 @@ function Plugin:RemoveTextMessage()
 end
 
 function Plugin:ChangeState( OldState, NewState )
+	Print(tostring(OldState))
+	Print(tostring(NewState))
+
+	--Seems like the dt network packets arrive even before the plugin loaded up
 	if not CaptainMenu.Created then
 		CaptainMenu:Create()
 	end
 	
 	local PanelSize = CaptainMenu.Panel:GetSize()
-	if NewState == 1 then
+	if NewState == 2 then
 		CaptainMenu.ListItems[ 1 ]:SetSize( Vector( PanelSize.x * 0.74, PanelSize.y * 0.8, 0 ) )
 		for i = 2, 3 do
 			local List = CaptainMenu.ListItems[ i ]
 			List:SetPos( Vector( PanelSize.x * 2, PanelSize.y * 2, 0 ) )
 			List.TitlePanel:SetPos( Vector( PanelSize.x * 2, PanelSize.y * 2, 0 ) )
 		end
-	else
+	elseif NewState == 3 then
 		CaptainMenu.ListItems[ 1 ]:SetSize( Vector( PanelSize.x * 0.74, PanelSize.y * 0.2, 0 ) )
 		for i = 2, 3 do
 			local List = CaptainMenu.ListItems[ i ]
@@ -525,12 +532,15 @@ function Plugin:ChangeState( OldState, NewState )
 	local Player = Client.GetLocalPlayer()
 	local TeamNumber = Player and Player:GetTeamNumber() or 0
 	
-	if NewState == 3 and TeamNumber ~= kTeamReadyRoom then	
+	if NewState == 4 and TeamNumber ~= kTeamReadyRoom then
 		self:RemoveTextMessage()
-	elseif not self:TimerExists( "VoteMessage" ) then
+	else
 		self:UpdateTextMessage()
 	end
-	
+
+	if self.MenuButton then
+		self.MenuButton:SetIsVisible(NewState > 1)
+	end
 end
 
 function Plugin:ReceiveCaptainMenu()
@@ -604,7 +614,7 @@ function Plugin:ReceiveSetCaptain( Message )
 end
 
 function Plugin:RemoveVoteFromGui( Team )
-		self:DestroyTimer( "VoteMessage" )
+		self:DestroyTimer( "Vote" )
 		self:UpdateTextMessage()
 		
 		local List = CaptainMenu.ListItems and CaptainMenu.ListItems[ Team ]
@@ -618,6 +628,9 @@ function Plugin:RemoveVoteFromGui( Team )
 end
 
 function Plugin:ReceiveVoteState( Message )
+	Print("Vote")
+	Print(tostring(LocalTeam))
+	PrintTable(Message)
 	if Message.team > 0 and Message.team ~= LocalTeam then return end
 	
 	if Message.start then

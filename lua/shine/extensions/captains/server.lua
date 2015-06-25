@@ -121,6 +121,8 @@ local function CreateVote( Team )
 	return Vote
 end
 
+SetupClassHook( "Player", "SetName", "OnPlayerRename", "PassivePost" )
+
 function Plugin:Initialise()
 	self.Votes = { 
 		[ 0 ] = CreateVote( 0 ),
@@ -129,51 +131,47 @@ function Plugin:Initialise()
 	}
 	
 	self.Connected = {}
-	self.dt.State = 0
+	self.dt.State = 1
 	
 	self:ResetTeams()
 	
 	self.Enabled = true
 	
 	self:CreateCommands()
-	
-	local Clients = GetAllClients()
-	
+
 	--check if there are already players at the server
-	if #Clients > 0 then
-		for i = 1, #Clients do
-			local Client = Clients[ i ]
-			local ClientId = Client:GetUserId()
-			local HiveInfo = PlayerInfoHub:GetHiveData( ClientId )
-			
-			if HiveInfo then
-				HiveData[ ClientId ] = HiveInfo
-			end
-			
-			self:ClientConfirmConnect( Client )
+	for _, Client in ipairs(GetAllClients()) do
+		local ClientId = Client:GetUserId()
+		local HiveInfo = PlayerInfoHub:GetHiveData( ClientId )
+
+		if HiveInfo then
+			HiveData[ ClientId ] = HiveInfo
 		end
-	else
-		self:CheckModeStart()
+
+		self:ClientConfirmConnect( Client )
 	end
-	
-	SetupClassHook( "Player", "SetName", "OnPlayerRename", "PassivePost" )
 	
 	return true
 end
 
 function Plugin:CheckModeStart()
-	if Shine.GetHumanPlayerCount() >= self.Config.MinPlayers and self.dt.State == 0 then
+	if Shine.GetHumanPlayerCount() >= self.Config.MinPlayers and self.dt.State == 1 then
 		local Players = GetAllPlayers()
-		if Gamerules then 
-			for i = 1, #Players do
-				local Player = Players[ i ]
-				if Player and Player:GetClient() then
-					Gamerules:JoinTeam( Player, 0, nil, true )
-				end
-			end	
+		if Gamerules then
+			local function SetRR( Player )
+				Gamerules:JoinTeam( Player, 0, nil, true )
+			end
+
+			Gamerules:GetTeam1():ForEachPlayer(SetRR)
+			Gamerules:GetTeam2():ForEachPlayer(SetRR)
+			if not self.Config.AllowSpectating then --Only put specs into rr if needed
+				Gamerules:GetSpectatorTeam():ForEachPlayer(SetRR)
+			end
+
 			Gamerules:ResetGame()
 		end
-		self.dt.State = 1
+
+		self.dt.State = 2
 		self:StartVote()
 	end
 end
@@ -230,11 +228,14 @@ function Plugin:Reset()
 	self:DestroyAllTimers()
 	for i = 0, 2 do
 		if self.Votes[ i ] then
-			self.Votes[ i ]:Reset()
+			if self.Votes[ i ]:GetIsStarted() then
+				self:SendNetworkMessage( nil, "VoteState", { team = i, start = false, timeleft = 0 }, true )
+				self.Votes[ i ]:Stop()
+			end
 		end
 	end
 	
-	self.dt.State = 0
+	self.dt.State = 1
 	self:CheckModeStart()
 end
 
@@ -267,8 +268,8 @@ function Plugin:SetCaptain( SteamId, TeamNumber )
 	self:SendNetworkMessage( nil, "SetCaptain", { steamid = SteamId, team = TeamNumber, add = true }, true )
 	
 	CaptainsNum = CaptainsNum + 1
-	if CaptainsNum == 2 and self.dt.State < 2 then
-		self.dt.State = 2
+	if CaptainsNum == 2 and self.dt.State < 3 then
+		self.dt.State = 3
 	end
 end
 
@@ -296,7 +297,7 @@ function Plugin:RemoveCaptain( TeamNumber, SetCall )
 	
 	CaptainsNum = CaptainsNum - 1
 	
-	if not SetCall and self.dt.State ~= 1 then
+	if not SetCall and self.dt.State > 2 then
 		if table.Count( self.Teams[ TeamNumber ].Players ) > 0 then
 			self:StartVote( TeamNumber )
 		else
@@ -307,8 +308,8 @@ function Plugin:RemoveCaptain( TeamNumber, SetCall )
 end
 
 function Plugin:JoinTeam( Gamerules, Player, NewTeam, Force, ShineForce )
-	if ShineForce or self.dt.State ~= 1 and self.Config.AllowSpectating and NewTeam == kSpectatorIndex or 
-	self.Config.AllowPregameJoin and self.dt.State == 0 or Player:GetTeamNumber() == kSpectatorIndex and NewTeam == kTeamReadyRoom then return end
+	if ShineForce or self.Config.AllowSpectating and NewTeam == kSpectatorIndex or
+	self.Config.AllowPregameJoin and self.dt.State < 2 or Player:GetTeamNumber() == kSpectatorIndex and NewTeam == kTeamReadyRoom then return end
 	
 	return false
 end
@@ -317,7 +318,7 @@ function Plugin:PostJoinTeam( Gamerules, Player, OldTeam, NewTeam, Force, ShineF
 	local Client = Player:GetClient()
 	local SteamId = Client and Client:GetUserId()
 	
-	if self.dt.State > 0 then
+	if self.dt.State > 2 then
 		if OldTeam == 1 or OldTeam == 2 then
 			local Team = self.Teams[ 1 ].TeamNumber == OldTeam and 1 or 2
 			self.Teams[ Team ].Players[ SteamId ] = nil
@@ -466,16 +467,17 @@ function Plugin:ClientConfirmConnect( Client )
 
 	--noinspection ArrayElementZero
 	local Vote = self.Votes[ 0 ]
-	Vote:AddVoteOption( SteamId )	
+	Vote:AddVoteOption( SteamId )
+
 	if Vote:GetIsStarted() then
 		self:SendNetworkMessage( Client, "VoteState", { team = 0, start = true, timeleft = Vote:GetTimeLeft() }, true )
 	end
 	
-	if self.dt.State == 0 then
+	if self.dt.State == 1 then
 		self:CheckModeStart()
 	end
 	
-	if self.dt.State ~= 3 then return end
+	if self.dt.State ~= 4 then return end
 	
 	-- check team balance
 	local Marines = Gamerules:GetTeam1()
@@ -748,7 +750,6 @@ function Plugin:CreateCommands()
 	-- removeplayer
 	local function RemovePlayer( Client, Target )
 		local SteamId = Client:GetUserId()
-		local TargetId = Target:GetUserId()
 		
 		local TeamNumber, CaptainTeam = self:GetCaptainTeamNumbers( SteamId )
 		if not TeamNumber then return end
@@ -817,10 +818,12 @@ function Plugin:CreateCommands()
 	end
 	local CommandReady = self:BindCommand("sh_ready", { "rdy", "ready" }, Ready, true )
 	CommandReady:Help( "Sets your team to be ready [this command is only available for captains]" )
-	
+
+	--Todo: Move this to client
 	local function OpenMenu( Client )
-		if self.dt.State == 0 or not self.Enabled then return end
-		self:SendNetworkMessage( Client, "CaptainMenu", {}, true)
+		if self.dt.State > 1 then
+			self:SendNetworkMessage( Client, "CaptainMenu", {}, true)
+		end
 	end
 	local CommandMenu = self:BindCommand("sh_captainmenu", "captainmenu", OpenMenu, true)
 	CommandMenu:Help( "Opens the Capatain Mode Menu" )
@@ -845,7 +848,7 @@ function Plugin:CreateCommands()
 	
 	--debug
 	local function ChangeState( Client, State )
-		if State == 1 then
+		if State == 2 then
 			self:StartVote()
 		end
 		self.dt.State = State

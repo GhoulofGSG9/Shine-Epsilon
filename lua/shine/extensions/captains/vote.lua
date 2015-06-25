@@ -81,6 +81,11 @@ function Vote:RemoveVote( Client )
 	self.Voted[ Client ] = nil
 end
 
+function Vote:Stop()
+	self:Reset()
+	self.Started = false
+end
+
 function Vote:Reset()
 	self.VotesCount = 0
 	self.Voted = {}

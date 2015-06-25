@@ -47,14 +47,22 @@ function Plugin:SetupDataTable()
 	self:AddNetworkMessage( "TeamInfo", TeamInfo, "Client" )
 	
 	self:AddNetworkMessage( "OnResolutionChanged", {}, "Server")
-	
-	self:AddDTVar( "integer (0 to 10)", "State", 0 )
+
+	--[[
+	-- 0: Enabled
+	-- 1: Waiting for players
+	-- 2: Captains vote
+	-- 3: Pick by Captain
+	-- 4: Game
+	 ]]
+	self:AddDTVar( "integer (0 to 4)", "State", 0 )
 end
 
 Shine:RegisterExtension( "captains", Plugin )
 
 --noinspection UnusedDef
 function Plugin:NetworkUpdate( Key, OldValue, NewValue )
-	if OldValue == NewValue then return end
-	self:ChangeState( OldValue, NewValue )
+	if OldValue ~= NewValue then
+		self:ChangeState( OldValue, NewValue )
+	end
 end
