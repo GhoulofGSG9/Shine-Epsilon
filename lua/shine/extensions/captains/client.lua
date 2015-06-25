@@ -462,10 +462,6 @@ local Messages = {
 	"The current vote will end in %s minutes\nPress %s to access the Captain Mode Menu.\nOr type !captainmenu into the chat."
 }
 
-function Plugin:StartMessage()
-	self:CreateTextMessage()
-end
-
 Plugin.MessageConfig =
 {
 	x = 0.05,
@@ -474,9 +470,9 @@ Plugin.MessageConfig =
 	g = 153,
 	b = 0,
 }
-function Plugin:CreateTextMessage( Message )
-	Message = Message or StringFormat("%s\n%s\n%s", Messages[ 1 ], Messages[ self.dt.State + 2 ], Messages[ 6 ] )
-	Shine.ScreenText.Add( "CaptainStatus", {
+
+function Plugin:CreateTextMessage( Message, Time )
+	local messageTable = {
 		X = self.MessageConfig.x,
 		Y = self.MessageConfig.y,
 		Text = Message;
@@ -485,17 +481,26 @@ function Plugin:CreateTextMessage( Message )
 		B = self.MessageConfig.b,
 		Alignment = 0,
 		FadeIn = 0
-	})
+	}
+
+	if Time then
+		messageTable.Duration = Time
+	end
+
+	Shine.ScreenText.Add( "CaptainStatus", messageTable )
 end
 
-function Plugin:UpdateTextMessage()
-	if VoteTime then
-		local TimeMsg = StringFormat( Messages[ 7 ], string.DigitalTime( VoteTime ), Shine.VoteButton or "M" )
+function Plugin:UpdateTextMessage(State)
+	local VoteTimer = self:GetTimer("Vote")
+	local MessageId = State and State + 1 or self.dt.State + 1
+
+	if VoteTimer then
+		local TimeMsg = StringFormat( Messages[ 7 ], "%s", Shine.VoteButton or "M" )
 		self:CreateTextMessage( StringFormat("%s\n%s\n%s\n%s", Messages[ 1 ],
-			Messages[ self.dt.State + 1 ], Messages[ 6 ], TimeMsg ) )
+			Messages[ MessageId ], Messages[ 6 ], TimeMsg), VoteTimer:GetReps()  )
 	else
         self:CreateTextMessage( StringFormat("%s\n%s\n%s", Messages[ 1 ],
-			Messages[ self.dt.State + 1 ], Messages[ 6 ] ))
+				Messages[ MessageId ], Messages[ 6 ] ))
 	end
 end
 
@@ -504,8 +509,6 @@ function Plugin:RemoveTextMessage()
 end
 
 function Plugin:ChangeState( OldState, NewState )
-	Print(tostring(OldState))
-	Print(tostring(NewState))
 
 	--Seems like the dt network packets arrive even before the plugin loaded up
 	if not CaptainMenu.Created then
@@ -535,7 +538,7 @@ function Plugin:ChangeState( OldState, NewState )
 	if NewState == 4 and TeamNumber ~= kTeamReadyRoom then
 		self:RemoveTextMessage()
 	else
-		self:UpdateTextMessage()
+		self:UpdateTextMessage(NewState)
 	end
 
 	if self.MenuButton then
@@ -559,13 +562,13 @@ function Plugin:ReceivePlayerData( Message )
 	end
 	
 	if Message.steamid == LocalId then
-		if LocalTeam then
-			self:RemoveVoteFromGui(LocalTeam)
+		if Message.team ~= LocalTeam then
+			self:RemoveVoteFromGui( LocalTeam )
 		end
-		
+
 		LocalTeam = Message.team
 		
-		if LocalTeam ~= kTeamReadyRoom and self.dt.State == 3 then
+		if LocalTeam ~= kTeamReadyRoom and self.dt.State == 4 then
 			self:RemoveTextMessage()
 		end
 	end
@@ -628,17 +631,13 @@ function Plugin:RemoveVoteFromGui( Team )
 end
 
 function Plugin:ReceiveVoteState( Message )
-	Print("Vote")
-	Print(tostring(LocalTeam))
-	PrintTable(Message)
 	if Message.team > 0 and Message.team ~= LocalTeam then return end
 	
 	if Message.start then
 		if Message.timeleft > 1 then
 			CaptainMenu:AddCategory( "Vote Captain" )
-			self:CreateTimer( "VoteMessage", 1, Message.timeleft - 1, function( Timer )
-				self:UpdateTextMessage( Timer:GetReps() )
-			end )			
+			self:CreateTimer( "Vote", 1, Message.timeleft - 1, function() end)
+			self:UpdateTextMessage()
 		end
 	else
 		self:RemoveVoteFromGui( Message.team + 1 )
@@ -647,9 +646,6 @@ end
 
 function Plugin:ReceiveInfoMsgs( Message )
 	Messages[ Message.id ] = Message.text
-	if Message.id == 6 then
-		self:StartMessage()
-	end
 end
 
 function Plugin:ReceiveMessageConfig( Message )

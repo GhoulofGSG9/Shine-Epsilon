@@ -105,8 +105,7 @@ local function OnFailure( self )
 	if self.Team > 0 then
 		Team = self.Team == Plugin.Teams[ 1 ].TeamNumber and 1 or 2
 	end
-	
-	Plugin:SendNetworkMessage( nil, "VoteState", { team = Team, start = false, timeleft = 0 }, true )
+
 	Plugin:Notify( nil, "CaptainVote%s failed because not enough players voted or we did not got enough Captain candidates! Restarting Vote...", true, self.Team == 1 and " for Team 1" or self.Team == 2 and " for Team 2" or "")
 	
 	self:Start()
