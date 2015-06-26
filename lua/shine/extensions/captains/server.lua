@@ -592,7 +592,7 @@ function Plugin:StartGame( Gamerules )
 	
 	self.Teams[ 1 ].Ready = false
 	self.Teams[ 2 ].Ready = false
-	self.dt.State = 3
+	self.dt.State = 4
 end
 
 function Plugin:EndGame( Gamerules, WinningTeam )
