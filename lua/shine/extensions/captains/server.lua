@@ -514,7 +514,7 @@ function Plugin:OnPlayerRename( Player, Name )
 end
 
 function Plugin:CheckGameStart( Gamerules )
-	if self.dt.State == 2 then
+	if self.dt.State == 3 then
 		self:CheckCommanders( Gamerules )
 		return false
 	end
@@ -799,7 +799,7 @@ function Plugin:CreateCommands()
 	-- rdy
 	local function Ready( Client )
 
-		if self.dt.State ~= 2 then return end 
+		if self.dt.State ~= 3 then return end
 		local SteamId = Client:GetUserId()
 		local TeamNumber = self:GetCaptainTeamNumbers( SteamId )
 		if not TeamNumber then return end
