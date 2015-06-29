@@ -500,6 +500,8 @@ function Plugin:ClientConfirmConnect( Client )
 end
 
 function Plugin:ClientDisconnect( Client )
+	self.Connected[Client:GetUserId()] = nil
+
 	local Player = Client:GetControllingPlayer()
 	if Player then
 		self:PostJoinTeam( nil, Player, Player:GetTeamNumber(), 4 )
