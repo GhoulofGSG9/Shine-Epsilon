@@ -5,10 +5,11 @@ local InfoHub = Shine.PlayerInfoHub
 Plugin.Version = "1.0"
 
 Plugin.HasConfig = true
-Plugin.ConfigName = "FakeServerIp.json"
+Plugin.ConfigName = "NoMoreFakeRookies.json"
 Plugin.DefaultConfig =
 {
-	MaxRookieTime = 8,
+	MaxRookieTime = 15,
+	MaxHiveLevel = 2,
 	Kick = false,
 	Ban = false,
 	Bantime = 30,
@@ -52,6 +53,8 @@ function Plugin:OnReceiveHiveData(Client, Data)
 
 	if not self.Playtimes[SteamId] then self.Playtimes[SteamId] = -1 end
 
+	self.Levels[SteamId] = Data and Data.level or -1
+
 	if Data and Data.playTime > self.Playtimes[SteamId] then
 		self.Playtimes[SteamId] = Data.playTime
 	end
@@ -75,6 +78,8 @@ function Plugin:CheckPlayer(Player, Mode)
 	if not InfoHub:GetIsRequestFinished(SteamId, "nomorefakerookies") then return end
 
 	if self.Playtimes[SteamId] <= self.Config.MaxRookieTime then return end --real rookies or timeouts
+
+	if self.Levels[SteamId] <= self.Config.MaxHiveLevel then return end -- hive level check
 
 	if Player:GetIsRookie() or Mode then --Player tried to fake rookie status
 		Player:SetRookieMode(false)
