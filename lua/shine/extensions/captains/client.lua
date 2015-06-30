@@ -127,6 +127,9 @@ function CaptainMenu:Create()
 	Commands:SetPos( Vector( 0, Label:GetSize().y + 20, 0 ) )
 	Commands:SetSize( Vector( CommandPanelSize.x , CommandPanelSize.y - Label:GetSize().y - 20, 0 ) )
 	self.Commands = Commands
+
+	--To cache teams ready state
+	self.Ready = {}
 	
 	Panel:SetIsVisible( false )
 	
@@ -152,10 +155,9 @@ local Categories = {
 		{ "Set Teamname", function( self )
 			end, 2
 		},
+		--Change ID in AddCategory() if you change the position of the Ready Button!
 		{ "Set Ready!", function( self )
 				Shared.ConsoleCommand( "sh_ready" )
-				--Todo: This is bugyy as the sh_ready command can fail
-				self:SetText( self:GetText() == "Set Ready!" and "Set Not Ready!" or "Set Ready!" )
 			end, 0
 		}
 	}
@@ -171,9 +173,9 @@ function CaptainMenu:DontDestroyOnClose( Window )
 	TableRemove( self.Windows, Window.Id )
 end
 
-function CaptainMenu:UpdateTeam( TeamNumber, Name, Wins )
+function CaptainMenu:UpdateTeam( TeamNumber, Name, Wins, Ready )
 	if not self.Created then 
-		Plugin:SimpleTimer( 1, function() self:UpdateTeam( TeamNumber, Name, Wins ) end )
+		Plugin:SimpleTimer( 1, function() self:UpdateTeam( TeamNumber, Name, Wins, Ready ) end )
 		return
 	end
 	
@@ -181,6 +183,12 @@ function CaptainMenu:UpdateTeam( TeamNumber, Name, Wins )
 	
 	local Text = StringFormat( "%s (Wins: %s)", Name, Wins )
 	TextItem:SetText( Text )
+
+	self.Ready[TeamNumber] = Ready
+
+	if self.ReadyButton and TeamNumber == LocalTeam then
+		self.ReadyButton:SetText(Ready and "Set Not Ready" or "Set Ready")
+	end
 end
 
 function CaptainMenu:AskForPlayer()
@@ -321,7 +329,17 @@ function CaptainMenu:AddCategory( Name )
 	Commands:AddCategory( Name )
 	for i = 1, #Categories[ Name ] do
 		local CategoryEntry = Categories[ Name ][ i ]
-		Commands:AddObject( Name, GenerateButton( CategoryEntry[ 1 ], CategoryEntry[ 2 ], CategoryEntry[ 3 ] ) )
+		local Button = GenerateButton( CategoryEntry[ 1 ], CategoryEntry[ 2 ], CategoryEntry[ 3 ] )
+
+		--Ready Button
+		if i == 4 and Name == "Team Organization" then
+			self.ReadyButton = Button
+			if LocalTeam and self.Ready[LocalTeam] then
+				Button:SetText(self.Ready[LocalTeam] and "Set Not Ready" or "Set Ready")
+			end
+		end
+
+		Commands:AddObject( Name, Button)
 	end
 end
 
@@ -553,7 +571,7 @@ end
 function Plugin:ReceiveTeamInfo( Message )
 	Shared.ConsoleCommand( StringFormat( "score%s %s", Message.teamnumber, Message.wins ) )
 	Shared.ConsoleCommand( StringFormat( "team%s %s", Message.teamnumber, Message.name ) )
-	CaptainMenu:UpdateTeam( Message.number, Message.name, Message.wins )
+	CaptainMenu:UpdateTeam( Message.number, Message.name, Message.wins, Message.ready )
 end
 
 function Plugin:ReceivePlayerData( Message )

@@ -43,6 +43,7 @@ function Plugin:SetupDataTable()
 		teamnumber = "integer (1 to 2)",
 		name = "string (255)",
 		wins = "integer",
+		ready = "boolean"
 	}
 	self:AddNetworkMessage( "TeamInfo", TeamInfo, "Client" )
 	

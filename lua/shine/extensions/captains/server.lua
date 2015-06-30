@@ -207,7 +207,7 @@ function Plugin:ResetTeams()
 	self:SendTeamInfo( 2 )
 end
 
-function Plugin:SendTeamInfo( TeamNumber )
+function Plugin:SendTeamInfo( TeamNumber, Client )
 	local Team = self.Teams[ TeamNumber ]
 	if not Team then return end
 	
@@ -215,9 +215,10 @@ function Plugin:SendTeamInfo( TeamNumber )
 		name = Team.Name,
 		wins = Team.Wins,
 		number = TeamNumber,
-		teamnumber = Team.TeamNumber
+		teamnumber = Team.TeamNumber,
+		ready = Team.Ready
 	}
-	self:SendNetworkMessage( nil, "TeamInfo", Info, true )
+	self:SendNetworkMessage( Client, "TeamInfo", Info, true )
 end
 
 function Plugin:Reset()
@@ -459,6 +460,9 @@ function Plugin:ClientConfirmConnect( Client )
 	self.Connected[ SteamId ] = true
 	
 	self:SimpleTimer( 1, function()
+		self:SendTeamInfo(1, Client)
+		self:SendTeamInfo(2, Client)
+
 		for _, Player in ipairs( GetAllPlayers() ) do
 			self:SendPlayerData( Client, Player )
 		end
@@ -567,11 +571,11 @@ function Plugin:CheckCommanders( Gamerules )
 	local Team2Com = Team2 and Team2:GetCommander()
 	
 	if self.Teams[ 1 ].Ready and not Team1Com then
-        self.Teams[ 1 ].Ready = false
+		self:SetReady( false, 1 )
 		self:Notify( nil, "%s is no longer ready.", true, self:GetTeamName( 1 ) )
 	end
 	if self.Teams[ 2 ].Ready and not Team2Com then
-        self.Teams[ 2 ].Ready = false
+		self:SetReady( false, 2 )
 		self:Notify(nil, "%s is no longer ready.", true, self:GetTeamName( 2 ) )
 	end
 	
@@ -591,9 +595,8 @@ function Plugin:StartGame( Gamerules )
 			Player:ResetScores()
 		end
 	end
-	
-	self.Teams[ 1 ].Ready = false
-	self.Teams[ 2 ].Ready = false
+
+	self:SetReady(false)
 	self.dt.State = 4
 end
 
@@ -691,6 +694,22 @@ function Plugin:GetCaptainTeamNumbers( SteamId )
 		if Team.Captain == SteamId then
 			return i, Team.TeamNumber
 		end
+	end
+end
+
+function Plugin:SetReady( State , TeamNumber )
+	if not TeamNumber then
+		return self:SetReady(State, 1) and self:SetReady(State, 2)
+	else
+		local Commander = GetGamerules():GetTeam( self.Teams[ TeamNumber ].TeamNumber ):GetCommander()
+		if not Commander and State then
+			return false
+		end
+
+		self.Teams[ TeamNumber ].Ready = State
+		self:SendTeamInfo(TeamNumber)
+
+		return true
 	end
 end
 
@@ -805,17 +824,14 @@ function Plugin:CreateCommands()
 		local SteamId = Client:GetUserId()
 		local TeamNumber = self:GetCaptainTeamNumbers( SteamId )
 		if not TeamNumber then return end
-		
-		local Commander = GetGamerules():GetTeam( self.Teams[ TeamNumber ].TeamNumber ):GetCommander()
-		local Ready = self.Teams[ TeamNumber ].Ready
-		if not Commander and not Ready then
-			self:Notify( Client:GetControllingPlayer(), "Your team needs to have a Commander before you can set it ready !")
-			return
-		end
 
-        self.Teams[ TeamNumber ].Ready = not Ready
-		
-		self:Notify( nil, "%s is now %s", true, self:GetTeamName( TeamNumber ), not Ready and "ready" or "not ready" )
+		local newReady = not self.Teams[ TeamNumber ].Ready
+
+		if self:SetReady(newReady, TeamNumber) then
+			self:Notify( nil, "%s is now %s", true, self:GetTeamName( TeamNumber ), newReady and "ready" or "not ready" )
+		else
+			self:Notify( Client:GetControllingPlayer(), "Your team needs to have a Commander before you can set it ready !")
+		end
 	end
 	local CommandReady = self:BindCommand("sh_ready", { "rdy", "ready" }, Ready, true )
 	CommandReady:Help( "Sets your team to be ready [this command is only available for captains]" )
