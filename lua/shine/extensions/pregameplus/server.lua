@@ -151,6 +151,10 @@ local function MakeTechEnt( techPoint, mapName, rightOffset, forwardOffset, team
 		newEnt:SetConstructionComplete() 
 	end
 
+	if HasMixin( newEnt, "Live" ) then
+		newEnt:SetIsAlive(true)
+	end
+
 	local ID = newEnt:GetId()
 	table.insert( Plugin.Ents, ID )
 	Plugin.ProtectedEnts[ ID ] = true
@@ -286,14 +290,12 @@ local function SpawnBuildings( team )
 		MakeTechEnt( techPoint, Crag.kMapName, 3.5, -2, teamNr )
 		MakeTechEnt( techPoint, Shift.kMapName, -3.5, 2, teamNr )
 	else
-		--don't spawn them if cheats is on(it already does it)
+		--don't spawn them if cheats is on (it already does it)
 		if not ( Shared.GetCheatsEnabled() and MarineTeam.gSandboxMode ) then
 			MakeTechEnt(techPoint, AdvancedArmory.kMapName, 3.5, -2, teamNr)
 			MakeTechEnt(techPoint, PrototypeLab.kMapName, -3.5, 2, teamNr)
 		end
 
-		MakeTechEnt(techPoint, MAC.kMapName, 3.5, 2, teamNr)
-		MakeTechEnt(techPoint, MAC.kMapName, 3.5, 2, teamNr)
 		MakeTechEnt(techPoint, MAC.kMapName, 3.5, 2, teamNr)
 	end
 end
