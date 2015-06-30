@@ -22,6 +22,7 @@ Shine.Hook.SetupClassHook("Player", "SetRookieMode", "OnSetRookie", "Halt")
 function Plugin:Initialise()
 	self.Enabled = true
 	self.Playtimes = {}
+	self.Levels =  {}
 
 	self.Config.MaxRookieTime = math.min(8, self.Config.MaxRookieTime)
 
