@@ -130,11 +130,16 @@ function PlayerInfoHub:OnConnect( Client )
 		self.SteamData[ SteamId ].Badges = {}
 	end
 
-	if not self:GetHiveData( SteamId ) and self.HiveQueue[ SteamId ] == nil then
-		self.HiveQueue[ SteamId ] = true
-		Shine.Timer.Create( StringFormat("HiveRequest%s", SteamId), 5, 1, function()
-			PlayerInfoHub.HiveQueue[ SteamId ] = false
-		end )
+	local HiveData = self:GetHiveData( SteamId )
+	if not HiveData then
+		if self.HiveQueue[ SteamId ] == nil then
+			self.HiveQueue[ SteamId ] = true
+			Shine.Timer.Create( StringFormat("HiveRequest%s", SteamId), 5, 1, function()
+				PlayerInfoHub.HiveQueue[ SteamId ] = false
+			end )
+		end
+	elseif self.HiveQueue[ SteamId ] == false then
+		Call( "OnReceiveHiveData", Client, HiveData )
 	end
 
 	--[[
