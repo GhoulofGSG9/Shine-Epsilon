@@ -633,25 +633,27 @@ end
 
 function Plugin:RestoreTeams()
 	-- first put captains into teams
-	local AllClients = GetAllClients()
 	for i = 1, 2 do
 		local Captain = self.Teams[ i ].Captain
 		self:SetCaptain( Captain, i )
 	end
-	
-	for i = 1, #AllClients do
-		local Client = AllClients[ i ]
-		local Player = Client:GetControllingPlayer()
+
+	local Gamerules = GetGamerules()
+	for _, Client in ipairs(GetAllClients) do
 		local SteamId = Client:GetUserId()
 		local Team = self:GetTeamNumber( SteamId )
-		local TeamNumber = Team and self.Teams[ Team ] and self.Teams[ Team ].TeamNumber or 0
-		if Player then
-			Gamerules:JoinTeam( Player, TeamNumber, nil, true )
+		local Captain = self:GetCaptainTeamNumbers( SteamId )
+
+		if Team > 0 and not Captain then
+			Gamerules:JoinTeam( Client:GetControllingPlayer(), self.Teams[Team].TeamNumber, nil, true )
 		end
+
 	end
+
 	self.dt.State = 2
 end
 
+--Todo: Replace this function it's redudant!
 function Plugin:ReceiveOnResolutionChanged( Client )
 	self:SendMessages( Client )
 	
@@ -666,7 +668,7 @@ function Plugin:ReceiveOnResolutionChanged( Client )
 	
 	local SteamId = Client:GetUserId()
 	local TeamNumber = self:GetCaptainTeamNumbers( SteamId )
-	if self.GetCaptainTeamNumbers( SteamId ) then
+	if TeamNumber then
 		self:SendNetworkMessage( nil, "SetCaptain", { steamid = SteamId, team = TeamNumber, add = true }, true )
 	end
 end
