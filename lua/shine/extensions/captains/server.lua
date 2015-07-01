@@ -130,6 +130,8 @@ function Plugin:Initialise()
 	}
 	
 	self.Connected = {}
+	self.Silence = false
+
 	self.dt.State = 1
 	
 	self:ResetTeams()
@@ -632,6 +634,10 @@ function Plugin:EndGame( Gamerules, WinningTeam )
 end
 
 function Plugin:RestoreTeams()
+	self:Notify(nil, "Swapping teams now for rematch!")
+
+	self.Silence = true
+
 	-- first put captains into teams
 	for i = 1, 2 do
 		local Captain = self.Teams[ i ].Captain
@@ -650,14 +656,12 @@ function Plugin:RestoreTeams()
 
 	end
 
+	self.Silence = false
 	self.dt.State = 2
 end
 
-function Plugin:ChangeState( OldValue, NewValue )
-	--Notify?
-end
-
 function Plugin:Notify( Player, Message, Format, ... )
+	if self.Silence then return end
 	Shine:NotifyDualColour( Player, 100, 255, 100, "[Captains Mode]" , 255, 255, 255, Message, Format, ... )
 end
 
