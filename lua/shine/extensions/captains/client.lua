@@ -9,6 +9,7 @@ local ToString = tostring
 local ToNumber = tonumber
 local TableInsert = table.insert
 local TableRemove = table.remove
+local CopyTable = table.Copy
 
 local PlayerData = {}
 local CaptainMenu = {}
@@ -42,6 +43,7 @@ function CaptainMenu:Create()
 	TitlePanel:SetSize( Vector( PanelSize.x, 40, 0 ) )
 	TitlePanel:SetColour( Skin.WindowTitle )
 	TitlePanel:SetAnchor( "TopLeft" )
+	self.TitlePanel = TitlePanel
 
 	local TitleLabel = SGUI:Create( "Label", TitlePanel )
 	TitleLabel:SetAnchor( "CentreMiddle" )
@@ -64,6 +66,8 @@ function CaptainMenu:Create()
 	function CloseButton.DoClick()
 		self:SetIsVisible( false )
 	end
+
+	self.CloseButton = CloseButton
 	
 	local ListTitles = { "Ready Room", "Team 1", "Team 2" }
 	self.ListItems = {}
@@ -134,6 +138,70 @@ function CaptainMenu:Create()
 	Panel:SetIsVisible( false )
 	
 	self.Created = true
+end
+
+--Updates the Pannels size
+function CaptainMenu:Resize()
+	if not self.Created then return end
+
+	--Cache Values
+	local Categories = self.Categories
+	local ReadyText
+	if Categories["Team Organization"] then
+		ReadyText = self.ReadyButton:GetText()
+	end
+
+	local Entries = {
+		{},{},{}
+	}
+
+	for i = 1, 3 do
+		local List = self.ListItems[i]
+		if List.Rows then
+			for j, Row in ipairs(List.Rows) do
+				local RowData = {}
+				for k = 1, 8 do
+					RowData[k] = Row:GetColumnText(k)
+				end
+
+				Entries[i][j] = RowData
+			end
+		end
+	end
+
+	local Titles = {
+		self.ListItems[ 2 ].TitleText:GetText(),
+		self.ListItems[ 3 ].TitleText:GetText()
+	}
+
+	--Destroy Menu
+	self:Destroy()
+
+	--Recreate Menu
+	self:Create()
+
+	--Reaply Values
+	self.ListItems[ 2 ].TitleText:SetText(Titles[1])
+	self.ListItems[ 3 ].TitleText:SetText(Titles[2])
+
+	for Name, Enabled in pairs(Categories) do
+		if Enabled then
+			self:AddCategory(Name)
+		end
+	end
+
+	if ReadyText then
+		self.ReadyButton:SetText(ReadyText)
+	end
+
+	for i, Rows in ipairs(Entries) do
+		local List = self.ListItems[i]
+		for _, Row in ipairs(Rows) do
+			List:AddRow( Unpack(Row) )
+		end
+	end
+
+	Plugin:ChangeState(0, Plugin.dt.State)
 end
 
 local Categories = {
@@ -574,13 +642,14 @@ function Plugin:ReceiveTeamInfo( Message )
 	CaptainMenu:UpdateTeam( Message.number, Message.name, Message.wins, Message.ready )
 end
 
+local VoteTeam
 function Plugin:ReceivePlayerData( Message )
 	if not LocalId then
 		LocalId = ToString(Client.GetSteamId())
 	end
 	
 	if Message.steamid == LocalId then
-		if Message.team ~= LocalTeam then
+		if Message.team ~= LocalTeam and VoteTeam ~= 0 then
 			self:RemoveVoteFromGui( LocalTeam )
 		end
 
@@ -639,16 +708,17 @@ function Plugin:RemoveVoteFromGui( Team )
 		self:UpdateTextMessage()
 		
 		local List = CaptainMenu.ListItems and CaptainMenu.ListItems[ Team ]
-		if not List then return end
-		
-		for _, Row in ipairs( List.Rows ) do
-			Row:SetColumnText( 8, "0" )
+		if List and List.Rows then
+			for _, Row in ipairs( List.Rows ) do
+				Row:SetColumnText( 8, "0" )
+			end
 		end
 
 		CaptainMenu:RemoveCategory( "Vote Captain" )
 end
 
 function Plugin:ReceiveVoteState( Message )
+	VoteTeam = Message.team
 	if Message.team > 0 and Message.team ~= LocalTeam then return end
 	
 	if Message.start then
@@ -671,9 +741,7 @@ function Plugin:ReceiveMessageConfig( Message )
 end
 
 function Plugin:OnResolutionChanged()
-	CaptainMenu:Destroy()
-	CaptainMenu:Create()
-	self:SendNetworkMessage( "OnResolutionChanged", {}, true )
+	CaptainMenu:Resize()
 end
 
 function Plugin:Cleanup()

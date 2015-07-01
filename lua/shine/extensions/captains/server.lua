@@ -653,26 +653,6 @@ function Plugin:RestoreTeams()
 	self.dt.State = 2
 end
 
---Todo: Replace this function it's redudant!
-function Plugin:ReceiveOnResolutionChanged( Client )
-	self:SendMessages( Client )
-	
-	for _, Player in ipairs( GetAllPlayers() ) do
-		self:SendPlayerData( Client, Player )
-	end
-	
-	local Timer = self.Timers[ "CaptainVote0" ]
-	if Timer then
-		self:SendNetworkMessage( Client, "VoteState", { team = 0, start = true, timeleft = math.Round( Timer:GetTimeUntilNextRun(), 0 ) }, true )
-	end
-	
-	local SteamId = Client:GetUserId()
-	local TeamNumber = self:GetCaptainTeamNumbers( SteamId )
-	if TeamNumber then
-		self:SendNetworkMessage( nil, "SetCaptain", { steamid = SteamId, team = TeamNumber, add = true }, true )
-	end
-end
-
 function Plugin:ChangeState( OldValue, NewValue )
 	--Notify?
 end
