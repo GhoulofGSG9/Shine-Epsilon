@@ -58,7 +58,8 @@ Plugin.DefaultConfig = {
 	StateMessageColour = { 51, 153, 0 },
 	VoteforCaptains = true,
 	AllowSpectating = true,
-	CountdownTime = 15	
+	CountdownTime = 15,
+	AutoPlaceTime = 30
 }
 Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
@@ -319,6 +320,10 @@ end
 function Plugin:PostJoinTeam( Gamerules, Player, OldTeam, NewTeam, Force, ShineForce )
 	local Client = Player:GetClient()
 	local SteamId = Client and Client:GetUserId()
+
+	--stops autojoin timer
+	local TimerName = StringFormat("PlayerJoin%s", SteamId)
+	self:DestroyTimer(TimerName)
 	
 	if self.dt.State > 2 then
 		if OldTeam == 1 or OldTeam == 2 then
@@ -483,24 +488,35 @@ function Plugin:ClientConfirmConnect( Client )
 	end
 	
 	if self.dt.State ~= 4 then return end
-	
+
+	self:Notify(Player,
+		"You will be placed automatically into one team in %s secounds unless you join a team yourself meanwhile!",
+		true, self.Config.AutoPlaceTime )
+	local TimerName = StringFormat("PlayerJoin%s", SteamId)
+	self:CreateTimer( TimerName, self.Config.AutoPlaceTime, 1, function()
+		self:AutoPlacePlayerIntoTeam( Player )
+	end)
+end
+
+function Plugin:AutoPlacePlayerIntoTeam( Player )
 	-- check team balance
+
 	local Marines = Gamerules:GetTeam1()
 	local Aliens = Gamerules:GetTeam2()
-	
+
 	local MarinesNumPlayers = Marines:GetNumPlayers()
 	local AliensNumPlayers = Aliens:GetNumPlayers()
-	
+
 	if MarinesNumPlayers == AliensNumPlayers then
 		local Random = Random( 1, 2 )
-	
+
 		Gamerules:JoinTeam( Player, self.Teams[ Random ].TeamNumber, nil, true )
 	else
 		local TeamNumber = self.Teams[ 1 ].TeamNumber == 1 and 1 or 2
 		if MarinesNumPlayers > AliensNumPlayers then
 			TeamNumber = self.Teams[ 1 ].TeamNumber == 2 and 1 or 2
 		end
-		
+
 		Gamerules:JoinTeam( Player, self.Teams[ TeamNumber ].TeamNumber, nil, true )
 	end
 end
