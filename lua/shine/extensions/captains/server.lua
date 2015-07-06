@@ -59,7 +59,8 @@ Plugin.DefaultConfig = {
 	VoteforCaptains = true,
 	AllowSpectating = true,
 	CountdownTime = 15,
-	AutoPlaceTime = 30
+	AutoPlaceTime = 30,
+	AFKLimit = 1
 }
 Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
@@ -67,16 +68,41 @@ Plugin.CheckConfigTypes = true
 Plugin.CountdownTimer = "Countdown"
 Plugin.FiveSecondTimer = "5SecondCount"
 
+local function OnFailure( self )
+	local Team = 0
+	if self.Team > 0 then
+		Team = self.Team == Plugin.Teams[ 1 ].TeamNumber and 1 or 2
+	end
+
+	Plugin:Notify( nil, "CaptainVote%s failed because not enough players voted or we did not got enough valid Captain candidates! Restarting Vote...", true, self.Team == 1 and " for Team 1" or self.Team == 2 and " for Team 2" or "")
+
+	self:Start()
+	Plugin:SendNetworkMessage( nil, "VoteState", { team = Team, start = true, timeleft = self:GetTimeLeft() }, true )
+end
+
 local function OnSucess( self, Winners )
 	local Team = 0
 	if self.Team > 0 then
 		Team = self.Team == Plugin.Teams[ 1 ].TeamNumber and 1 or 2
 	end
-	
+
+	--AFkCheck for Captains
+	local AFKEnabled, AFKPlugin = Shine:IsExtensionEnabled( "afkkick" )
+	local AFKTime = Plugin.Config.AFKLimit * 60
+
 	for _, Winner in ipairs( Winners ) do
 		local Client = GetClientByNS2ID( Winner.Name )
-		if not Client then
+		if not Client or AFKEnabled and AFKPlugin:IsAFKFor(Client, AFKTime) then
 			self:RemoveOption( Winner.Name )
+
+			if Client then
+				local Player = Client:GetControllingPlayer()
+
+				self:Notify(nil, "%s is AFK, removed him from the winners and moved him to spectators!", true,
+				Player:GetName())
+
+				GetGamerules():JoinTeam( Player, kSpectatorIndex, nil, true )
+			end
 			
 			local Winners = self:GetWinners( self.WinnersNeeded )
 
@@ -99,18 +125,6 @@ local function OnSucess( self, Winners )
 		Plugin:SetCaptain( Winners[ 1 ].Name, 1 )
 		Plugin:SetCaptain( Winners[ 2 ].Name, 2 )
 	end
-end
-
-local function OnFailure( self )
-	local Team = 0
-	if self.Team > 0 then
-		Team = self.Team == Plugin.Teams[ 1 ].TeamNumber and 1 or 2
-	end
-
-	Plugin:Notify( nil, "CaptainVote%s failed because not enough players voted or we did not got enough Captain candidates! Restarting Vote...", true, self.Team == 1 and " for Team 1" or self.Team == 2 and " for Team 2" or "")
-	
-	self:Start()
-	Plugin:SendNetworkMessage( nil, "VoteState", { team = Team, start = true, timeleft = self:GetTimeLeft() }, true )
 end
 
 local function CreateVote( Team )
