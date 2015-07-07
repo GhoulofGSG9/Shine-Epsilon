@@ -675,7 +675,7 @@ function Plugin:RestoreTeams()
 	end
 
 	local Gamerules = GetGamerules()
-	for _, Client in ipairs(GetAllClients) do
+	for _, Client in ipairs(GetAllClients()) do
 		local SteamId = Client:GetUserId()
 		local Team = self:GetTeamNumber( SteamId )
 		local Captain = self:GetCaptainTeamNumbers( SteamId )
