@@ -60,7 +60,8 @@ Plugin.DefaultConfig = {
 	AllowSpectating = true,
 	CountdownTime = 15,
 	AutoPlaceTime = 30,
-	AFKLimit = 1
+	AFKLimit = 1,
+	AutoRematch = true
 }
 Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
@@ -661,7 +662,7 @@ function Plugin:EndGame( Gamerules, WinningTeam )
 		end
 	end
 	
-	if AllCaptains then
+	if AllCaptains and self.Config.AutoRematch then
 		self:RestoreTeams()
 	else
 		self:Reset()
