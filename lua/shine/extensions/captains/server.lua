@@ -508,13 +508,18 @@ function Plugin:ClientConfirmConnect( Client )
 		true, self.Config.AutoPlaceTime )
 	local TimerName = StringFormat("PlayerJoin%s", SteamId)
 	self:CreateTimer( TimerName, self.Config.AutoPlaceTime, 1, function()
-		self:AutoPlacePlayerIntoTeam( Player )
+		self:AutoPlacePlayerIntoTeam( SteamId )
 	end)
 end
 
-function Plugin:AutoPlacePlayerIntoTeam( Player )
-	-- check team balance
+function Plugin:AutoPlacePlayerIntoTeam( SteamId )
 
+	local Client = GetClientByNS2ID(SteamId)
+	local Player = Client and Client:GetControllingPlayer()
+
+	if not Player then return end
+
+	-- check team balance
 	local Marines = Gamerules:GetTeam1()
 	local Aliens = Gamerules:GetTeam2()
 
