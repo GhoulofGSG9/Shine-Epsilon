@@ -239,7 +239,6 @@ function Plugin:MACGetMoveSpeed( Mac )
 end
 
 -- lets players use macs to instant heal since the immobile mac
--- cannot move, it may get stuck trying to weld distant objects
 function Plugin:MACOnUse( _, Player )
 	if self.dt.Enabled then Player:AddHealth( 999, nil, false, nil ) end
 end
@@ -303,8 +302,8 @@ end
 function Plugin:OnResetGame()
 	self:Disable()
 
-	self:SimpleTimer(0.1, function()
-		if GetGamerules():GetGameState() == kGameState.NotStarted then
+	self:SimpleTimer(1, function()
+		if GetGamerules() and GetGamerules():GetGameState() == kGameState.NotStarted then
 			self:Enable()
 		end
 	end)
