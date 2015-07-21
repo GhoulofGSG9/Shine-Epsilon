@@ -356,12 +356,7 @@ function Plugin:CheckLimit( Gamerules )
 
 	local PlayerCount = #GetEntitiesForTeam( "Player", 1 ) + #GetEntitiesForTeam( "Player", 2 )
 
-	local toogle
-	if PlayerCount >= self.Config.PlayerLimit then
-		toogle = self.dt.Enabled
-	else
-		toogle = not self.dt.Enabled
-	end
+	local toogle = PlayerCount >= self.Config.PlayerLimit and self.dt.Enabled or not self.dt.Enabled
 
 	if toogle then
 		if not self:GetTimer( "Countdown" ) then
