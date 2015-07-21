@@ -61,6 +61,8 @@ function Plugin:ShowStatus( NewStatus )
 		end
 	elseif self.Status then
 		self.Status.Obj:SetIsVisible(false)
+	else
+		self:DestroyTimer( "StatusSetup" )
 	end
 end
 
@@ -70,7 +72,7 @@ end
 
 function Plugin:UpdateStatusCountdown( NewStatus )
 	if self.Status then
-		self.Status.Obj:SetIsVisible(NewStatus == "")
+		self.Status.Obj:SetIsVisible( NewStatus == "" and self.dt.ShowStatus)
 	end
 	
 	if NewStatus ~= "" then
