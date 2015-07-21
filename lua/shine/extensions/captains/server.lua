@@ -81,41 +81,62 @@ local function OnFailure( self )
 	Plugin:SendNetworkMessage( nil, "VoteState", { team = Team, start = true, timeleft = self:GetTimeLeft() }, true )
 end
 
+--AFKCheck for Captains
+local function CheckWinners( self, Winners )
+	local AFKEnabled, AFKPlugin = Shine:IsExtensionEnabled( "afkkick" )
+	local AFKTime = Plugin.Config.AFKLimit * 60
+
+	if not AFKEnabled then return Winners end
+
+	local i = 0
+	local maxI = Shine.GetHumanPlayerCount()
+
+	local Gamerules = GetGamerules()
+
+	local function internalLoop()
+		if i == maxI then return end -- sanity check there should be not more than human players be afk
+		i = i + 1
+
+		for i, Winner in ipairs( Winners ) do
+			local Client = GetClientByNS2ID( Winner.Name )
+			if not Client or i == 2 or AFKEnabled and AFKPlugin:IsAFKFor(Client, AFKTime) then
+				self:RemoveOption( Winner.Name )
+
+				if Client then
+					local Player = Client:GetControllingPlayer()
+
+					Plugin:Notify(nil, "%s is AFK, removed him from the winners and moved him to spectators!", true,
+						Player:GetName())
+
+					Gamerules:JoinTeam( Player, kSpectatorIndex, nil, true )
+				end
+
+				Winners = self:GetWinners( self.WinnersNeeded )
+
+				if Winners and #Winners == self.WinnersNeeded then
+					return internalLoop()
+				else
+					return
+				end
+			end
+		end
+
+		return Winners
+	end
+
+	return internalLoop()
+end
+
 local function OnSucess( self, Winners )
 	local Team = 0
 	if self.Team > 0 then
 		Team = self.Team == Plugin.Teams[ 1 ].TeamNumber and 1 or 2
 	end
 
-	--AFkCheck for Captains
-	local AFKEnabled, AFKPlugin = Shine:IsExtensionEnabled( "afkkick" )
-	local AFKTime = Plugin.Config.AFKLimit * 60
-
-	for _, Winner in ipairs( Winners ) do
-		local Client = GetClientByNS2ID( Winner.Name )
-		if not Client or AFKEnabled and AFKPlugin:IsAFKFor(Client, AFKTime) then
-			self:RemoveOption( Winner.Name )
-
-			if Client then
-				local Player = Client:GetControllingPlayer()
-
-				self:Notify(nil, "%s is AFK, removed him from the winners and moved him to spectators!", true,
-				Player:GetName())
-
-				GetGamerules():JoinTeam( Player, kSpectatorIndex, nil, true )
-			end
-			
-			local Winners = self:GetWinners( self.WinnersNeeded )
-
-			if Winners and #Winners == self.WinnersNeeded then
-				self.Winners = Winners
-				OnSucess( self, Winners )
-			else
-				OnFailure( self )
-			end
-			
-			return
-		end
+	Winners = CheckWinners(self, Winners)
+	if not Winners then
+		OnFailure( self )
+		return
 	end
 	
 	Plugin:SendNetworkMessage( nil, "VoteState", { team = Team, start = false, timeleft = 0 }, true )
