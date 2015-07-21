@@ -704,15 +704,15 @@ function Plugin:ReceiveSetCaptain( Message )
 end
 
 function Plugin:RemoveVoteFromGui( Team )
-		self:DestroyTimer( "Vote" )
-		self:UpdateTextMessage()
-		
-		local List = CaptainMenu.ListItems and CaptainMenu.ListItems[ Team ]
+		local List = CaptainMenu.ListItems and CaptainMenu.ListItems[ Team + 1 ]
 		if List and List.Rows then
 			for _, Row in ipairs( List.Rows ) do
 				Row:SetColumnText( 8, "0" )
 			end
 		end
+
+		self:DestroyTimer( "Vote" )
+		self:UpdateTextMessage()
 
 		CaptainMenu:RemoveCategory( "Vote Captain" )
 end
@@ -720,15 +720,15 @@ end
 function Plugin:ReceiveVoteState( Message )
 	VoteTeam = Message.team
 	if Message.team > 0 and Message.team ~= LocalTeam then return end
-	
+
+	self:RemoveVoteFromGui(Message.team)
+
 	if Message.start then
 		if Message.timeleft > 1 then
 			CaptainMenu:AddCategory( "Vote Captain" )
 			self:CreateTimer( "Vote", 1, Message.timeleft - 1, function() end)
 			self:UpdateTextMessage()
 		end
-	else
-		self:RemoveVoteFromGui( Message.team + 1 )
 	end
 end
 
