@@ -262,6 +262,8 @@ end
 
 function Plugin:Reset()
 	self:Notify( nil, "The Teams have been reset, restarting Captain Mode ..." )
+	self.Silence = true
+
 	self:ResetTeams()
 	
 	self:DestroyAllTimers()
@@ -273,7 +275,9 @@ function Plugin:Reset()
 			end
 		end
 	end
-	
+
+	self.Silence = false
+
 	self.dt.State = 1
 	self:CheckModeStart()
 end
