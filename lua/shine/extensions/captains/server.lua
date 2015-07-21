@@ -97,9 +97,9 @@ local function CheckWinners( self, Winners )
 		if i == maxI then return end -- sanity check there should be not more than human players be afk
 		i = i + 1
 
-		for i, Winner in ipairs( Winners ) do
+		for _, Winner in ipairs( Winners ) do
 			local Client = GetClientByNS2ID( Winner.Name )
-			if not Client or i == 2 or AFKEnabled and AFKPlugin:IsAFKFor(Client, AFKTime) then
+			if not Client or AFKEnabled and AFKPlugin:IsAFKFor(Client, AFKTime) then
 				self:RemoveOption( Winner.Name )
 
 				if Client then
