@@ -85,6 +85,8 @@ do
 
 		Shine.Hook.Remove( "Think", "LoadPGPHooks")
 	end)
+
+	PrecacheAssetIfExists("models/marine/mac/mac.model")
 end
 
 function Plugin:Initialise()
