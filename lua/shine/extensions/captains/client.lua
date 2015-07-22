@@ -734,6 +734,8 @@ end
 
 function Plugin:ReceiveInfoMsgs( Message )
 	Messages[ Message.id ] = Message.text
+
+	if Message.id == 2 then self:UpdateTextMessage() end
 end
 
 function Plugin:ReceiveMessageConfig( Message )

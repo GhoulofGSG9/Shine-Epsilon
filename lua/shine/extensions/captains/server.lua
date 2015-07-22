@@ -194,7 +194,6 @@ end
 
 function Plugin:CheckModeStart()
 	if Shine.GetHumanPlayerCount() >= self.Config.MinPlayers and self.dt.State == 1 then
-		local Players = GetAllPlayers()
 		if Gamerules then
 			local function SetRR( Player )
 				Gamerules:JoinTeam( Player, 0, nil, true )
