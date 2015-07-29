@@ -87,6 +87,7 @@ do
 	end)
 
 	PrecacheAssetIfExists("models/marine/mac/mac.model")
+	PrecacheAssetIfExists("models/marine/mac/mac.animation_graph")
 end
 
 function Plugin:Initialise()
