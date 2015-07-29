@@ -60,7 +60,7 @@ Plugin.DefaultConfig = {
 	AllowSpectating = true,
 	CountdownTime = 15,
 	AutoPlaceTime = 30,
-	AFKLimit = 1,
+	AFKLimit = 0.5,
 	AutoRematch = true
 }
 Plugin.CheckConfig = true
