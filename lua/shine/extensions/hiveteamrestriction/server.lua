@@ -164,9 +164,8 @@ function Plugin:CheckValues( Playerdata, SteamId )
 	--check if Player fits to the PlayTime
 	if Config.CheckPlayTime.Enable then
 		local Playtime = Playerdata.playTime
-		--check if Player fits to the PlayTime
 
-		if Config.CheckPlayTime.UseSteamTime then
+		if Config.CheckPlayTime.UseSteamPlayTime then
 			local SteamTime = InfoHub:GetSteamData( SteamId ).PlayTime
 			if SteamTime and SteamTime > Playtime then
 				Playtime = SteamTime
