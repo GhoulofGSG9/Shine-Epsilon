@@ -37,7 +37,7 @@ function Plugin:Initialise()
 	return true
 end
 
-function Plugin:SetBadge( Client, Badge, Row )
+function Plugin:SetBadge( Client, Badge, Row, Name )
     if not ( Badge or Client ) then return end
     
     if not GiveBadge then
@@ -55,6 +55,7 @@ function Plugin:SetBadge( Client, Badge, Row )
     if not SetBadge then return end
     
     GiveBadge( ClientId, "disabled", Row )
+    SetFormalBadgeName( Badge, Name)
     
     return true
 end
@@ -67,15 +68,24 @@ local SteamBadges = {
     "steam_Special Ops"
 }
 
+local SteamBadgeName = {
+    "Steam NS2 Badge - Rookie",
+    "Steam NS2 Badge - Squad Leader",
+    "Steam NS2 Badge - Veteran",
+    "Steam NS2 Badge - Commander",
+    "Steam NS2 Badge - Special Ops"
+}
+
 function Plugin:OnReceiveSteamData( Client, SteamData )
     if not self.Config.SteamBadges then return end
     
     if SteamData.Badges.Normal and SteamData.Badges.Normal > 0 then
-        self:SetBadge( Client, SteamBadges[SteamData.Badges.Normal], self.Config.SteamBadgesRow )
+        self:SetBadge( Client, SteamBadges[SteamData.Badges.Normal], self.Config.SteamBadgesRow,
+            SteamBadgeName[SteamData.Badges.Normal] )
     end
         
     if SteamData.Badges.Foil and SteamData.Badges.Foil == 1 then
-        self:SetBadge( Client, "steam_Sanji Survivor", self.Config.SteamBadgesRow )
+        self:SetBadge( Client, "steam_Sanji Survivor", self.Config.SteamBadgesRow, "Steam NS2 Badge - Sanji Survivor" )
     end
 end
 
@@ -83,11 +93,15 @@ function Plugin:OnReceiveGeoData( Client, GeoData )
     if not self.Config.Flags then return end
     
     local Nationality = type(GeoData) == "table" and GeoData.country_code or "UNO"
-    local SetBagde = self:SetBadge( Client, Nationality, self.Config.FlagsRow )
+    local Country = type(GeoData) == "table" and GeoData.country_name or "Unknown"
+
+    local SetBagde = self:SetBadge( Client, Nationality, self.Config.FlagsRow,
+        string.format("Nationality - %s", Country) )
     
     if not SetBagde then
         Nationality = "UNO"
-        self:SetBadge( Client, Nationality, self.Config.FlagsRow )
+        self:SetBadge( Client, Nationality, self.Config.FlagsRow,
+            string.format("Nationality - %s", Country) )
     end
 end
 
