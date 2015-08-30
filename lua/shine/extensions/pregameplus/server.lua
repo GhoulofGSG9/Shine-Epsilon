@@ -22,7 +22,7 @@ Plugin.DefaultConfig = {
 		Status = "Pregame \"Sandbox\" - Mode is %s. A match has not started.",
 		Limit = "Turns %s when %s %s players.",
 		NoLimit = "No player limit.",
-		Countdown = "Pregame \"Sandbox\" - Mode turning %s in %s seconds.",
+		Countdown = "Pregame \"Sandbox\" - Mode turning %s in %s.",
 	}
 }
 Plugin.CheckConfig = true
