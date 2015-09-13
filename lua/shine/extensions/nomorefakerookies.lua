@@ -29,8 +29,11 @@ function Plugin:Initialise()
 	if self.Config.UseSteamPlayTime then
 		InfoHub:Request("nomorefakerookies", "STEAMPLAYTIME")
 	else
-		for _, player in ipairs(Shine.GetAllPlayers()) do
-			self:CheckPlayer(player)
+		for _, client in ipairs(Shine.GetAllClients()) do
+			local data = InfoHub:GetHiveData(client:GetUserId())
+			if data then
+				self:OnReceiveHiveData(client, data)
+			end
 		end
 	end
 
