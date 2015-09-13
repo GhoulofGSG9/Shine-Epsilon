@@ -281,7 +281,8 @@ function PlayerInfoHub:GetHiveData( SteamId )
 	if Shine.IsNS2Combat then return end
 
 	local data = GetHiveDataBySteamId(SteamId)
-	if data then
+	--check the steamId to validate the hive data
+	if data and data.steamId == SteamId then
 		
 		--Fix for hive using string instead of number as type for skill
 		data.skill = tonumber(data.skill)

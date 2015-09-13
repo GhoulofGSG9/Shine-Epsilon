@@ -29,8 +29,7 @@ Plugin.DefaultConfig = {
 			InformMessage = "A player left the %s. So you can join up now."
 		}
 	},
-	MessageNameColor = {0, 255, 0 },
-	IgnoreShineForce = false --ShineForce is used by plugins like voterandom to avoid issues
+	MessageNameColor = {0, 255, 0 }
 }
 Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
@@ -72,7 +71,7 @@ end
 
 function Plugin:JoinTeam( Gamerules, Player, NewTeam, _, ShineForce )
 	local TeamIndex = string.format("Team%s", NewTeam)
-	if ShineForce and not self.Config.IgnoreShineForce or NewTeam == 0 or not self.Config.Teams[TeamIndex] then return end
+	if ShineForce or NewTeam == 0 or not self.Config.Teams[TeamIndex] then return end
 
 	--Check if team is above MaxPlayers
 	if Gamerules:GetTeam(NewTeam):GetNumPlayers() >= self.Config.Teams[TeamIndex].MaxPlayers then
