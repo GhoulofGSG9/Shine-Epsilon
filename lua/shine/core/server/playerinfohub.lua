@@ -136,6 +136,7 @@ function PlayerInfoHub:OnConnect( Client )
 			self.HiveQueue[ SteamId ] = true
 			Shine.Timer.Create( StringFormat("HiveRequest%s", SteamId), 5, 1, function()
 				PlayerInfoHub.HiveQueue[ SteamId ] = false
+				Call( "OnReceiveHiveData", Client, nil )
 			end )
 		end
 	elseif self.HiveQueue[ SteamId ] == false then
