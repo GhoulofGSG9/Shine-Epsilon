@@ -16,6 +16,7 @@ Plugin.DefaultConfig =
 	UseSteamPlayTime = true
 }
 Plugin.CheckConfig = true
+Plugin.CheckConfigTypes = true
 
 Shine.Hook.SetupClassHook("Player", "SetRookieMode", "OnSetRookie", "Halt")
 
