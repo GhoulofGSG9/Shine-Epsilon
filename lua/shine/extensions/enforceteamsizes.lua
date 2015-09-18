@@ -34,11 +34,6 @@ Plugin.DefaultConfig = {
 Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
 
-function Plugin:Initialise()
-	self.Enabled = true
-	return true
-end
-
 function Plugin:Notify(Player, Message, OldTeam)
 	Shine:NotifyDualColour( Player, self.Config.MessageNameColor[1], self.Config.MessageNameColor[2],
 		self.Config.MessageNameColor[3], "[EnforcedTeamSizes]", 255, 255, 255,
@@ -71,7 +66,7 @@ end
 
 function Plugin:JoinTeam( Gamerules, Player, NewTeam, _, ShineForce )
 	local TeamIndex = string.format("Team%s", NewTeam)
-	if ShineForce or NewTeam == 0 or not self.Config.Teams[TeamIndex] then return end
+	if ShineForce or NewTeam == kTeamReadyRoom or not self.Config.Teams[TeamIndex] then return end
 
 	--Check if team is above MaxPlayers
 	if Gamerules:GetTeam(NewTeam):GetNumPlayers() >= self.Config.Teams[TeamIndex].MaxPlayers then
@@ -81,9 +76,28 @@ function Plugin:JoinTeam( Gamerules, Player, NewTeam, _, ShineForce )
 	end
 end
 
-function Plugin:CleanUp()
-	self.BaseClass.CleanUp()
-	self.Enabled = false
+--Restrict teams also at voterandom
+function Plugin:PreEvenlySpreadTeams( Gamerules, TeamMembers )
+	local team1Max = self.Config.Teams.Team1 and self.Config.Teams.Team1.MaxPlayers or 1000
+	local team2Max = self.Config.Teams.Team1 and self.Config.Teams.Team1.MaxPlayers or 1000
+	local max = math.min( team1Max, team2Max )
+
+	if max == 1000 then return end
+
+	local start = max + 1 --math.random( 1, max + 1 )
+
+	for i = 1, 2 do
+		local diff = #TeamMembers[i] - max
+
+		if diff > 0 then
+			for j = 1, diff do
+				--Move player into the ready room
+				pcall( Gamerules.JoinTeam, Gamerules, TeamMembers[i][start], kTeamReadyRoom, nil, true )
+				--remove the player's entry in the table
+				table.remove( TeamMembers[i], start )
+			end
+		end
+	end
 end
 
 Shine:RegisterExtension("enforceteamsizes", Plugin )
