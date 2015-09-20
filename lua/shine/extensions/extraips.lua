@@ -6,6 +6,7 @@ local StringFormat = string.format
 
 local Plugin = {}
 Plugin.Version = "1.0"
+Plugin.NS2Only = true
 
 Plugin.HasConfig = true
 Plugin.ConfigName = "ExtraIps.json"

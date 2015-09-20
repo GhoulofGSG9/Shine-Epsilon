@@ -1,7 +1,8 @@
+local Shine = Shine
+
 local Plugin = {}
 Plugin.Version = "1.4"
-
-local Shine = Shine
+Plugin.NS2Only = true
 
 function Plugin:SetupDataTable()
 	self:AddDTVar( "boolean", "Enabled", false )
