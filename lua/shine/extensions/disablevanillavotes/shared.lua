@@ -7,10 +7,7 @@
 local Plugin = {}
 local Shine = Shine
 
-function Plugin:Initialise()
-	self.Enabled = true
-	return true
-end
+Plugin.NS2Only = true
 
 function Plugin:SetupDataTable()
 	self:AddDTVar( "integer (0 to 255)", "R", 81 )
@@ -21,10 +18,6 @@ function Plugin:SetupDataTable()
 		Message = "string(255)",
 	}
 	self:AddNetworkMessage( "Message", Message, "Client" )
-end
-
-function Plugin:Cleanup()
-	self.BaseClass.Cleanup( self )
 end
 
 Shine:RegisterExtension("disablevanillavotes", Plugin )

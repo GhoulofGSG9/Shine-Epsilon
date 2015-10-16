@@ -84,21 +84,22 @@ function Plugin:PreEvenlySpreadTeams( Gamerules, TeamMembers )
 
 	if max == 1000 then return end
 
-	local start = max + 1 --math.random( 1, max + 1 )
-
 	for i = 1, 2 do
-		local diff = #TeamMembers[i] - max
-
-		if diff > 0 then
-			for j = 1, diff do
-				--Move player into the ready room
-				pcall( Gamerules.JoinTeam, Gamerules, TeamMembers[i][start], kTeamReadyRoom, nil, true )
-				--remove the player's entry in the table
-				table.remove( TeamMembers[i], start )
-			end
+		for j = #TeamMembers[i], max + 1, -1 do
+			--Move player into the ready room
+			pcall( Gamerules.JoinTeam, Gamerules, TeamMembers[i][j], kTeamReadyRoom, nil, true )
+			--remove the player's entry in the table
+			TeamMembers[i][j] = nil
 		end
+	end
+
+	--Report uneven teams
+	local diff = math.abs(#TeamMembers[1] - #TeamMembers[2])
+
+	if diff > 1 then
+		Shine:DebugPrint("Teams are uneven after teamrestriction.\nDiff: %s\n Teams: %s", diff, table.ToString(TeamMembers))
+		Shine:AddErrorReport(string.format("Teams are uneven after teamrestriction.\nDiff: %s\n Teams: %s", diff, table.ToString(TeamMembers)))
 	end
 end
 
 Shine:RegisterExtension("enforceteamsizes", Plugin )
-

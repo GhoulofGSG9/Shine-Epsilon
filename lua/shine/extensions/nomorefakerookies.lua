@@ -3,6 +3,7 @@ local Shine = Shine
 local InfoHub = Shine.PlayerInfoHub
 
 Plugin.Version = "1.0"
+Plugin.NS2Only = true
 
 Plugin.HasConfig = true
 Plugin.ConfigName = "NoMoreFakeRookies.json"

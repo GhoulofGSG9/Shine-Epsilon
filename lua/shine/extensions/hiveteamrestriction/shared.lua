@@ -4,6 +4,7 @@
 local Shine = Shine
 
 local Plugin = {}
+Plugin.NS2Only = true
 
 function Plugin:SetupDataTable()
     self:AddNetworkMessage( "ShowSwitch", {}, "Client" )

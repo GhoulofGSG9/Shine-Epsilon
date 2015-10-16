@@ -13,6 +13,7 @@ local IsType = Shine.IsType
 local Plugin = {}
 
 Plugin.Version = "1.0"
+Plugin.NS2Only = true
 
 Plugin.HasConfig = true
 Plugin.ConfigName = "customspawns/config.json"
