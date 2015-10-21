@@ -97,7 +97,7 @@ function Plugin:PreEvenlySpreadTeams( Gamerules, TeamMembers )
 	local diff = math.abs(#TeamMembers[1] - #TeamMembers[2])
 
 	if diff > 1 then
-		Shine:DebugPrint("Teams are uneven after teamrestriction.\nDiff: %s\n Teams: %s", diff, table.ToString(TeamMembers))
+		Shine:DebugPrint("Teams are uneven after teamrestriction.\nDiff: %s\n Teams: %s", true, diff, table.ToString(TeamMembers))
 		Shine:AddErrorReport(string.format("Teams are uneven after teamrestriction.\nDiff: %s\n Teams: %s", diff, table.ToString(TeamMembers)))
 	end
 end
