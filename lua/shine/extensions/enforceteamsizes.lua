@@ -78,7 +78,7 @@ end
 
 --Restrict teams also at voterandom
 function Plugin:PreEvenlySpreadTeams( Gamerules, TeamMembers )
-	local oldTeam = TeamMembers
+	local oldTeam = table.ToString(TeamMembers)
 	local team1Max = self.Config.Teams.Team1 and self.Config.Teams.Team1.MaxPlayers or 1000
 	local team2Max = self.Config.Teams.Team1 and self.Config.Teams.Team1.MaxPlayers or 1000
 	local max = math.min( team1Max, team2Max )
@@ -98,7 +98,7 @@ function Plugin:PreEvenlySpreadTeams( Gamerules, TeamMembers )
 	local diff = math.abs(#TeamMembers[1] - #TeamMembers[2])
 
 	if diff > 1 then
-		Shine:DebugPrint("Teams are uneven after teamrestriction.\nDiff: %s\n Teams: %s", true, diff, table.ToString(TeamMembers))
+		Shine:DebugPrint("Teams are uneven after teamrestriction.\nDiff: %s\n Teams: %s", true, diff, oldTeam )
 		Shine:AddErrorReport(string.format("Teams are uneven after teamrestriction.\nMax, Diff: %s, %s\nOldTeams: %s\nTeams: %s", max, diff, table.ToString(oldTeam), table.ToString(TeamMembers)))
 	end
 end
