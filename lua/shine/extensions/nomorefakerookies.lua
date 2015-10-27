@@ -80,7 +80,7 @@ function Plugin:CheckPlayer(Player, Mode)
 	local Client = Player:GetClient()
 	local SteamId = Client and Player:GetSteamId()
 
-	if not SteamId or SteamId < 1 or not self.Playtimes[SteamId] then return end
+	if not SteamId or SteamId < 1 or not self.Levels[SteamId] then return end
 
 	if self.Playtimes[SteamId] <= self.Config.MaxRookieTime then return end --real rookies or timeouts
 
