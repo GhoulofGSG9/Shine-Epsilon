@@ -19,6 +19,8 @@ Plugin.DefaultConfig =
     FlagsRow = 2,
     SteamBadges = true,
     SteamBadgesRow = 5,
+    ENSLTeams = false,
+    ENSLTeamsRow = 4,
 }
 Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
@@ -28,6 +30,10 @@ function Plugin:Initialise()
 	
     if self.Config.Flags then
         InfoHub:Request("epsilonbadges", "GEODATA")
+    end
+
+    if self.Config.ENSLTeams then
+        InfoHub:Request("epsilonbadges", "ENSL")
     end
 
     if self.Config.SteamBadges then
@@ -103,6 +109,18 @@ function Plugin:OnReceiveGeoData( Client, GeoData )
         self:SetBadge( Client, Nationality, self.Config.FlagsRow,
             string.format("Nationality - %s", Country) )
     end
+end
+
+function Plugin:OnReceiveENSLData( Client, Data )
+    if not self.Config.ENSLTeams then return end
+
+	if not type(Data) == "table" or not Data then return end
+
+	local Teamname = Data.team and Data.team.name
+
+	if Teamname then
+		self:SetBadge( Client, Teamname, self.Config.ENSLTeamsRow. string.format("ENSL Team - %s", Teamname))
+	end
 end
 
 function Plugin:CleanUp()
