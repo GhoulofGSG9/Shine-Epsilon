@@ -114,7 +114,7 @@ end
 function Plugin:OnReceiveENSLData( Client, Data )
     if not self.Config.ENSLTeams then return end
 
-	if not type(Data) == "table" or not Data then return end
+	if type(Data) ~= "table" then return end
 
 	local Teamname = Data.team and Data.team.name
 

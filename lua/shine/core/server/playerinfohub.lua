@@ -208,13 +208,18 @@ function PlayerInfoHub:OnConnect( Client )
 	
 	if self.Requests.ENSL[1] then
 		local function CallEvent()
-			Call( "OnReceiveENSLData", Client, PlayerInfoHub.ENSL[ SteamId ] )
+			Call( "OnReceiveENSLData", Client, PlayerInfoHub.ENSLData[ SteamId ] )
 		end
 
 		if not self.ENSLData[ SteamId ] then
 			self.ENSLData[ SteamId ] = -2
 			AddToHTTPQueue( StringFormat( "http://www.ensl.org/api/v1/users/show/%s.steamid", SteamId ),function( Response )
 				local data = JsonDecode( Response )
+
+				--The ENSL page does not respond in json if the given id
+				--does not exsist in the db but with a full error page.
+				if data and not data.id then data = nil end
+
 				PlayerInfoHub.ENSLData[ SteamId ] = data or 0
 				CallEvent()
 			end, function()
