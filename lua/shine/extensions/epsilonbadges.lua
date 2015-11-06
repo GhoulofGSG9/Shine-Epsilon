@@ -123,7 +123,7 @@ function Plugin:OnReceiveENSLData( Client, Data )
 	end
 end
 
-function Plugin:CleanUp()
+function Plugin:Cleanup()
     InfoHub:RemoveRequest("epsilonbadges")
 
     self.BaseClass.Cleanup( self )

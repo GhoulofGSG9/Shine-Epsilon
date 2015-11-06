@@ -100,10 +100,10 @@ function Plugin:CheckPlayer(Player, Mode)
 	return true
 end
 
-function Plugin:CleanUp()
+function Plugin:Cleanup()
 	InfoHub:RemoveRequest("nomorefakerookies", "STEAMPLAYTIME")
 
-	self.BaseClass.CleanUp()
+	self.BaseClass.Cleanup()
 	self.Enabled = false
 end
 

@@ -329,7 +329,7 @@ function Plugin:Kick( Player )
     end)    
 end
 
-function Plugin:CleanUp()
+function Plugin:Cleanup()
     InfoHub:RemoveRequest(self.Name)
 
     self.BaseClass.Cleanup( self )

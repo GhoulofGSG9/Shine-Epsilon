@@ -93,7 +93,7 @@ function Plugin:Kick( Client, BanType )
     end
 end
 
-function Plugin:CleanUp()
+function Plugin:Cleanup()
     InfoHub:RemoveRequest( "VAC+" )
 
     self.BaseClass.Cleanup( self )
