@@ -11,10 +11,12 @@ function Plugin:UpdateMenuEntry( NewValue )
 			self.MenuEntry = Menu:AddSideButton( "News", function()
 				Menu.GenericClick( "sh_news" )
 			end )
-		end )
-	end
 
-	self.MenuEntry:SetIsVisible( NewValue )
+			self.MenuEntry:SetIsVisible( NewValue )
+		end )
+	else
+		self.MenuEntry:SetIsVisible( NewValue )
+	end
 end
 
 function Plugin:Cleanup()
