@@ -37,8 +37,8 @@ function Plugin:ClientDisconnect()
     end )
 end
 
-function Plugin:CleanUp()
-    self.BaseClass.CleanUp()
+function Plugin:Cleanup()
+    self.BaseClass.Cleanup()
     self.Enabled = false
 end
 

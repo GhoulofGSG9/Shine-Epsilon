@@ -66,7 +66,7 @@ function Plugin:CheckValues( Playerdata, SteamId )
 	return false
 end
 
-function Plugin:CleanUp()
+function Plugin:Cleanup()
     Shine.PlayerInfoHub:RemoveRequest(self.Name)
 
     self.BaseClass.Cleanup( self )

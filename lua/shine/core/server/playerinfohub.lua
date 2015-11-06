@@ -13,6 +13,7 @@ local PlayerInfoHub = Shine.PlayerInfoHub
 
 PlayerInfoHub.SteamData = {}
 PlayerInfoHub.GeoData = {}
+PlayerInfoHub.ENSLData = {}
 
 local function Call( Name, Client, ... )
 	if not Shine:IsValidClient( Client ) then return end
@@ -71,12 +72,14 @@ end
  - STEAMBADGES
  - STEAMBANS
  - GEOIP
+ - ENSL
  ]]
 PlayerInfoHub.Requests = {
 	STEAMPLAYTIME = {},
 	STEAMBADGES = {},
 	STEAMBANS = {},
-	GEODATA = {}
+	GEODATA = {},
+	ENSL = {}
 }
 
 PlayerInfoHub.HiveQueue = {}
@@ -202,6 +205,31 @@ function PlayerInfoHub:OnConnect( Client )
 			CallEvent()
 		end
 	end
+	
+	if self.Requests.ENSL[1] then
+		local function CallEvent()
+			Call( "OnReceiveENSLData", Client, PlayerInfoHub.ENSLData[ SteamId ] )
+		end
+
+		if not self.ENSLData[ SteamId ] then
+			self.ENSLData[ SteamId ] = -2
+			AddToHTTPQueue( StringFormat( "http://www.ensl.org/api/v1/users/show/%s.steamid", SteamId ),function( Response )
+				local data = JsonDecode( Response )
+
+				--The ENSL page does not respond in json if the given id
+				--does not exsist in the db but with a full error page.
+				if data and not data.id then data = nil end
+
+				PlayerInfoHub.ENSLData[ SteamId ] = data or 0
+				CallEvent()
+			end, function()
+				PlayerInfoHub.ENSLData[ SteamId ] = -1
+				CallEvent()
+			end)
+		elseif self.ENSLData[ SteamId ] ~= -2 then
+			CallEvent()
+		end
+	end
 
 	if self.Requests.GEODATA[1] then
 		if not self.GeoData[ SteamId ] then
@@ -296,6 +324,14 @@ function PlayerInfoHub:GetSteamData( SteamId )
 	return self.SteamData[ SteamId ]
 end
 
+function PlayerInfoHub:GetGeoData( SteamId )
+	return self.GeoData[ SteamId ]
+end
+
+function PlayerInfoHub:GetENSLData( SteamId )
+	return self.ENSLData[ SteamId ]
+end
+
 --[[
 -- Returns if the requests have been finsihed for given SteamId
 -- If a Name is give it will only check for requst registered with the given name
@@ -306,6 +342,7 @@ function PlayerInfoHub:GetIsRequestFinished( SteamId, Name )
 		return (not self.Requests.STEAMPLAYTIME[1] or self.SteamData[ SteamId ].Playtime ~= -2 ) and
 				(not self.Requests.STEAMBADGES[1] or self.SteamData[ SteamId ].Badges.Normal ~= -2) and
 				(not self.Requests.STEAMBANS[1] or self.SteamData[ SteamId ].Bans ~= -2) and
+				(not self.Requests.ENSL[1] or self.ENSLData[ SteamId ].Bans ~= -2) and
 				(not self.Requests.GEODATA[1] or self.GeoData[ SteamId ] ~= -2) and self.HiveQueue[ SteamId ] == false
 	else
 		local result = self.HiveQueue[ SteamId ] == false
@@ -338,6 +375,13 @@ function PlayerInfoHub:GetIsRequestFinished( SteamId, Name )
 		for _, name in ipairs(self.Requests.GEODATA) do
 			if name == Name then
 				result = self.GeoData[ SteamId ] ~= -2
+				break
+			end
+		end
+
+		for _, name in ipairs(self.Requests.ENSL) do
+			if name == Name then
+				result = self.ENSLData[ SteamId ] ~= -2
 				break
 			end
 		end

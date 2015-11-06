@@ -438,12 +438,12 @@ function Plugin:CreateCommands()
 	DumpSpawnsCommand:Help( "<filename> Dumps the techpoints of this maps into a valid mapconfig file (with the given name)" )
 end
 
-function Plugin:CleanUp()
+function Plugin:Cleanup()
 	self.TechPoints = nil
 	self.Spawns = nil
 	self.ValidAlienSpawn = nil
 
-	self.BaseClass.CleanUp()
+	self.BaseClass.Cleanup()
 
 	self.Enabled = false
 end
