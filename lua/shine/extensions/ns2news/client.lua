@@ -5,6 +5,14 @@
 local Plugin = Plugin
 local Shine = Shine
 
+function Plugin:Initialise()
+	self:UpdateMenuEntry( self.dt.ShowMenuEntry )
+	
+	self.Enabled = true
+
+	return true
+end
+
 function Plugin:UpdateMenuEntry( NewValue )
 	if not self.MenuEntry then
 		Shine.VoteMenu:EditPage( "Main", function( Menu )
