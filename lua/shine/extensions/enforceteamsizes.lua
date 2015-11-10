@@ -93,14 +93,6 @@ function Plugin:PreEvenlySpreadTeams( Gamerules, TeamMembers )
 			TeamMembers[i][j] = nil
 		end
 	end
-
-	--Report uneven teams
-	local diff = math.abs(#TeamMembers[1] - #TeamMembers[2])
-
-	if diff > 1 then
-		Shine:DebugPrint("Teams are uneven after teamrestriction.\nDiff: %s\n Teams: %s", true, diff, oldTeam )
-		Shine:AddErrorReport(string.format("Teams are uneven after teamrestriction.\nMax, Diff: %s, %s\nOldTeams: %s\nTeams: %s", max, diff, oldTeam, table.ToString(TeamMembers)))
-	end
 end
 
 Shine:RegisterExtension("enforceteamsizes", Plugin )
