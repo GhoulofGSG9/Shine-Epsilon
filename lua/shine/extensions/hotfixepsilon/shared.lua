@@ -8,8 +8,46 @@ local StringFormat = string.format
 local TableConcat = table.concat
 local TextWrap = TextWrap
 
---Hofix for Build 277 infinite WordWrap
-function WordWrap( label, text, xpos, maxWidth )
+--Hofix for Build 277
+
+--[[
+--The following two methods are based on work by Person8880 from https://github.com/Person8880/Shine
+]]
+
+--[[
+Wraps text to fit the size limit. Used for long words...
+
+Returns two strings, first one fits entirely on one line, the other may not, and should be
+added to the next word.
+]]
+function TextWrap( label, text, xpos, maxWidth )
+	local i = 1
+	local firstLine = text
+	local secondLine = ""
+	local textLength = text:UTF8Length()
+
+	--Character by character, extend the text until it exceeds the width limit.
+	repeat
+		local curText = text:UTF8Sub( 1, i )
+
+		--Once it reaches the limit, we go back a character, and set our first and second line results.
+		if xpos + label:GetTextWidth( curText ) * label:GetScale().x > maxWidth then
+			firstLine = text:UTF8Sub( 1, math.max(i - 1, 1 ) )
+			secondLine = text:UTF8Sub( math.max(i, 2) )
+
+			break
+		end
+
+		i = i + 1
+	until i >= textLength
+
+	return firstLine, secondLine
+end
+
+--[[
+    Word wraps text, adding new lines where the text exceeds the width limit.
+]]
+function WordWrap( label, text, xpos, maxWidth, maxLines )
 	if maxWidth <= 0 then return "" end
 
 	local words = StringExplode( text, " " )
@@ -18,7 +56,7 @@ function WordWrap( label, text, xpos, maxWidth )
 	local i = 1
 
 	--While loop, as the size of the words table may increase. But make sure we don't end in a infinite loop
-	while i <= #words and i <= 100 do
+	while i <= #words and i <= 200 do
 		local curText = TableConcat( words, " ", startIndex, i )
 
 		if xpos + label:GetTextWidth( curText ) * label:GetScale().x > maxWidth then
@@ -28,12 +66,7 @@ function WordWrap( label, text, xpos, maxWidth )
 
 				lines[ #lines + 1 ] = firstLine
 
-				--Add the second line to the next word, or as a new next word if none exists.
-				if words[ i + 1 ] then
-					words[ i + 1 ] = StringFormat( "%s %s", secondLine, words[ i + 1 ] )
-				else
-					words[ i + 1 ] = secondLine
-				end
+				table.insert(words, i + 1, secondLine )
 
 				startIndex = i + 1
 			else
@@ -43,14 +76,20 @@ function WordWrap( label, text, xpos, maxWidth )
 				startIndex = i
 				i = i - 1
 			end
+
+			if maxLines and maxLines <= #lines then
+				break
+			end
+
 		elseif i == #words then --We're at the end!
-			lines[ #lines + 1 ] = curText
+		lines[ #lines + 1 ] = curText
+		startIndex = i + 1
 		end
 
 		i = i + 1
 	end
 
-	return TableConcat( lines, "\n" )
+	return TableConcat( lines, "\n" ), maxLines and TableConcat(words, " ", startIndex)
 end
 
 --Plugin Stub
