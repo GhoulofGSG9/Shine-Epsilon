@@ -443,7 +443,7 @@ function Plugin:Cleanup()
 	self.Spawns = nil
 	self.ValidAlienSpawn = nil
 
-	self.BaseClass.Cleanup()
+	self.BaseClass.Cleanup( self )
 
 	self.Enabled = false
 end
