@@ -30,7 +30,7 @@ function Plugin:OnIPAddressToString(address)
 end
 
 function Plugin:Cleanup()
-	self.BaseClass.Cleanup()
+	self.BaseClass.Cleanup( self )
 	self.Enabled = false
 end
 
