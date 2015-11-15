@@ -119,7 +119,7 @@ function Plugin:OnReceiveENSLData( Client, Data )
 	local Teamname = Data.team and Data.team.name
 
 	if Teamname then
-		self:SetBadge( Client, Teamname, self.Config.ENSLTeamsRow. string.format("ENSL Team - %s", Teamname))
+		self:SetBadge( Client, Teamname, self.Config.ENSLTeamsRow, string.format("ENSL Team - %s", Teamname))
 	end
 end
 
