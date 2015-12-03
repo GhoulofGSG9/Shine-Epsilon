@@ -7,7 +7,7 @@ local Plugin = Plugin
 Plugin.HasConfig = true
 Plugin.ConfigName = "NS2Feedback.json"
 
-local webUrl = "https://goo.gl/XZRxQf"
+local webUrl = "http://ns2.bplaced.net/feedback.html"
 
 Plugin.DefaultConfig = {
 	ShowMenuEntry = true
