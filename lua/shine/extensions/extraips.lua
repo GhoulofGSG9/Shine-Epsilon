@@ -70,10 +70,12 @@ local function SpawnInfantryPortal(self, techPoint, force)
     
 end
 
-Shine.Hook.ReplaceLocalFunction( MarineTeam.SpawnInitialStructures, "SpawnInfantryPortal", SpawnInfantryPortal )
+function Plugin:OnFirstThink()
+	Shine.Hook.ReplaceLocalFunction( MarineTeam.SpawnInitialStructures, "SpawnInfantryPortal", SpawnInfantryPortal )
 
-Shine.Hook.SetupClassHook( "MarineTeam", "SpawnInitialStructures", "OnSpawnInitialStructures", "PassivePost")
-Shine.Hook.SetupClassHook( "MarineTeam", "ResetTeam", "PreMarineTeamReset", "PassivePre")
+	Shine.Hook.SetupClassHook( "MarineTeam", "SpawnInitialStructures", "OnSpawnInitialStructures", "PassivePost")
+	Shine.Hook.SetupClassHook( "MarineTeam", "ResetTeam", "PreMarineTeamReset", "PassivePre")
+end
 
 function Plugin:PreMarineTeamReset()
 	count = 0
