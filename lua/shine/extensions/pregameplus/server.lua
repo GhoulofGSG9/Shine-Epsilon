@@ -57,7 +57,9 @@ local function ReplaceGameStarted2( OldFunc, ... )
 end
 
 --Hooks
-do
+function Plugin:OnFirstThink()
+	self:OnFirstThinkShared()
+
 	local SetupClassHook = Shine.Hook.SetupClassHook
 	local SetupGlobalHook = Shine.Hook.SetupGlobalHook
 
