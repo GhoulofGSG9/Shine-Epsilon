@@ -113,7 +113,7 @@ function PlayerInfoHub:RemoveRequest( Name, DataType)
 	else
 		for i, name in ipairs(self.Requests[DataType]) do
 			if name == Name then
-				table.remove(type, i)
+				table.remove(self.Requests[DataType], i)
 			end
 		end
 	end
