@@ -7,7 +7,7 @@ local Plugin = Plugin
 Plugin.HasConfig = true
 Plugin.ConfigName = "NS2News.json"
 
-local webUrl = "http://ns2news.wix.com/live"
+local webUrl = "http://ns2news.org/"
 
 Plugin.DefaultConfig = {
 	ShowMenuEntry = true
