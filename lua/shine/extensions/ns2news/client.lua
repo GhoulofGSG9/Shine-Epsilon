@@ -16,8 +16,8 @@ end
 function Plugin:UpdateMenuEntry( NewValue )
 	if not self.MenuEntry then
 		Shine.VoteMenu:EditPage( "Main", function( Menu )
-			self.MenuEntry = Menu:AddSideButton( "News", function()
-				Menu.GenericClick( "sh_news" )
+			self.MenuEntry = Menu:AddSideButton( "NS2News", function()
+				Menu.GenericClick( "sh_ns2news" )
 			end )
 
 			self.MenuEntry:SetIsVisible( NewValue )
