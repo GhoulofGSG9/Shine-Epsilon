@@ -7,7 +7,7 @@ local Plugin = Plugin
 Plugin.HasConfig = true
 Plugin.ConfigName = "NS2News.json"
 
-local webUrl = "http://ns2news.wix.com/live"
+local webUrl = "http://ns2news.org/"
 
 Plugin.DefaultConfig = {
 	ShowMenuEntry = true
@@ -41,15 +41,15 @@ function Plugin:CreateCommands()
 
 		self:ShowNews( Client )
 	end
-	local NewsCommand = self:BindCommand( "sh_news", "news", News, true )
-	NewsCommand:Help( "Shows the NS2 news." )
+	local NewsCommand = self:BindCommand( "sh_ns2news", "ns2news", News, true )
+	NewsCommand:Help( "Shows NS2News.org" )
 
 	local function ShowNews( _, Target )
 		self:ShowNews( Target )
 	end
-	local ShowNewsCommand = self:BindCommand( "sh_shownews", "shownews", ShowNews )
+	local ShowNewsCommand = self:BindCommand( "sh_showns2news", "showns2news", ShowNews )
 	ShowNewsCommand:AddParam{ Type = "client" }
-	ShowNewsCommand:Help( "<player> Shows the NS2 news to the given player." )
+	ShowNewsCommand:Help( "<player> Shows NS2News.org to the given player." )
 
 end
 
