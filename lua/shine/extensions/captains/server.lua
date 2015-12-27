@@ -157,9 +157,7 @@ local function CreateVote( Team )
 	return Vote
 end
 
-function Plugin:OnFirstThink()
-	SetupClassHook( "Player", "SetName", "OnPlayerRename", "PassivePost" )
-end
+SetupClassHook( "Player", "SetName", "OnPlayerRename", "PassivePost" )
 
 function Plugin:Initialise()
 	self.Votes = { 
