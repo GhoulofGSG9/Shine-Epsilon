@@ -63,7 +63,8 @@ Plugin.DefaultConfig = {
 Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
 
-Plugin.Name = "Hive Team Restriction"
+Plugin.PrintName = "Hive Team Restriction"
+Plugin.NotifyPrefixColour = { 100, 255, 100 }
 
 function Plugin:Initialise()
 	self.Enabled = true
@@ -76,7 +77,7 @@ end
 
 function Plugin:CheckForSteamTime()
 	if self.Config.CheckPlayTime.Enable and self.Config.CheckPlayTime.UseSteamPlayTime then
-		InfoHub:Request( self.Name, "STEAMPLAYTIME" )
+		InfoHub:Request( self.PrintName, "STEAMPLAYTIME" )
 	end
 end
 
@@ -115,7 +116,7 @@ function Plugin:AutoCheck( Client )
     local Player = Client:GetControllingPlayer()
     local SteamId = Client:GetUserId()
 
-    if not Player or not InfoHub:GetIsRequestFinished( SteamId, self.Name ) then return end
+    if not Player or not InfoHub:GetIsRequestFinished( SteamId, self.PrintName ) then return end
 
     self:Check( Player )
 end
@@ -131,7 +132,7 @@ function Plugin:Check( Player, Extravalue )
     local SteamId = Client:GetUserId()
     if not SteamId or SteamId < 1 then return end
 	
-    if not InfoHub:GetIsRequestFinished( SteamId, self.Name ) then
+    if not InfoHub:GetIsRequestFinished( SteamId, self.PrintName ) then
         self:Notify( Player, self.Config.WaitMessage )
         return false
     end
@@ -277,25 +278,6 @@ function Plugin:BuildBlockMessage()
 	self.BlockMessage = MessageLines
 end
 
-function Plugin:Notify( Player, Message, Format, ... )
-	if not Player or not Message then return end
-
-	if type(Message) == "table" then
-	   for i, line in ipairs(Message) do
-		   if i == 1 then
-			   Shine:NotifyDualColour( Player, 100, 255, 100, StringFormat("[%s]", self.Name),
-				   255, 255, 255, line )
-		   else
-			   Shine:NotifyColour(Player, 255, 255, 255, line )
-		   end
-	   end
-	else
-		Shine:NotifyDualColour( Player, 100, 255, 100, StringFormat("[%s]", self.Name),
-			255, 255, 255, Message, Format, ... )
-	end
-
-end
-
 Plugin.DisconnectReason = "You didn't fit to the set hive stats restrictions"
 function Plugin:Kick( Player )
     if not self.Config.Kick then return end
@@ -322,7 +304,7 @@ function Plugin:Kick( Player )
         if Kicktimes == 10 then self:Notify( Player, StringFormat( self.Config.KickMessage, Kicktimes ) ) end
         if Kicktimes <= 5 then self:Notify( Player, StringFormat( self.Config.KickMessage, Kicktimes ) ) end
         if Kicktimes <= 0 then
-            Shine:Print( "Client %s [ %s ] was kicked by %s. Kicking...", true, Player:GetName(), SteamId, self.Name)
+            Shine:Print( "Client %s [ %s ] was kicked by %s. Kicking...", true, Player:GetName(), SteamId, self.PrintName)
             Client.DisconnectReason = self.DisconnectReason
             Server.DisconnectClient( Client )
         end    
@@ -330,7 +312,7 @@ function Plugin:Kick( Player )
 end
 
 function Plugin:Cleanup()
-    InfoHub:RemoveRequest(self.Name)
+    InfoHub:RemoveRequest(self.PrintName)
 
     self.BaseClass.Cleanup( self )
 
