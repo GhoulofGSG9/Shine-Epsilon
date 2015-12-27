@@ -19,9 +19,7 @@ Plugin.DefaultConfig =
 Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
 
-function Plugin:OnFirstThink()
-	Shine.Hook.SetupClassHook("Player", "SetRookieMode", "OnSetRookie", "Halt")
-end
+Shine.Hook.SetupClassHook("Player", "SetRookieMode", "OnSetRookie", "Halt")
 
 function Plugin:Initialise()
 	self.Enabled = true
