@@ -29,7 +29,7 @@ function Plugin:EndGame( Gamerules, WinningTeam )
 	local Entry = table.concat({
 		Shine.GetDate(),
 		string.DigitalTime(Shared.GetTime() - Gamerules.gameStartTime),
-		Shine:GetTeamName(WinningTeam:GetTeamNumber(), true),
+		WinningTeam and Shine:GetTeamName(WinningTeam:GetTeamNumber(), true) or "Draw",
 		team2skill,
 		team1skill,
 	}, " ")

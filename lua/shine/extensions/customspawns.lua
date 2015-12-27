@@ -184,28 +184,26 @@ local MapConfigs = {
 	},
 }
 
-function Plugin:OnFirstThink()
-	SetupClassHook( "NS2Gamerules", "ChooseTechPoint", "OverrideChooseTechPoint",
-		function( OldFunc, NS2Gamerules,  TechPoints, TeamNumber )
+SetupClassHook( "NS2Gamerules", "ChooseTechPoint", "OverrideChooseTechPoint",
+	function( OldFunc, NS2Gamerules,  TechPoints, TeamNumber )
 
-			local Pre = Shine.Hook.Call( "PreChooseTechPoint",  NS2Gamerules, TechPoints, TeamNumber)
-			if Pre then return Pre end
+	local Pre = Shine.Hook.Call( "PreChooseTechPoint",  NS2Gamerules, TechPoints, TeamNumber)
+	if Pre then return Pre end
 
-			local TechPoint = OldFunc( NS2Gamerules, TechPoints, TeamNumber )
-			Shine.Hook.Call( "PostChooseTechPoint",  NS2Gamerules, TechPoint, TeamNumber)
-			return TechPoint
-		end )
-	SetupClassHook( "NS2Gamerules", "ResetGame", "OnGameReset", "PassivePre")
-	SetupClassHook( "TechPoint", "OnInitialized", "TechPointIntialized", "PassivePost")
-	SetupClassHook( "TechPoint", "GetChooseWeight", "OnGetChooseWeight", "ActivePre")
-	SetupClassHook( "TechPoint", "GetTeamNumberAllowed", "OnGetTeamNumberAllowed", "ActivePre")
-	SetupClassHook( "AlienTeam", "SpawnInitialStructures", "PostAlienTeamSpawnInitialStructures",
-		function( OldFunc, self, TechPoint)
-			local Tower, CommandStructure = OldFunc(self, TechPoint)
-			Shine.Hook.Call( "PostAlienTeamSpawnInitialStructures", self, TechPoint, Tower, CommandStructure )
-			return Tower, CommandStructure
-		end)
-end
+    local TechPoint = OldFunc( NS2Gamerules, TechPoints, TeamNumber )
+    Shine.Hook.Call( "PostChooseTechPoint",  NS2Gamerules, TechPoint, TeamNumber)
+    return TechPoint
+end )
+SetupClassHook( "NS2Gamerules", "ResetGame", "OnGameReset", "PassivePre")
+SetupClassHook( "TechPoint", "OnInitialized", "TechPointIntialized", "PassivePost")
+SetupClassHook( "TechPoint", "GetChooseWeight", "OnGetChooseWeight", "ActivePre")
+SetupClassHook( "TechPoint", "GetTeamNumberAllowed", "OnGetTeamNumberAllowed", "ActivePre")
+SetupClassHook( "AlienTeam", "SpawnInitialStructures", "PostAlienTeamSpawnInitialStructures",
+	function( OldFunc, self, TechPoint)
+		local Tower, CommandStructure = OldFunc(self, TechPoint)
+		Shine.Hook.Call( "PostAlienTeamSpawnInitialStructures", self, TechPoint, Tower, CommandStructure )
+		return Tower, CommandStructure
+	end)
 
 function Plugin:Initialise()
 	self.Gamemode = Shine.GetGamemode()

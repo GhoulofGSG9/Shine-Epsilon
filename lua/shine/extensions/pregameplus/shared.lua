@@ -48,7 +48,7 @@ local function ReplaceModularExo_GetIsConfigValid( OldFunc, ... )
 end
 
 --Hooks
-function Plugin:OnFirstThinkShared()
+do
 	local SetupClassHook = Shine.Hook.SetupClassHook
 	local SetupGlobalHook = Shine.Hook.SetupGlobalHook
 
@@ -56,17 +56,17 @@ function Plugin:OnFirstThinkShared()
 	SetupClassHook( "TechNode", "GetHasTech", "GetHasTech", "ActivePre" )
 	SetupGlobalHook( "LookupTechData", "LookupTechData", "ActivePre" )
 
-	SetupClassHook( "Player", "GetGameStarted", "GetGameStarted", "ActivePre" )
-	SetupClassHook( "Player", "GetIsPlaying", "GetIsPlaying", "ActivePre" )
+	Shine.Hook.Add( "Think", "LoadSharedPGPHooks", function()
 
-	SetupClassHook( "AlienTeamInfo", "OnUpdate", "AlienTeamInfoUpdate", "PassivePost" )
+		SetupClassHook( "Player", "GetGameStarted", "GetGameStarted", "ActivePre" )
+		SetupClassHook( "Player", "GetIsPlaying", "GetIsPlaying", "ActivePre" )
 
-	SetupGlobalHook( "ModularExo_GetIsConfigValid", "ModularExo_GetIsConfigValid", ReplaceModularExo_GetIsConfigValid )
+		SetupClassHook( "AlienTeamInfo", "OnUpdate", "AlienTeamInfoUpdate", "PassivePost" )
 
-	--fixing issues with TechNode
-	function TechNode:GetCost()
-		return LookupTechData(self.techId, kTechDataCostKey, 0)
-	end
+		SetupGlobalHook( "ModularExo_GetIsConfigValid", "ModularExo_GetIsConfigValid", ReplaceModularExo_GetIsConfigValid )
+
+		Shine.Hook.Remove( "Think", "LoadSharedPGPHooks")
+	end)
 end
 
 function Plugin:LookupTechData( techId, fieldName )
@@ -85,6 +85,11 @@ function Plugin:LookupTechData( techId, fieldName )
 		
 		return 0
 	end
+end
+
+--fixing issues with TechNode
+function TechNode:GetCost()
+	return LookupTechData(self.techId, kTechDataCostKey, 0)
 end
 
 function Plugin:GetHasTech( Tech )
