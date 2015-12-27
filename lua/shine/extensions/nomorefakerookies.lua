@@ -10,10 +10,7 @@ Plugin.ConfigName = "NoMoreFakeRookies.json"
 Plugin.DefaultConfig =
 {
 	MaxRookieTime = 15,
-	MaxHiveLevel = 2,
-	Kick = false,
-	Ban = false,
-	Bantime = 30,
+	MaxHiveLevel = 3,
 	UseSteamPlayTime = true
 }
 Plugin.CheckConfig = true
@@ -25,8 +22,6 @@ function Plugin:Initialise()
 	self.Enabled = true
 	self.Playtimes = {}
 	self.Levels =  {}
-
-	self.Config.MaxRookieTime = math.min(8, self.Config.MaxRookieTime)
 
 	if self.Config.UseSteamPlayTime then
 		InfoHub:Request("nomorefakerookies", "STEAMPLAYTIME")
@@ -86,15 +81,8 @@ function Plugin:CheckPlayer(Player, Mode)
 
 	if self.Levels[SteamId] <= self.Config.MaxHiveLevel then return end -- hive level check
 
-	if Player:GetIsRookie() or Mode then --Player tried to fake rookie status
+	if Player:GetIsRookie() or Mode then
 		Player:SetRookieMode(false)
-		if self.Config.Ban then
-			local bancommand = string.format("sh_banid %s %s Banned by the nomorefakerookies plugin", SteamId,
-				self.Config.Bantime)
-			Shared.ConsoleCommand(bancommand)
-		elseif self.Config.Kick then
-			Shared.ConsoleCommand( string.format("sh_kick %s Kicked by the nomorefakerookies plugin", SteamId))
-		end
 	end
 
 	return true
