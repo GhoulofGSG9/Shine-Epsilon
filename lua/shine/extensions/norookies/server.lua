@@ -29,7 +29,7 @@ Plugin.DefaultConfig =
 	Debug = false,
 }
 
-Plugin.Name = "No Rookies"
+Plugin.PrintName = "No Rookies"
 Plugin.DisconnectReason = "You didn't fit to the required playtime"
 
 Plugin.Conflicts = {
@@ -40,6 +40,7 @@ Plugin.Conflicts = {
 		"hiveteamrestriction"
 	}
 }
+
 local Enabled = true --used to temp disable the plugin in case the given player limit is reached
 
 function Plugin:Initialise()
@@ -53,7 +54,7 @@ end
 
 function Plugin:CheckForSteamTime()
 	if self.Config.UseSteamTime or self.Config.ForceSteamTime then
-		InfoHub:Request( self.Name, "STEAMPLAYTIME" )
+		InfoHub:Request( self.PrintName, "STEAMPLAYTIME" )
     end
 end
 
@@ -123,12 +124,4 @@ function Plugin:CheckValues( Playerdata, SteamId, ComCheck )
 
     self.Passed[ComCheck and 2 or 1][SteamId] = Check
     return Check
-end
-
-function Plugin:Cleanup()
-	Shine.PlayerInfoHub:RemoveRequest(self.Name)
-
-	self.BaseClass.Cleanup( self )
-
-	self.Enabled = false
 end

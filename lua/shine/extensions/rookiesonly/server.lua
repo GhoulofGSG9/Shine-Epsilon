@@ -22,7 +22,7 @@ Plugin.DefaultConfig =
     ShowSwitchAtBlock = false
 }
 
-Plugin.Name = "Rookies Only"
+Plugin.PrintName = "Rookies Only"
 Plugin.DisconnectReason = "You are not a rookie anymore"
 
 Plugin.Conflicts = {
@@ -64,12 +64,4 @@ function Plugin:CheckValues( Playerdata, SteamId )
 
 	self.Passed[SteamId] = false
 	return false
-end
-
-function Plugin:Cleanup()
-    Shine.PlayerInfoHub:RemoveRequest(self.Name)
-
-    self.BaseClass.Cleanup( self )
-
-    self.Enabled = false
 end
