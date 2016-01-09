@@ -75,10 +75,10 @@ function Plugin:ReceiveCommand( Message )
 				Value = Value == 2
 			end
 			
-			self.Config.PlaySounds = Bool
+			self.Config.PlaySounds = Value
 			self:SaveConfig()
 			
-			Notify( StringFormat( "[Shine] Playing Killstreak Sounds has been %s.", Bool and "enabled" or "disabled" )) 
+			Notify( StringFormat( "[Shine] Playing Killstreak Sounds has been %s.", Value and "enabled" or "disabled" ))
 		end,
 		["SoundVolume"] = function( Volume )
 			self.Config.SoundVolume = Volume    

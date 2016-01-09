@@ -191,6 +191,13 @@ function Plugin:PlaySoundForEveryPlayer( SoundName )
     end
 end
 
+function Plugin:SetSendSound( Value )
+	if Value == nil then Value = not self.Config.SendSounds end
+
+	self.Config.SendSounds = Value
+	self:SaveConfig()
+end
+
 function Plugin:CreateCommands()
 	local CSound = self:BindCommand( "sh_sounds", {"quake", "sounds"} , function( Client, Value)
 	
@@ -208,6 +215,12 @@ function Plugin:CreateCommands()
 	end, true, true )
 	CSound:AddParam{ Type = "boolean", Optional = true }
 	CSound:Help( "<boolean> Allows you to set if killstreak sounds should be played for you or not." )
+
+	local Sound = self:BindCommand( "sh_enablekillsounds", {"enablequake", "killsounds"} , function( _, Value)
+		self:SetSendSound(Value)
+	end )
+	Sound:AddParam{ Type = "boolean", Optional = true}
+	Sound:Help( "<boolean> Allows you to set if killstreak sounds should be played." )
 	
 	local CVolume = self:BindCommand( "sh_soundvolume", {"quakevolume", "soundvolume"}, function( Client, Value)
 		self:SendNetworkMessage( Client, "SoundVolume",{ Name = "Sounds", Value = Value } , true)
