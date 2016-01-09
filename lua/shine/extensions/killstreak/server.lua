@@ -4,6 +4,7 @@ Shine Killstreak Plugin - Server
 
 local Shine = Shine
 local StringFormat = string.format
+local IsType = Shine.IsType
 
 local Plugin = Plugin
 
@@ -14,9 +15,79 @@ Plugin.DefaultConfig =
     SendSounds = false,
     AlienColour = { 255, 125, 0 },
     MarineColour = { 0, 125, 255 },
-    KillstreakMinValue = 3,
     StoppedValue = 5,
-    StoppedMsg = "%s has been stopped by %s " -- first victim then killer
+    StoppedMsg = "%s has been stopped by %s ", -- first victim then killer
+	Streaks = {
+		[ 3 ] = {
+			Text = "%s is on a triple kill!",
+			Sound = "Triplekill"
+		},
+		[ 5 ] = {
+			Text = "%s is on multikill!",
+			Sound = "Multikill"
+		},
+		[ 6 ] = {
+			Text = "%s is on rampage!",
+			Sound = "Rampage"
+		},
+		[ 7 ] = {
+			Text = "%s is on a killing spree!",
+			Sound = "Killingspree"
+		},
+		[ 9 ] = {
+			Text = "%s is dominating!",
+			Sound = "Dominating"
+		},
+		[ 11 ] = {
+			Text = "%s is unstoppable!",
+			Sound = "Unstoppable"
+		},
+		[ 13 ] = {
+			Text = "%s made a mega kill!",
+			Sound = "Megakill"
+		},
+		[ 15 ] = {
+			Text = "%s made an ultra kill!",
+			Sound = "Ultrakill"
+		},
+		[ 17 ] = {
+			Text = "%s owns!",
+			Sound = "Ownage"
+		},
+		[ 18 ] = {
+			Text = "%s made a ludicrouskill!",
+			Sound = "Ludicrouskill"
+		},
+		[ 19 ] = {
+			Text = "%s is a head hunter!",
+			Sound = "Headhunter"
+		},
+		[ 20 ] = {
+			Text = "%s is whicked sick!",
+			Sound = "Whickedsick"
+		},
+		[ 21 ] = {
+			Text = "%s made a monster kill!",
+			Sound = "Monsterkill"
+		},
+		[ 23 ] = {
+			Text = "Holy Shit! %s got another one!",
+			Sound = "Holyshit"
+		},
+		[ 25 ] = {
+			Text = "%s is G o d L i k e !!!",
+			Sound = "Godlike"
+		},
+		[ 27 ] = 25,
+		[ 30 ] = 25,
+		[ 34 ] = 25,
+		[ 40 ] = 25,
+		[ 48 ] = 25,
+		[ 58 ] = 25,
+		[ 70 ] = 25,
+		[ 80 ] = 25,
+		[ 100 ] = 25
+	}
 }
 Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
@@ -85,83 +156,21 @@ function Plugin:PostJoinTeam( _, Player )
     self.Killstreaks[ Client ] = nil
 end
 
-local Streaks = {
-    [ 3 ] = {
-        Text = "%s is on a triple kill!",
-        Sound = "Triplekill"
-    },    
-    [ 5 ] = {
-        Text = "%s is on multikill!",
-        Sound = "Multikill"
-    },    
-    [ 6 ] = {
-        Text = "%s is on rampage!",
-        Sound = "Rampage"
-    },
-    [ 7 ] = {
-        Text = "%s is on a killing spree!",
-        Sound = "Killingspree"
-    },
-    [ 9 ] = {
-        Text = "%s is dominating!",
-        Sound = "Dominating"
-    },
-    [ 11 ] = {
-        Text = "%s is unstoppable!",
-        Sound = "Unstoppable"
-    },
-    [ 13 ] = {
-        Text = "%s made a mega kill!",
-        Sound = "Megakill"
-    },
-    [ 15 ] = {
-        Text = "%s made an ultra kill!",
-        Sound = "Ultrakill"
-    },
-    [ 17 ] = {
-        Text = "%s owns!",
-        Sound = "Ownage"
-    },
-    [ 18 ] = {
-        Text = "%s made a ludicrouskill!",
-        Sound = "Ludicrouskill"
-    },
-    [ 19 ] = {
-        Text = "%s is a head hunter!",
-        Sound = "Headhunter"
-    },
-    [ 20 ] = {
-        Text = "%s is whicked sick!",
-        Sound = "Whickedsick"
-    },
-    [ 21 ] = {
-        Text = "%s made a monster kill!",
-        Sound = "Monsterkill"
-    },
-    [ 23 ] = {
-        Text = "Holy Shit! %s got another one!",
-        Sound = "Holyshit"
-    },
-    [ 25 ] = {
-        Text = "%s is G o d L i k e !!!",
-        Sound = "Godlike"
-    }
-}
+function Plugin:GetStreakData( Streak )
+	local Data = self.Config.Streaks[ tostring(Streak) ]
 
-Streaks[ 27 ] = Streaks[ 25 ]
-Streaks[ 30 ] = Streaks[ 25 ]
-Streaks[ 34 ] = Streaks[ 25 ]
-Streaks[ 40 ]  = Streaks[25]
-Streaks[ 48 ] = Streaks[ 25 ]
-Streaks[ 58 ] = Streaks[ 25 ]
-Streaks[ 70 ] = Streaks[ 25 ]
-Streaks[ 80 ] = Streaks[ 25 ]
-Streaks[ 100 ] = Streaks[ 25 ]
+	if not Data then return end
+
+	if IsType(Data, "number") then
+		return self:GetStreakData( Data )
+	end
+
+	return Data
+end
         
 function Plugin:CheckForMultiKills( Name, Streak, Teamnumber )
-    if Streak < self.Config.KillstreakMinValue then return end
-    
-    local StreakData = Streaks[ Streak ]
+
+    local StreakData = self:GetStreakData( Streak )
 
     if not StreakData then return end
     
