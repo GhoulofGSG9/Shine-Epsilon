@@ -121,6 +121,25 @@ function Plugin:AutoCheck( Client )
     self:Check( Player )
 end
 
+function Plugin:Notify( Player, Message, Format, ... )
+	if not Player or not Message then return end
+
+	if Shine.IsType(Message, "table") then
+		for i, line in ipairs(Message) do
+			if i == 1 then
+				Shine:NotifyDualColour( Player, 100, 255, 100, StringFormat("[%s]",self.PrintName),
+						255, 255, 255, line )
+		    else
+	            Shine:NotifyColour(Player, 255, 255, 255, line )
+		    end
+        end
+	else
+		Shine:NotifyDualColour( Player, 100, 255, 100, StringFormat("[%s]", self.PrintName),
+				255, 255, 255, Message, Format, ... )
+	end
+
+end
+
 --The Extravalue might be usefull for childrens of this plugin
 function Plugin:Check( Player, Extravalue )
     PROFILE("HiveTeamRestriction:Check()")
