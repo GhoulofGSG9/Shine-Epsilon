@@ -182,7 +182,10 @@ function Plugin:CheckForMultiKills( Name, Streak, Teamnumber )
         else Colour = self.Config.AlienColour end
     end
     Shine:NotifyColour( nil, Colour[ 1 ], Colour[ 2 ], Colour[ 3 ], StringFormat( StreakData.Text, Name ) )
-    self:PlaySoundForEveryPlayer( StreakData.Sound )
+
+    if StreakData.Sound and StreakData.Sound ~= "" then
+        self:PlaySoundForEveryPlayer( StreakData.Sound )
+    end
 end
 
 function Plugin:PlaySoundForEveryPlayer( SoundName )
