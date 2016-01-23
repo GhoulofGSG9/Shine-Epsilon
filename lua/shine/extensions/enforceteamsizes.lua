@@ -50,6 +50,15 @@ end
 function Plugin:PostJoinTeam( Gamerules, _, OldTeam )
 	if OldTeam < 0 then return end
 
+	if self.Config.Teams.Team1 and self.Config.Teams.Team2 then
+		if Gamerules:GetTeam(kTeam1Index):GetNumPlayers() >= self.Config.Teams.Team1.MaxPlayers and
+				Gamerules:GetTeam(kTeam2Index):GetNumPlayers() >= self.Config.Teams.Team2.MaxPlayers then
+			Server.AddTag("ignore_playnow")
+		else
+			Server.RemoveTag("ignore_playnow")
+		end
+	end
+
 	local TeamIndex = string.format("Team%s", OldTeam)
 	if self.Config.Teams[TeamIndex] and #self.Config.Teams[TeamIndex].InformAboutFreeSpace ~= 0 and
 			Gamerules:GetTeam(OldTeam):GetNumPlayers() + 1 == self.Config.Teams[TeamIndex].MaxPlayers then
