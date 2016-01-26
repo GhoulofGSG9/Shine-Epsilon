@@ -10,7 +10,7 @@ Plugin.DefaultConfig =
 {
     Mode = 1, -- 1: Level 2: Playtime
     MaxPlaytime = 20,
-    MaxLevel = 5,
+    MaxLevel = 3,
     ShowInform = false,
     InformMessage = "This server is rookies only",
     AllowSpectating = true,
@@ -19,7 +19,11 @@ Plugin.DefaultConfig =
     Kicktime = 20,
     KickMessage = "You will be kicked in %s seconds",
     WaitMessage = "Please wait while we fetch your stats.",
-    ShowSwitchAtBlock = false
+    ShowSwitchAtBlock = false,
+	MaxBots = 12,
+	CommanderBots = true,
+	UseRookieOnlyMode = true,
+	CommanderBotSwapping = true
 }
 
 Plugin.PrintName = "Rookies Only"
@@ -32,6 +36,21 @@ Plugin.Conflicts = {
 	}
 }
 
+--Setup Hooks
+do
+	local SetupClassHook = Shine.Hook.SetupClassHook
+
+	SetupClassHook("NS2Gamerules", "OnCommanderLogout", "PreOnCommanderLogout", "ActivePre")
+	SetupClassHook("NS2Gamerules", "OnCommanderLogin", "PreOnCommanderLogin", "ActivePre")
+	SetupClassHook("NS2Gamerules", "GetCanJoinTeamNumber", "PostGetCanJoinTeamNumber", function (OldFunc, ...)
+		local a, b = OldFunc( ... )
+
+		local Hook = Shine.Hook.Call("PostGetCanJoinTeamNumber", a, b)
+
+		return Hook or a, b
+	end)
+end
+
 function Plugin:Initialise()
     self.Enabled = true
 
@@ -39,6 +58,42 @@ function Plugin:Initialise()
     self:BuildBlockMessage()
 
     return true
+end
+
+function Plugin:OnFirstThink()
+
+	local gamerules = GetGamerules()
+
+	if not gamerules then
+		self.Enabled = false
+		return
+	end
+
+	if self.Config.UseRookieOnlyMode and gamerules.SetRookieMode then
+		gamerules:SetRookieMode(true)
+	end
+
+	if self.Config.MaxBots > 0 and gamerules.SetMaxBots then
+		gamerules:SetMaxBots(self.Config.MaxBots , self.Config.CommanderBots)
+	end
+end
+
+function Plugin:PreOnCommanderLogout()
+	if not self.Config.CommanderBotSwapping then
+		return true
+	end
+end
+
+function Plugin:OnCommanderLogin()
+	if not self.Config.CommanderBotSwapping then
+		return true
+	end
+end
+
+function Plugin:PostGetCanJoinTeamNumber( _, Reason )
+	if Reason and Reason > 0 then
+		return true
+	end
 end
 
 function Plugin:CheckForSteamTime() --This plugin does not use steam times at all
@@ -64,4 +119,24 @@ function Plugin:CheckValues( Playerdata, SteamId )
 
 	self.Passed[SteamId] = false
 	return false
+end
+
+function Plugin:Cleanup()
+	local gamerules = GetGamerules()
+
+	if gamerules then
+		if self.Config.MaxBots > 0 and gamerules.SetMaxBots then
+			gamerules:SetMaxBots(0 , false)
+		end
+
+		if self.Config.UseRookieOnlyMode and gamerules.SetRookieMode then
+			gamerules:SetRookieMode(false)
+		end
+	end
+
+	InfoHub:RemoveRequest(self.PrintName)
+
+	self.BaseClass.Cleanup( self )
+
+	self.Enabled = false
 end
