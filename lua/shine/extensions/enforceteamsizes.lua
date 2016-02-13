@@ -86,8 +86,8 @@ function Plugin:JoinTeam( Gamerules, Player, NewTeam, _, ShineForce )
 end
 
 --Restrict teams also at voterandom
-function Plugin:PreEvenlySpreadTeams( Gamerules, TeamMembers )
-	local oldTeam = table.ToString(TeamMembers)
+function Plugin:PreShuffleOptimiseTeams ( TeamMembers )
+	local  Gamerules = GetGamerules()
 	local team1Max = self.Config.Teams.Team1 and self.Config.Teams.Team1.MaxPlayers or 1000
 	local team2Max = self.Config.Teams.Team1 and self.Config.Teams.Team1.MaxPlayers or 1000
 	local max = math.min( team1Max, team2Max )
