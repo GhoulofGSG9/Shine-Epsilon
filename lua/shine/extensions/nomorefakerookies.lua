@@ -16,7 +16,7 @@ Plugin.DefaultConfig =
 Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
 
-Shine.Hook.SetupClassHook("Player", "SetRookieMode", "OnSetRookie", "Halt")
+Shine.Hook.SetupClassHook("Player", "SetRookie", "OnSetRookie", "Halt")
 
 function Plugin:Initialise()
 	self.Enabled = true
@@ -82,7 +82,7 @@ function Plugin:CheckPlayer(Player, Mode)
 	if self.Levels[SteamId] <= self.Config.MaxHiveLevel then return end -- hive level check
 
 	if Player:GetIsRookie() or Mode then
-		Player:SetRookieMode(false)
+		Player:SetRookie(false)
 	end
 
 	return true
