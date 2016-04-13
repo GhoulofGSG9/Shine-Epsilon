@@ -10,7 +10,7 @@ Plugin.DefaultConfig =
 {
     Mode = 1, -- 1: Level 2: Playtime
     MaxPlaytime = 20,
-    MaxLevel = 3,
+    MaxLevel = 5,
     ShowInform = false,
     InformMessage = "This server is rookies only",
     AllowSpectating = true,
@@ -112,11 +112,11 @@ function Plugin:CheckValues( Playerdata, SteamId )
 	if self.Passed[SteamId] then return self.Passed[SteamId] end
 
     if self.Config.Mode == 1 then
-        if self.Config.MaxLevel > 0 and Playerdata.level <= self.Config.MaxLevel then
+        if self.Config.MaxLevel > 0 and Playerdata.level < self.Config.MaxLevel then
             self.Passed[SteamId] = true
             return true
         end
-    elseif self.Config.MaxPlaytime > 0 and Playerdata.playTime <= self.Config.MaxPlaytime * 3600 then
+    elseif self.Config.MaxPlaytime > 0 and Playerdata.playTime < self.Config.MaxPlaytime * 3600 then
 	    self.Passed[SteamId] = true
         return true
     end
