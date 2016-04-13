@@ -21,6 +21,7 @@ Plugin.DefaultConfig =
     SteamBadgesRow = 5,
     ENSLTeams = false,
     ENSLTeamsRow = 4,
+    Debug = false
 }
 Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
@@ -97,9 +98,13 @@ end
 
 function Plugin:OnReceiveGeoData( Client, GeoData )
     if not self.Config.Flags then return end
+
+    if self.Config.Debug then
+        Print(string.format("Epsilon Badge Debug: Received GeoData of %s\n%s ", Client:GetUserId(), type(GeoData) == "table" and table.ToString(GeoData) or GeoData))
+    end
     
-    local Nationality = type(GeoData) == "table" and GeoData.country_code or "UNO"
-    local Country = type(GeoData) == "table" and GeoData.country_name or "Unknown"
+    local Nationality = type(GeoData) == "table" and GeoData.country.code or "UNO"
+    local Country = type(GeoData) == "table" and GeoData.country.name or "Unknown"
 
     local SetBagde = self:SetBadge( Client, Nationality, self.Config.FlagsRow,
         string.format("Nationality - %s", Country) )
