@@ -103,8 +103,8 @@ function Plugin:OnReceiveGeoData( Client, GeoData )
         Print(string.format("Epsilon Badge Debug: Received GeoData of %s\n%s ", Client:GetUserId(), type(GeoData) == "table" and table.ToString(GeoData) or GeoData))
     end
     
-    local Nationality = type(GeoData) == "table" and GeoData.country.code or "UNO"
-    local Country = type(GeoData) == "table" and GeoData.country.name or "Unknown"
+    local Nationality = type(GeoData) == "table" and GeoData.country and GeoData.country.code or "UNO"
+    local Country = type(GeoData) == "table" and GeoData.country and GeoData.country.name or "Unknown"
 
     local SetBagde = self:SetBadge( Client, Nationality, self.Config.FlagsRow,
         string.format("Nationality - %s", Country) )
