@@ -141,7 +141,7 @@ function Plugin:Notify( Player, Message, Format, ... )
 end
 
 --The Extravalue might be usefull for childrens of this plugin
-function Plugin:Check( Player, Extravalue )
+function Plugin:Check( Player, Extravalue, Silent )
     PROFILE("HiveTeamRestriction:Check()")
     if not Player then return end
 
@@ -164,11 +164,14 @@ function Plugin:Check( Player, Extravalue )
     local passed = self:CheckValues( Playerdata, SteamId, Extravalue )
 
     if passed == false then
-	    self:Notify( Player, self.BlockMessage)
-	    if self.Config.ShowSwitchAtBlock then
-		    self:SendNetworkMessage( Client, "ShowSwitch", {}, true )
+	    if not Silent then
+		    self:Notify( Player, self.BlockMessage)
+		    if self.Config.ShowSwitchAtBlock then
+			    self:SendNetworkMessage( Client, "ShowSwitch", {}, true )
+		    end
+		    self:Kick( Player )
 	    end
-	    self:Kick( Player )
+
 	    return false
     else
 		self:DestroyTimer( StringFormat( "Kick_%s", SteamId ))
@@ -328,6 +331,23 @@ function Plugin:Kick( Player )
             Server.DisconnectClient( Client )
         end    
     end)    
+end
+
+--Restrict teams also at voterandom
+function Plugin:PreShuffleOptimiseTeams ( TeamMembers )
+	for i = 1, 2 do
+		for j = 1, #TeamMembers[i] do
+			local Player = TeamMembers[i][j]
+
+			if self:Check(Player, nil, true) == false then
+				--Move player into the ready room
+				pcall( Gamerules.JoinTeam, Gamerules, Player, kTeamReadyRoom, nil, true )
+
+				--remove the player's entry in the table
+				table.remove(TeamMembers[i], j)
+			end
+		end
+	end
 end
 
 function Plugin:Cleanup()
