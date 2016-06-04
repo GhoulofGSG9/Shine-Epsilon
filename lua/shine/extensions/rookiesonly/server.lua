@@ -45,7 +45,7 @@ do
 	SetupClassHook("NS2Gamerules", "GetCanJoinTeamNumber", "PostGetCanJoinTeamNumber", function (OldFunc, ...)
 		local a, b = OldFunc( ... )
 
-		local Hook = Shine.Hook.Call("PostGetCanJoinTeamNumber", a, b)
+		local Hook = Shine.Hook.Call("PostActiveGetCanJoinTeamNumber", a, b)
 
 		return Hook or a, b
 	end)
@@ -94,7 +94,7 @@ function Plugin:OnCommanderLogin()
 	end
 end
 
-function Plugin:PostGetCanJoinTeamNumber( _, Reason )
+function Plugin:PostActiveGetCanJoinTeamNumber( _, Reason )
 	if Reason and Reason > 0 then
 		return true
 	end
