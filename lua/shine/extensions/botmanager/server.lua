@@ -68,7 +68,7 @@ function Plugin:CreateCommands()
 	ShowNewsCommand:AddParam{ Type = "boolean", Default = false, Help = "true = save change", Optional = true  }
 	ShowNewsCommand:Help( "Sets the maximum amount of bots currently allowed at this server." )
 
-	local function MaxBots( _, Enable, SaveIntoConfig )
+	local function ComBots( _, Enable, SaveIntoConfig )
 		self:SetMaxBots( self.Config.MaxBots, Enable )
 
 		self.CommanderBots = Enable
@@ -78,7 +78,7 @@ function Plugin:CreateCommands()
 			self:SaveConfig()
 		end
 	end
-	local ShowNewsCommand = self:BindCommand( "sh_enablecombots", "enablecombots", MaxBots )
+	local ShowNewsCommand = self:BindCommand( "sh_enablecombots", "enablecombots", ComBots )
 	ShowNewsCommand:AddParam{ Type = "boolean", Error = "Please specify if you want to enable commander bots", Help = "true = add commander bots"  }
 	ShowNewsCommand:AddParam{ Type = "boolean", Default = false, Help = "true = save change", Optional = true  }
 	ShowNewsCommand:Help( "Sets if teams should be filled with commander bots or not" )
