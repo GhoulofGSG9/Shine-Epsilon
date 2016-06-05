@@ -18,6 +18,8 @@ do
 
 		return Hook or a, b
 	end)
+
+	Shine.Hook.SetupClassHook("TeamBrain", "GetNumAssignedToEntity", "ActivePreGetNumAssignedToEntity", "ActivePre")
 end
 
 function Plugin:Initialise()
@@ -31,6 +33,26 @@ function Plugin:Initialise()
 	self:CreateCommands()
 
 	return true
+end
+
+--Fixes for bots
+function Plugin:ActivePreGetNumAssignedToEntity(TeamBrain, entId)
+	if not TeamBrain.entId2memory[entId] then return 0 end
+end
+
+--Filter bots for voterandom
+function Plugin:PreShuffleOptimiseTeams ( TeamMembers )
+	for i = 1, 2 do
+		for j = 1, #TeamMembers[i] do
+			local Player = TeamMembers[i][j]
+			local Client = Player:GetClient()
+
+			if not Client or Client:GetIsVirtual() then
+				--remove the player's entry in the table
+				table.remove(TeamMembers[i], j)
+			end
+		end
+	end
 end
 
 function Plugin:OnFirstThink()
@@ -69,7 +91,7 @@ function Plugin:CreateCommands()
 	ShowNewsCommand:Help( "Sets the maximum amount of bots currently allowed at this server." )
 
 	local function ComBots( _, Enable, SaveIntoConfig )
-		self:SetMaxBots( self.Config.MaxBots, Enable )
+		self:SetMaxBots( self.MaxBots, Enable )
 
 		self.CommanderBots = Enable
 
