@@ -6,19 +6,12 @@ Plugin.DefaultConfig =
 {
 	MaxBots = 12,
 	CommanderBots = false,
+	CommanderBotsStartDelay = 20,
 	AllowPlayersToReplaceComBots = true
 }
 Plugin.CheckConfig = true
 
 do
-	Shine.Hook.SetupClassHook("NS2Gamerules", "GetCanJoinTeamNumber", "PostGetCanJoinTeamNumber", function (OldFunc, ...)
-		local a, b = OldFunc( ... )
-
-		local Hook = Shine.Hook.Call("PostActiveGetCanJoinTeamNumber", a, b)
-
-		return Hook or a, b
-	end)
-
 	Shine.Hook.SetupClassHook("TeamBrain", "GetNumAssignedToEntity", "ActivePreGetNumAssignedToEntity", "ActivePre")
 end
 
@@ -28,7 +21,7 @@ function Plugin:Initialise()
 	self.MaxBots = self.Config.MaxBots
 	self.CommanderBots = self.Config.CommanderBots
 
-	self.dt.AllowPlayersToReplaceComBots = self.Config.AllowPlayersToReplaceComBots
+	self.dt.AllowPlayersToReplaceComBots = self.CommanderBots and self.Config.AllowPlayersToReplaceComBots
 
 	self:CreateCommands()
 
@@ -38,6 +31,25 @@ end
 --Fixes for bots
 function Plugin:ActivePreGetNumAssignedToEntity(TeamBrain, entId)
 	if not TeamBrain.entId2memory[entId] then return 0 end
+end
+
+function Plugin:CheckGameStart( Gamerules )
+	local State = Gamerules:GetGameState()
+
+	if State ~= kGameState.NotStarted and State ~= kGameState.PreGame then return end
+
+	local StartDelay = #gServerBots >= 1 and self.Config.CommanderBotsStartDelay or 0
+	if StartDelay > 0 and not self.StartTime then
+		self.StartTime = Shared.GetTime() + StartDelay
+	end
+
+	if self.StartTime then
+		if Shared.GetTime() < self.StartTime then
+			return false
+		else
+			self.StartTime = nil
+		end
+	end
 end
 
 --Filter bots for voterandom
@@ -67,13 +79,6 @@ function Plugin:SetMaxBots(bots, com)
 	Gamerules:SetMaxBots(bots, com)
 end
 
-function Plugin:PostActiveGetCanJoinTeamNumber( _, Reason )
-	if self.dt.AllowPlayersToReplaceComBots and Reason then
-		local rookieMode = GetGamerules().gameInfo:GetRookieMode(true)
-		if Reason == 2 and not rookieMode then return true end
-	end
-end
-
 function Plugin:CreateCommands()
 	local function MaxBots( _, Number, SaveIntoConfig )
 		self:SetMaxBots( Number, self.Config.CommanderBots )
@@ -94,6 +99,7 @@ function Plugin:CreateCommands()
 		self:SetMaxBots( self.MaxBots, Enable )
 
 		self.CommanderBots = Enable
+		self.dt.AllowPlayersToReplaceComBots = self.CommanderBots and self.Config.AllowPlayersToReplaceComBots
 
 		if SaveIntoConfig then
 			self.Config.CommanderBots = Enable
