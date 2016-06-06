@@ -55,7 +55,7 @@ end
 --Filter bots for voterandom
 function Plugin:PreShuffleOptimiseTeams ( TeamMembers )
 	for i = 1, 2 do
-		for j = 1, #TeamMembers[i] do
+		for j = #TeamMembers[i], 1, -1 do
 			local Player = TeamMembers[i][j]
 			local Client = Player:GetClient()
 

@@ -336,7 +336,7 @@ end
 --Restrict teams also at voterandom
 function Plugin:PreShuffleOptimiseTeams ( TeamMembers )
 	for i = 1, 2 do
-		for j = 1, #TeamMembers[i] do
+		for j = #TeamMembers[i], 1, -1 do
 			local Player = TeamMembers[i][j]
 
 			if self:Check(Player, nil, true) == false then
