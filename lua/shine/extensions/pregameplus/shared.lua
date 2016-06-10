@@ -68,7 +68,7 @@ do
 end
 
 function Plugin:LookupTechData( techId, fieldName )
-	if GetGameInfoEntity():GetWarmUpActive() and ( fieldName == kTechDataUpgradeCost or fieldName == kTechDataCostKey ) then
+	if GetGameInfoEntity() and GetGameInfoEntity():GetWarmUpActive() and ( fieldName == kTechDataUpgradeCost or fieldName == kTechDataCostKey ) then
 
 		if not self.dt.AllowOnosExo and ( techId == kTechId.Onos or techId == kTechId.Exosuit or techId == kTechId.ClawRailgunExosuit ) then
 			return 999
