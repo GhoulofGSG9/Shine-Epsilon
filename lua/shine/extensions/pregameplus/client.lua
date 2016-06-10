@@ -21,19 +21,19 @@ function Plugin:Initialise()
 end
 
 function Plugin:PlayerUI_GetPlayerResources()
-	if self.dt.Enabled then
+	if GetGameInfoEntity():GetWarmUpActive() then
 		return 100
 	end
 end
 
 function Plugin:PlayerUI_GetWeaponLevel()
-	if self.dt.Enabled then
+	if GetGameInfoEntity():GetWarmUpActive() then
 		return self.dt.WeaponLevel
 	end
 end
 
 function Plugin:PlayerUI_GetArmorLevel()
-	if self.dt.Enabled then
+	if GetGameInfoEntity():GetWarmUpActive() then
 		return self.dt.ArmorLevel
 	end
 end
