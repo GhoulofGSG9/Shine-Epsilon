@@ -20,9 +20,19 @@ do
 		Shine.Hook.SetupClassHook("NS2Gamerules", "OnCommanderLogout", "PostGetRookieMode", "PassivePost")
 		Shine.Hook.SetupClassHook("NS2Gamerules", "OnCommanderLogin", "PreGetRookieMode", "PassivePre")
 		Shine.Hook.SetupClassHook("NS2Gamerules", "OnCommanderLogin", "PostGetRookieMode", "PassivePost")
-		Shine.Hook.SetupGlobalHook("GetTeamHasCommander", "PostGetRookieMode", "PassivePre")
-		Shine.Hook.SetupGlobalHook("GetTeamHasCommander", "PostGetRookieMode", "PassivePost")
 	end
+
+	Shine.Hook.Add( "Think", "LoadBotManageHooks", function()
+		local SetupGlobalHook = Shine.Hook.SetupGlobalHook
+
+		if GetTeamHasCommander then
+			SetupGlobalHook("GetTeamHasCommander", "PreGetRookieMode", "PassivePre")
+			SetupGlobalHook("GetTeamHasCommander", "PostGetRookieMode", "PassivePost")
+
+			Shine.Hook.Remove( "Think", "LoadBotManageHooks")
+		end
+	end)
+
 end
 
 function Plugin:Initialise()
