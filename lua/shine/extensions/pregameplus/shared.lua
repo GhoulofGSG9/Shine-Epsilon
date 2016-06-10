@@ -5,7 +5,6 @@ Plugin.Version = "1.4"
 Plugin.NS2Only = true
 
 function Plugin:SetupDataTable()
-	self:AddDTVar( "boolean", "Enabled", false )
 	self:AddDTVar( "boolean", "ShowStatus", false )
 	self:AddDTVar( "string (255)", "CountdownText", "" )
 	self:AddDTVar( "string (255)", "StatusText", "" )
@@ -59,7 +58,6 @@ do
 	Shine.Hook.Add( "Think", "LoadSharedPGPHooks", function()
 
 		SetupClassHook( "Player", "GetGameStarted", "GetGameStarted", "ActivePre" )
-		SetupClassHook( "Player", "GetIsPlaying", "GetIsPlaying", "ActivePre" )
 
 		SetupClassHook( "AlienTeamInfo", "OnUpdate", "AlienTeamInfoUpdate", "PassivePost" )
 
@@ -70,7 +68,7 @@ do
 end
 
 function Plugin:LookupTechData( techId, fieldName )
-	if self.dt.Enabled and ( fieldName == kTechDataUpgradeCost or fieldName == kTechDataCostKey ) then
+	if GetGameInfoEntity():GetWarmUpActive() and ( fieldName == kTechDataUpgradeCost or fieldName == kTechDataCostKey ) then
 
 		if not self.dt.AllowOnosExo and ( techId == kTechId.Onos or techId == kTechId.Exosuit or techId == kTechId.ClawRailgunExosuit ) then
 			return 999
@@ -93,7 +91,7 @@ function TechNode:GetCost()
 end
 
 function Plugin:GetHasTech( Tech )
-	if self.dt.Enabled then
+	if GetGameInfoEntity():GetWarmUpActive()  then
 		local TechId = Tech.techId
 		if TechId == kTechId.Weapons3 and self.dt.WeaponLevel < 3 then return false end
 		if TechId == kTechId.Weapons2 and self.dt.WeaponLevel < 2 then return false end
@@ -111,18 +109,14 @@ function Plugin:GetResearched( Tech )
 end
 
 function Plugin:GetGameStarted( Player )
-	if self.dt.Enabled then
+	if GetGameInfoEntity():GetWarmUpActive()  then
 		if Player:isa( "Commander" ) and not self.dt.AllowCommanding then return false end
 		return true 
 	end
 end
 
-function Plugin:GetIsPlaying( Player )
-	return Player:GetGameStarted() and Player:GetIsOnPlayingTeam()
-end
-
 function Plugin:AlienTeamInfoUpdate( AlienTeamInfo )
-	if not self.dt.Enabled then return end
+	if not GetGameInfoEntity():GetWarmUpActive()  then return end
 
 	AlienTeamInfo.bioMassLevel = self.dt.BioLevel
 	AlienTeamInfo.numHives = 3
@@ -132,7 +126,7 @@ function Plugin:AlienTeamInfoUpdate( AlienTeamInfo )
 end
 
 function Plugin:ModularExo_GetIsConfigValid()
-	return self.dt.Enabled
+	return GetGameInfoEntity():GetWarmUpActive()
 end
 
 Shine:RegisterExtension( "pregameplus", Plugin )

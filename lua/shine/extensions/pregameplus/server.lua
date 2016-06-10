@@ -13,6 +13,7 @@ Plugin.DefaultConfig = {
 	AllowOnosExo = true,
 	AllowMines = true,
 	AllowCommanding = true,
+	AllowStructureDamage = true,
 	PregameArmorLevel = 3,
 	PregameWeaponLevel = 3,
 	PregameBiomassLevel = 9,
@@ -31,60 +32,20 @@ Plugin.CheckConfigTypes = true
 local Shine = Shine
 local StringFormat = string.format
 
---Hacky stuff
-local function ReplaceGameStarted1( OldFunc, ... )
-	local Hook = Shine.Hook.Call( "CanEntDoDamageTo", ... )
-	if not Hook then return OldFunc(...) end
-
-	local gameinfo = GetGameInfoEntity()
-	local oldGameInfoState = gameinfo:GetState()
-	gameinfo:SetState( kGameState.Started )
-	local temp = OldFunc(...)
-	gameinfo:SetState( oldGameInfoState )
-
-	return temp
-end
-
-local function ReplaceGameStarted2( OldFunc, ... )
-	local Hook = Shine.Hook.Call("ProcessBuyAction", ...)
-	if not Hook then return OldFunc(...) end
-
-	local oldGetGameStarted = NS2Gamerules.GetGameStarted
-	NS2Gamerules.GetGameStarted = function() return true end
-	local temp = OldFunc(...)
-	NS2Gamerules.GetGameStarted = oldGetGameStarted
-	return temp
-end
-
 --Hooks
 do
 	local SetupClassHook = Shine.Hook.SetupClassHook
 	local SetupGlobalHook = Shine.Hook.SetupGlobalHook
 
-	SetupClassHook( "Alien", "ProcessBuyAction", "PreProcessBuyAction", ReplaceGameStarted2 )
-	SetupClassHook( "AlienTeam", "Update", "AlTeamUpdate", "PassivePost")
 	SetupClassHook( "AlienTeam", "UpdateBioMassLevel", "AlTeamUpdateBioMassLevel", "ActivePre")
 	SetupClassHook( "Crag", "GetMaxSpeed", "CragGetMaxSpeed", "ActivePre")
 	SetupClassHook( "InfantryPortal", "FillQueueIfFree", "FillQueueIfFree", "Halt" )
 	SetupClassHook( "MAC", "GetMoveSpeed", "MACGetMoveSpeed", "ActivePre" )
 	SetupClassHook( "MAC", "OnUse", "MACOnUse", "PassivePost" )
-	SetupClassHook( "MarineTeam", "Update", "MarTeamUpdate", "PassivePost" )
-	SetupClassHook( "ScoringMixin", "AddAssistKill", "AddAssistKill", "ActivePre" )
-	SetupClassHook( "ScoringMixin", "AddDeaths", "AddDeaths", "ActivePre" )
-	SetupClassHook( "ScoringMixin", "AddKill", "AddKill", "ActivePre" )
-	SetupClassHook( "ScoringMixin", "AddScore", "AddScore", "ActivePre" )
 	SetupClassHook( "Shift", "GetMaxSpeed", "ShiftGetMaxSpeed", "ActivePre" )
 	SetupClassHook( "TeleportMixin", "GetCanTeleport", "ShiftGetCanTeleport", "ActivePre" )
-	SetupGlobalHook( "CanEntityDoDamageTo", "CanEntDoDamageTo", ReplaceGameStarted1 )
-
-	SetupClassHook( "NS2Gamerules", "ResetGame", "OnResetGame", "PassivePre" )
-
-	--SetGestationData gets overloaded by the comp mod
-	Shine.Hook.Add( "Think", "LoadPGPHooks", function()
-		SetupClassHook( "Embryo", "SetGestationData", "SetGestationData", "PassivePost" )
-
-		Shine.Hook.Remove( "Think", "LoadPGPHooks")
-	end)
+	SetupClassHook( "NS2Gamerules", "GetWarmUpPlayerLimit", "GetWarmUpPlayerLimit", "ActivePre" )
+	SetupGlobalHook( "CanEntityDoDamageTo", "CanEntDoDamageTo", "ActivePre" )
 
 	PrecacheAssetIfExists("models/marine/mac/mac.model")
 	PrecacheAssetIfExists("models/marine/mac/mac.animation_graph")
@@ -92,6 +53,11 @@ end
 
 function Plugin:Initialise()
 	local Gamemode = Shine.GetGamemode()
+	local Build = Shared.GetBuildNumber()
+
+	if Build < 302 then
+		return false, "PregamePlus requieres ns2 build 302 or greater! Please update your server."
+	end
 
     if Gamemode ~= "ns2" and Gamemode ~= "mvm" then        
         return false, StringFormat( "The pregameplus plugin does not work with %s.", Gamemode )
@@ -163,57 +129,22 @@ local function MakeTechEnt( techPoint, mapName, rightOffset, forwardOffset, team
 	Plugin.ProtectedEnts[ ID ] = true
 end
 
-function Plugin:ProcessBuyAction()
-	if self.dt.Enabled then return true end
-end
-
 function Plugin:CanEntDoDamageTo( _, Target )
-	if not self.dt.Enabled then return end
+	if not GetGameInfoEntity():GetWarmUpActive() then return end
 
-	if self.ProtectedEnts[ Target:GetId() ] then
-		return
-	end
-
-	return true
-end
-
-local function RespawnAllDeadPlayer( Team )
-	local spectators = Team:GetSortedRespawnQueue()
-	for i = 1, #spectators do
-		local spec = spectators[ i ]
-		Team:RemovePlayerFromRespawnQueue( spec )
-		local success, newAlien = Team:ReplaceRespawnPlayer( spec, nil, nil )
-		if success then newAlien:SetCameraDistance( 0 ) end
-	end
-end
-
--- instantly respawns dead aliens
-function Plugin:AlTeamUpdate( AlTeam )
-	if self.dt.Enabled then
-		RespawnAllDeadPlayer( AlTeam )
-	end
-end
-
--- instantly respawn dead marines
-function Plugin:MarTeamUpdate( MarTeam )
-	if self.dt.Enabled then
-		RespawnAllDeadPlayer( MarTeam )
+	if self.Config.AllowStructureDamage and not self.ProtectedEnts[ Target:GetId() ] then
+		return true
 	end
 end
 
 function Plugin:AlTeamUpdateBioMassLevel( AlienTeam )
-	if self.dt.Enabled then
+	if GetGameInfoEntity():GetWarmUpActive()  then
 		AlienTeam.bioMassLevel = self.Config.PregameBiomassLevel
 		AlienTeam.bioMassAlertLevel = 0
 		AlienTeam.maxBioMassLevel = 12
 		AlienTeam.bioMassFraction = self.Config.PregameBiomassLevel
 		return true
 	end
-end
-
--- set all evolution times to 1 second
-function Plugin:SetGestationData( Embryo )
-	if self.dt.Enabled then Embryo.gestationTime = 1 end
 end
 
 --Prevent comm from moving crag
@@ -231,11 +162,6 @@ function Plugin:ShiftGetCanTeleport( Shift )
 	if self.ProtectedEnts[ Shift:GetId() ] then return false end
 end
 
---prevents placing dead marines in IPs so we can do instant respawn
-function Plugin:FillQueueIfFree()
-	if self.dt.Enabled then return true end
-end
-
 --immobile macs so they don't get lost on the map
 function Plugin:MACGetMoveSpeed( Mac )
 	if self.ProtectedEnts[ Mac:GetId() ] then return 0 end
@@ -243,29 +169,13 @@ end
 
 -- lets players use macs to instant heal since the immobile mac
 function Plugin:MACOnUse( _, Player )
-	if self.dt.Enabled then Player:AddHealth( 999, nil, false, nil ) end
-end
-
-function Plugin:AddAssistKill()
-	if self.dt.Enabled then return true end
-end
-
-function Plugin:AddKill()
-	if self.dt.Enabled then return true end
-end
-
-function Plugin:AddDeaths()
-	if self.dt.Enabled then return true end
-end
-
-function Plugin:AddScore()
-	if self.dt.Enabled then return true end
+	if GetGameInfoEntity():GetWarmUpActive() then Player:AddHealth( 999, nil, false, nil ) end
 end
 
 function Plugin:SendText()
-	self.dt.StatusText = StringFormat("%s\n%s\n%s", StringFormat(self.Config.Strings.Status, self.dt.Enabled and "enabled" or "disabled"),
-		self.Config.CheckLimit and StringFormat( self.Config.Strings.Limit, self.dt.Enabled and "off" or "on",
-			self.dt.Enabled and "being at" or "being under", self.Config.PlayerLimit )
+	self.dt.StatusText = StringFormat("%s\n%s\n%s", StringFormat(self.Config.Strings.Status, GetGameInfoEntity():GetWarmUpActive() and "enabled" or "disabled"),
+		self.Config.CheckLimit and StringFormat( self.Config.Strings.Limit, GetGameInfoEntity():GetWarmUpActive() and "off" or "on",
+			GetGameInfoEntity():GetWarmUpActive() and "being at" or "being under", self.Config.PlayerLimit )
 		or self.Config.Strings.NoLimit,	self.Config.ExtraMessageLine )
 	self.dt.ShowStatus = true
 end
@@ -302,26 +212,28 @@ local function SpawnBuildings( team )
 	end
 end
 
-function Plugin:OnResetGame()
-	self:Disable()
+function Plugin:SetGameState( Gamerules, State, OldState )
+	if OldState == State then return end --just in case, you never know
 
-	self:SimpleTimer(1, function()
-		if GetGamerules() and GetGamerules():GetGameState() == kGameState.NotStarted then
-			self:Enable()
-		end
-	end)
+	if OldState == kGameState.WarmUp then
+		self:Disable()
+	elseif State == kGameState.WarmUp then
+		self:Enable()
+	end
+end
+
+function Plugin:GetWarmUpPlayerLimit()
+	if not self.Config.CheckLimit or self:GetTimer( "Countdown" ) then return 999 end
+
+	return self.Config.PlayerLimit
 end
 
 function Plugin:Enable()
-	local PlayerCount = #GetEntitiesForTeam( "Player", 1 ) + #GetEntitiesForTeam( "Player", 2 )
-	self.dt.Enabled = not self.Config.CheckLimit or self.Config.PlayerLimit > PlayerCount
 	self:SendText()
 
-	if self.dt.Enabled then
+	if GetGameInfoEntity():GetWarmUpActive() then
 		local Rules = GetGamerules()
 		if not Rules then return end
-
-		Rules:SetAllTech( true )
 
 		local Team1 = Rules:GetTeam1()
 		local Team2 = Rules:GetTeam2()
@@ -343,15 +255,9 @@ function Plugin:Disable()
 	self:DestroyTimer( "Countdown" )
 	self.dt.CountdownText = ""
 
-	if not self.dt.Enabled then return end
+	if not GetGameInfoEntity():GetWarmUpActive() then return end
 
 	self:DestroyEnts()
-	self.dt.Enabled = false
-	
-	local rules = GetGamerules()
-	if not rules then return end
-
-	rules:SetAllTech( false )
 end
 
 function Plugin:CheckLimit( Gamerules )
@@ -359,7 +265,7 @@ function Plugin:CheckLimit( Gamerules )
 
 	local PlayerCount = #GetEntitiesForTeam( "Player", 1 ) + #GetEntitiesForTeam( "Player", 2 )
 
-	local toogle = self.dt.Enabled
+	local toogle = GetGameInfoEntity():GetWarmUpActive()
 
 	if PlayerCount < self.Config.PlayerLimit then
 		toogle = not toogle
@@ -368,8 +274,8 @@ function Plugin:CheckLimit( Gamerules )
 	if toogle then
 		if not self:GetTimer( "Countdown" ) then
 			self.dt.CountdownText = StringFormat( "%s\n%s\n%s", StringFormat( self.Config.Strings.Status,
-				not self.dt.Enabled and "disabled" or "enabled" ), StringFormat( self.Config.Strings.Countdown,
-				not self.dt.Enabled and "on" or "off", "%s"), self.Config.ExtraMessageLine )
+				not GetGameInfoEntity():GetWarmUpActive()  and "disabled" or "enabled" ), StringFormat( self.Config.Strings.Countdown,
+				not GetGameInfoEntity():GetWarmUpActive() and "on" or "off", "%s"), self.Config.ExtraMessageLine )
 
 			self:CreateTimer( "Countdown", self.dt.StatusDelay, 1, function()
 				Gamerules:ResetGame()

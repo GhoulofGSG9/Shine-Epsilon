@@ -61,7 +61,7 @@ end
 function Plugin:ReceivePlaySound( Message )
     if not Message.Name then return end
 	
-    if self.Config.PlaySounds then    
+    if self.Config and self.Config.PlaySounds then
         StartSoundEffect( self.Sounds[ Message.Name ], self.Config.SoundVolume / 100 )
     end
 end
