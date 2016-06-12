@@ -41,13 +41,19 @@ function Plugin:CheckGameStart( Gamerules )
 	if State > kGameState.PreGame then return end
 
 	local NumCommanderBots = #gCommanderBots
-	local StartDelay = NumCommanderBots > 0 and self.Config.CommanderBotsStartDelay or 0
-	if StartDelay > 0 and not self.StartTime then
+	local StartDelay = self.Config.CommanderBotsStartDelay or 0
+	if StartDelay > 0 and NumCommanderBots > 0 and not self.StartTime then
 		self.StartTime = Shared.GetTime() + StartDelay
 	end
 
 	if self.StartTime then
 		if Shared.GetTime() < self.StartTime then
+
+			if NumCommanderBots == 0 then
+				self.StartTime = nil
+				return
+			end
+
 			return false
 		else
 			self.StartTime = nil
