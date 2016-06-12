@@ -10,13 +10,14 @@ Plugin.Version = "0.1"
 
 function Plugin:SetupDataTable()
 	self:AddDTVar( "boolean", "AllowPlayersToReplaceComBots", true )
+	self:AddDTVar( "boolean", "LoginCommanderBotAtLogout", false )
 end
 
 do
 	Shine.Hook.SetupClassHook("GameInfo", "GetRookieMode", "GetRookieMode", "ActivePre")
 
 	if Server then
-		Shine.Hook.SetupClassHook("NS2Gamerules", "OnCommanderLogout", "PreGetRookieMode", "PassivePre")
+		Shine.Hook.SetupClassHook("NS2Gamerules", "OnCommanderLogout", "PreOnCommanderLogout", "PassivePre")
 		Shine.Hook.SetupClassHook("NS2Gamerules", "OnCommanderLogout", "PostGetRookieMode", "PassivePost")
 		Shine.Hook.SetupClassHook("NS2Gamerules", "OnCommanderLogin", "PreGetRookieMode", "PassivePre")
 		Shine.Hook.SetupClassHook("NS2Gamerules", "OnCommanderLogin", "PostGetRookieMode", "PassivePost")
@@ -42,6 +43,10 @@ end
 
 function Plugin:PreGetRookieMode()
 	self.OverrideRookieMode = true
+end
+
+function Plugin:PreOnCommanderLogout()
+	self.OverrideRookieMode = self.dt.LoginCommanderBotAtLogout
 end
 
 function Plugin:PostGetRookieMode()

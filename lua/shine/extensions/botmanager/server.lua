@@ -6,7 +6,8 @@ Plugin.DefaultConfig =
 {
 	MaxBots = 12,
 	CommanderBots = false,
-	CommanderBotsStartDelay = 20,
+	CommanderBotsStartDelay = 180,
+	LoginCommanderBotAtLogout = false,
 	AllowPlayersToReplaceComBots = true
 }
 Plugin.CheckConfig = true
@@ -22,6 +23,7 @@ function Plugin:Initialise()
 	self.CommanderBots = self.Config.CommanderBots
 
 	self.dt.AllowPlayersToReplaceComBots = self.CommanderBots and self.Config.AllowPlayersToReplaceComBots
+	self.dt.LoginCommanderBotAtLogout = self.CommanderBots and self.Config.LoginCommanderBotAtLogout
 
 	self:CreateCommands()
 
@@ -36,9 +38,10 @@ end
 function Plugin:CheckGameStart( Gamerules )
 	local State = Gamerules:GetGameState()
 
-	if State ~= kGameState.NotStarted and State ~= kGameState.PreGame then return end
+	if State > kGameState.PreGame then return end
 
-	local StartDelay = #gServerBots >= 1 and self.Config.CommanderBotsStartDelay or 0
+	local NumCommanderBots = #gCommanderBots
+	local StartDelay = NumCommanderBots > 0 and self.Config.CommanderBotsStartDelay or 0
 	if StartDelay > 0 and not self.StartTime then
 		self.StartTime = Shared.GetTime() + StartDelay
 	end
@@ -112,4 +115,12 @@ function Plugin:CreateCommands()
 	ShowNewsCommand:Help( "Sets if teams should be filled with commander bots or not" )
 
 end
+
+function Plugin:Cleanup()
+	self:SetMaxBots(0, false)
+
+	self.BaseClass.Cleanup( self )
+	self.Enabled = false
+end
+
 
