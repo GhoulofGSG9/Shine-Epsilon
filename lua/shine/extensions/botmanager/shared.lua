@@ -14,8 +14,6 @@ function Plugin:SetupDataTable()
 end
 
 do
-	Shine.Hook.SetupClassHook("GameInfo", "GetRookieMode", "GetRookieMode", "ActivePre")
-
 	if Server then
 		Shine.Hook.SetupClassHook("NS2Gamerules", "OnCommanderLogout", "PreOnCommanderLogout", "PassivePre")
 		Shine.Hook.SetupClassHook("NS2Gamerules", "OnCommanderLogout", "PostGetRookieMode", "PassivePost")
@@ -29,6 +27,8 @@ do
 		if GetTeamHasCommander then
 			SetupGlobalHook("GetTeamHasCommander", "PreGetRookieMode", "PassivePre")
 			SetupGlobalHook("GetTeamHasCommander", "PostGetRookieMode", "PassivePost")
+
+			Shine.Hook.SetupClassHook("GameInfo", "GetRookieMode", "GetRookieMode", "ActivePre")
 
 			Shine.Hook.Remove( "Think", "LoadBotManageHooks")
 		end
