@@ -258,7 +258,10 @@ end
 function Plugin:CheckLimit( Gamerules )
 	if not self.Config.CheckLimit or not self.dt.ShowStatus then return end
 
-	local PlayerCount = #GetEntitiesForTeam( "Player", 1 ) + #GetEntitiesForTeam( "Player", 2 )
+	local Team1Players, _, Team1Bots = Gamerules:GetTeam1():GetNumPlayers()
+	local Team2Players, _, Team2Bots = Gamerules:GetTeam2():GetNumPlayers()
+
+	local PlayerCount = Team1Players + Team2Players - Team1Bots - Team2Bots
 
 	local toogle = GetGameInfoEntity():GetWarmUpActive()
 
