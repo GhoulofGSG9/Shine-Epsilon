@@ -27,7 +27,8 @@ Plugin.DefaultConfig = {
 			TooManyMessage = "The %s have currently too many players. Please spectate until the round ends.",
 			InformAboutFreeSpace = {3},
 			InformMessage = "A player left the %s. So you can join up now."
-		}
+		},
+		IgnoreBots = true
 	},
 	MessageNameColor = {0, 255, 0 }
 }
@@ -47,12 +48,19 @@ function Plugin:ClientDisconnect( Client )
 	self:PostJoinTeam( GetGamerules(), Player, Player:GetTeamNumber() )
 end
 
+function Plugin:GetNumPlayers(Team)
+	local players, _, bots = Team:GetNumPlayers()
+	if not self.Config.IgnoreBots then return players end
+
+	return players - bots
+end
+
 function Plugin:PostJoinTeam( Gamerules, _, OldTeam )
 	if OldTeam < 0 then return end
 
 	if self.Config.Teams.Team1 and self.Config.Teams.Team2 then
-		if Gamerules:GetTeam(kTeam1Index):GetNumPlayers() >= self.Config.Teams.Team1.MaxPlayers and
-				Gamerules:GetTeam(kTeam2Index):GetNumPlayers() >= self.Config.Teams.Team2.MaxPlayers then
+		if self:GetNumPlayers(Gamerules:GetTeam(kTeam1Index)) >= self.Config.Teams.Team1.MaxPlayers and
+				self:GetNumPlayers(Gamerules:GetTeam(kTeam2Index)) >= self.Config.Teams.Team2.MaxPlayers then
 			Server.AddTag("ignore_playnow")
 		else
 			Server.RemoveTag("ignore_playnow")
@@ -61,7 +69,7 @@ function Plugin:PostJoinTeam( Gamerules, _, OldTeam )
 
 	local TeamIndex = string.format("Team%s", OldTeam)
 	if self.Config.Teams[TeamIndex] and #self.Config.Teams[TeamIndex].InformAboutFreeSpace ~= 0 and
-			Gamerules:GetTeam(OldTeam):GetNumPlayers() + 1 == self.Config.Teams[TeamIndex].MaxPlayers then
+			self:GetNumPlayers(Gamerules:GetTeam(OldTeam)) + 1 == self.Config.Teams[TeamIndex].MaxPlayers then
 		for _, i in ipairs(self.Config.Teams[TeamIndex].InformAboutFreeSpace) do
 			local Team = Gamerules:GetTeam(i)
 			local Players = Team and Team:GetPlayers()
@@ -78,7 +86,7 @@ function Plugin:JoinTeam( Gamerules, Player, NewTeam, _, ShineForce )
 	if ShineForce or NewTeam == kTeamReadyRoom or not self.Config.Teams[TeamIndex] then return end
 
 	--Check if team is above MaxPlayers
-	if Gamerules:GetTeam(NewTeam):GetNumPlayers() >= self.Config.Teams[TeamIndex].MaxPlayers then
+	if self:GetNumPlayers(Gamerules:GetTeam(NewTeam)) >= self.Config.Teams[TeamIndex].MaxPlayers then
 		--Inform player
 		self:Notify(Player, self.Config.Teams[TeamIndex].TooManyMessage, NewTeam)
 		return false
