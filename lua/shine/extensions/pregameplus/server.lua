@@ -132,7 +132,7 @@ end
 function Plugin:CanEntDoDamageTo( _, Target )
 	if not GetGameInfoEntity():GetWarmUpActive() then return end
 
-	if self.Config.AllowStructureDamage and not self.ProtectedEnts[ Target:GetId() ] then
+	if self.Config.AllowStructureDamage and HasMixin(Target, "Construct") and not self.ProtectedEnts[ Target:GetId() ] then
 		return true
 	end
 end
