@@ -8,13 +8,15 @@ Plugin.DefaultConfig =
 	CommanderBots = false,
 	CommanderBotsStartDelay = 180,
 	LoginCommanderBotAtLogout = false,
-	AllowPlayersToReplaceComBots = true
+	AllowPlayersToReplaceComBots = true,
+	BotTickRate = 10,
 }
 Plugin.CheckConfig = true
 
 do
 	Shine.Hook.SetupClassHook("TeamBrain", "GetNumAssignedToEntity", "ActivePreGetNumAssignedToEntity", "ActivePre")
 	Shine.Hook.SetupClassHook("PlayerRanking", "GetTrackServer", "ActivePreGetTrackServer", "ActivePre")
+	Shine.Hook.SetupClassHook("PlayerBrain", "Update", "PlayerBrainPreUpdate", "ActivePre")
 end
 
 function Plugin:Initialise()
@@ -79,6 +81,15 @@ end
 
 function Plugin:OnFirstThink()
 	self:SetMaxBots(self.MaxBots, self.CommanderBots)
+end
+
+--Set custom tickrates for bots to decrease the performance impact of them
+function Plugin:PlayerBrainPreUpdate(PlayerBrain)
+	if PlayerBrain.nextMoveTime and PlayerBrain.nextMoveTime > Shared.GetTime() then
+		return false
+	end
+
+	PlayerBrain.nextMoveTime = Shared.GetTime() + 1 / self.Config.BotTickRate
 end
 
 function Plugin:SetMaxBots(bots, com)
