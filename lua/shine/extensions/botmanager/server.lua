@@ -85,11 +85,14 @@ end
 
 --Set custom tickrates for bots to decrease the performance impact of them
 function Plugin:PlayerBrainPreUpdate(PlayerBrain)
-	if PlayerBrain.nextMoveTime and PlayerBrain.nextMoveTime > Shared.GetTime() then
+	local time = Shared.GetTime()
+	
+	if PlayerBrain.lastAction and PlayerBrain.nextMoveTime and
+			PlayerBrain.lastAction.name ~= "attack" and PlayerBrain.nextMoveTime > time then  
 		return false
 	end
 
-	PlayerBrain.nextMoveTime = Shared.GetTime() + 1 / self.Config.BotTickRate
+	PlayerBrain.nextMoveTime = time + 1 / self.Config.BotTickRate
 end
 
 function Plugin:SetMaxBots(bots, com)
@@ -102,6 +105,7 @@ end
 
 --avoid that ppl loose hive skill for loosing against bots
 function Plugin:ActivePreGetTrackServer()
+	local gameRules = GetGamerules()
 	local team1PlayerNum, _, team1BotNum  = gameRules:GetTeam1():GetNumPlayers()
 	local team2PlayerNum, _, team2BotNum = gameRules:GetTeam2():GetNumPlayers()
 
