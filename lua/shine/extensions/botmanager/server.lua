@@ -106,6 +106,9 @@ end
 --avoid that ppl loose hive skill for loosing against bots
 function Plugin:ActivePreGetTrackServer()
 	local gameRules = GetGamerules()
+
+	if not gameRules then return end
+
 	local team1PlayerNum, _, team1BotNum  = gameRules:GetTeam1():GetNumPlayers()
 	local team2PlayerNum, _, team2BotNum = gameRules:GetTeam2():GetNumPlayers()
 
