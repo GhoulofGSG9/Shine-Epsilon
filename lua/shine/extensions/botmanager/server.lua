@@ -16,7 +16,6 @@ Plugin.CheckConfig = true
 do
 	Shine.Hook.SetupClassHook("TeamBrain", "GetNumAssignedToEntity", "ActivePreGetNumAssignedToEntity", "ActivePre")
 	Shine.Hook.SetupClassHook("PlayerRanking", "GetTrackServer", "ActivePreGetTrackServer", "ActivePre")
-	Shine.Hook.SetupClassHook("PlayerBrain", "Update", "PlayerBrainPreUpdate", "ActivePre")
 end
 
 function Plugin:Initialise()
@@ -27,6 +26,9 @@ function Plugin:Initialise()
 
 	self.dt.AllowPlayersToReplaceComBots = self.CommanderBots and self.Config.AllowPlayersToReplaceComBots
 	self.dt.LoginCommanderBotAtLogout = self.CommanderBots and self.Config.LoginCommanderBotAtLogout
+
+	self.oldkPlayerBrainTickrate = kPlayerBrainTickrate
+	kPlayerBrainTickrate = self.Config.BotTickRate
 
 	self:CreateCommands()
 
@@ -81,18 +83,6 @@ end
 
 function Plugin:OnFirstThink()
 	self:SetMaxBots(self.MaxBots, self.CommanderBots)
-end
-
---Set custom tickrates for bots to decrease the performance impact of them
-function Plugin:PlayerBrainPreUpdate(PlayerBrain)
-	local time = Shared.GetTime()
-	
-	if PlayerBrain.lastAction and PlayerBrain.nextMoveTime and
-			PlayerBrain.lastAction.name ~= "attack" and PlayerBrain.nextMoveTime > time then  
-		return false
-	end
-
-	PlayerBrain.nextMoveTime = time + 1 / self.Config.BotTickRate
 end
 
 function Plugin:SetMaxBots(bots, com)
@@ -156,6 +146,8 @@ end
 
 function Plugin:Cleanup()
 	self:SetMaxBots(0, false)
+
+	kPlayerBrainTickrate = self.oldkPlayerBrainTickrate
 
 	self.BaseClass.Cleanup( self )
 	self.Enabled = false
