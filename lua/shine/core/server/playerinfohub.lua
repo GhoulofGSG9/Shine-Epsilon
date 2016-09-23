@@ -307,7 +307,7 @@ Add("OnSetPlayerLevel", "HiveRequestFinished", function(Player)
 end)
 
 function PlayerInfoHub:GetHiveData( SteamId )
-	if Shine.IsNS2Combat then return end
+	if Shine.IsNS2Combat or not GetHiveDataBySteamId then return end
 
 	local data = GetHiveDataBySteamId(SteamId)
 	if data then
