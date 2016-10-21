@@ -13,11 +13,6 @@ Plugin.DefaultConfig =
 }
 Plugin.CheckConfig = true
 
-do
-	Shine.Hook.SetupClassHook("TeamBrain", "GetNumAssignedToEntity", "ActivePreGetNumAssignedToEntity", "ActivePre")
-	Shine.Hook.SetupClassHook("PlayerRanking", "GetTrackServer", "ActivePreGetTrackServer", "ActivePre")
-end
-
 function Plugin:Initialise()
 	self.Enabled = true
 
@@ -33,11 +28,6 @@ function Plugin:Initialise()
 	self:CreateCommands()
 
 	return true
-end
-
---Fixes for bots
-function Plugin:ActivePreGetNumAssignedToEntity(TeamBrain, entId)
-	if not TeamBrain.entId2memory[entId] then return 0 end
 end
 
 function Plugin:CheckGameStart( Gamerules )
@@ -91,23 +81,6 @@ function Plugin:SetMaxBots(bots, com)
 	if not Gamerules or not Gamerules.SetMaxBots then return end
 
 	Gamerules:SetMaxBots(bots, com)
-end
-
---avoid that ppl loose hive skill for loosing against bots
-function Plugin:ActivePreGetTrackServer()
-	local gameRules = GetGamerules()
-
-	if not gameRules then return end
-
-	local team1PlayerNum, _, team1BotNum  = gameRules:GetTeam1():GetNumPlayers()
-	local team2PlayerNum, _, team2BotNum = gameRules:GetTeam2():GetNumPlayers()
-
-	team1PlayerNum = team1PlayerNum - team1BotNum
-	team2PlayerNum = team2PlayerNum - team2BotNum
-
-	local diff = math.abs(team1PlayerNum - team2PlayerNum)
-
-	if diff > 2 or team1PlayerNum == 0 or team2PlayerNum == 0 then return false end
 end
 
 function Plugin:CreateCommands()

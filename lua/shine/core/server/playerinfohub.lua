@@ -311,8 +311,8 @@ function PlayerInfoHub:GetHiveData( SteamId )
 
 	local data = GetHiveDataBySteamId(SteamId)
 	if data then
-		--Fix for hive using string instead of number as type for skill
-		data.skill = tonumber(data.skill)
+		--Fix for hive2 using a new format
+		data.playTime = data.time_played
 		return data
 	end
 end
