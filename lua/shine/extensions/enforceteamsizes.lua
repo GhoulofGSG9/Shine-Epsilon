@@ -35,6 +35,20 @@ Plugin.DefaultConfig = {
 Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
 
+function Plugin:Initialise()
+	self.Enabled = true
+
+	if Server.DisableQuickJoin and (self.Config.Teams.Team1 or self.Config.Teams.Team2) then
+		local max = math.ceil(Server.GetMaxPlayers()/2)
+		if self.Config.Teams.Team1 < max or self.Config.Teams.Team2 < max then
+			self:Print("Tagging Server as incompatible to the quickplay queue because the team count restriction is below the player limit.")
+			Server.DisableQuickJoin()
+		end
+	end
+
+	return true
+end
+
 function Plugin:Notify(Player, Message, OldTeam)
 	Shine:NotifyDualColour( Player, self.Config.MessageNameColor[1], self.Config.MessageNameColor[2],
 		self.Config.MessageNameColor[3], "[EnforcedTeamSizes]", 255, 255, 255,
@@ -57,15 +71,6 @@ end
 
 function Plugin:PostJoinTeam( Gamerules, _, OldTeam )
 	if OldTeam < 0 then return end
-
-	if self.Config.Teams.Team1 and self.Config.Teams.Team2 then
-		if self:GetNumPlayers(Gamerules:GetTeam(kTeam1Index)) >= self.Config.Teams.Team1.MaxPlayers and
-				self:GetNumPlayers(Gamerules:GetTeam(kTeam2Index)) >= self.Config.Teams.Team2.MaxPlayers then
-			Server.AddTag("ignore_playnow")
-		else
-			Server.RemoveTag("ignore_playnow")
-		end
-	end
 
 	local TeamIndex = string.format("Team%s", OldTeam)
 	if self.Config.Teams[TeamIndex] and #self.Config.Teams[TeamIndex].InformAboutFreeSpace ~= 0 and

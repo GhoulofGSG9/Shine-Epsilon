@@ -58,6 +58,11 @@ function Plugin:Initialise()
 	self:CheckForSteamTime()
 	self:BuildBlockMessage()
 
+	if self.Config.BlockTeams and Server.DisableQuickJoin then
+		self:Print("Tagging Server as incompatible to the quickplay queue because norookies is not supported by it.")
+		Server.DisableQuickJoin()
+	end
+
 	return true
 end
 
