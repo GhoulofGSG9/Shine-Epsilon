@@ -73,7 +73,8 @@ function Plugin:PostJoinTeam( Gamerules, _, OldTeam )
 	if OldTeam < 0 then return end
 
 	local TeamIndex = string.format("Team%s", OldTeam)
-	if self.Config.Teams[TeamIndex] and #self.Config.Teams[TeamIndex].InformAboutFreeSpace ~= 0 and
+	if self.Config.Teams[TeamIndex] and self.Config.Teams[TeamIndex].InformAboutFreeSpace
+			and #self.Config.Teams[TeamIndex].InformAboutFreeSpace ~= 0 and
 			self:GetNumPlayers(Gamerules:GetTeam(OldTeam)) + 1 == self.Config.Teams[TeamIndex].MaxPlayers then
 		for _, i in ipairs(self.Config.Teams[TeamIndex].InformAboutFreeSpace) do
 			local Team = Gamerules:GetTeam(i)
