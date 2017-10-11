@@ -38,11 +38,11 @@ Plugin.CheckConfigTypes = true
 function Plugin:Initialise()
 	self.Enabled = true
 
-	if Server.DisableQuickJoin and (self.Config.Teams.Team1 or self.Config.Teams.Team2) then
+	if Server.DisableQuickPlay and (self.Config.Teams.Team1 or self.Config.Teams.Team2) then
 		local max = math.ceil(Server.GetMaxPlayers()/2)
 		if self.Config.Teams.Team1 < max or self.Config.Teams.Team2 < max then
 			self:Print("Tagging Server as incompatible to the quickplay queue because the team count restriction is below the player limit.")
-			Server.DisableQuickJoin()
+			Server.DisableQuickPlay()
 		end
 	end
 

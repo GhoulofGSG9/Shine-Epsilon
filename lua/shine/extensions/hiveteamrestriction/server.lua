@@ -72,9 +72,9 @@ function Plugin:Initialise()
 	self:CheckForSteamTime()
 	self:BuildBlockMessage()
 
-	if Server.DisableQuickJoin then
+	if Server.DisableQuickPlay then
 		self:Print("Tagging Server as incompatible to the quickplay queue because team restrictions are not supported by it.")
-		Server.DisableQuickJoin()
+		Server.DisableQuickPlay()
 	end
 
 	return true
