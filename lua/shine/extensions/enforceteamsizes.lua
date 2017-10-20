@@ -7,6 +7,7 @@ local Plugin = {}
 
 Plugin.HasConfig = true
 Plugin.ConfigName = "EnforceTeamSizes.json"
+Plugin.PrintName = "Enforced Team Size"
 
 --[[
 --TeamNumbers:
@@ -37,7 +38,10 @@ Plugin.CheckConfigTypes = true
 
 function Plugin:Initialise()
 	self.Enabled = true
+	return true
+end
 
+function Plugin:OnFirstThink()
 	if Server.DisableQuickPlay and (self.Config.Teams.Team1 or self.Config.Teams.Team2) then
 		local max = math.ceil(Server.GetMaxPlayers()/2)
 		if self.Config.Teams.Team1.MaxPlayers < max or self.Config.Teams.Team2.MaxPlayers < max then
@@ -45,8 +49,6 @@ function Plugin:Initialise()
 			Server.DisableQuickPlay()
 		end
 	end
-
-	return true
 end
 
 function Plugin:Notify(Player, Message, OldTeam)
