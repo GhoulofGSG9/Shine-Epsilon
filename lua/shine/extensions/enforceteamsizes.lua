@@ -45,7 +45,7 @@ function Plugin:OnFirstThink()
 	if Server.DisableQuickPlay and (self.Config.Teams.Team1 or self.Config.Teams.Team2) then
 		local max = math.ceil(Server.GetMaxPlayers()/2)
 		if self.Config.Teams.Team1.MaxPlayers < max or self.Config.Teams.Team2.MaxPlayers < max then
-			self:Print("Tagging Server as incompatible to the quickplay queue because the team count restriction is below the player limit.")
+			Shared.Message "[enforceteamsizes] Tagging Server as incompatible to the quickplay queue because the team count restriction is below the player limit."
 			Server.DisableQuickPlay()
 		end
 	end
