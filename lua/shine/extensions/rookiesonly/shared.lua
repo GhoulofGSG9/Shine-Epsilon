@@ -7,7 +7,8 @@ local Plugin = {}
 Shine:RegisterExtension( "rookiesonly", Plugin, {
     Base = "hiveteamrestriction",
     BlacklistKeys = {
-        BuildBlockMessage = true
+        BuildBlockMessage = true,
+        OnFirstThink = true
     }
 } )
 
