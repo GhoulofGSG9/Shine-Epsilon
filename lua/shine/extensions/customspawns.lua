@@ -314,12 +314,6 @@ end )
 SetupClassHook( "NS2Gamerules", "ResetGame", "OnGameReset", "PassivePre")
 SetupClassHook( "TechPoint", "GetChooseWeight", "OnTechPointGetChooseWeight", "ActivePre")
 SetupClassHook( "TechPoint", "GetTeamNumberAllowed", "OnTechPointGetTeamNumberAllowed", "ActivePre")
-SetupClassHook( "AlienTeam", "SpawnInitialStructures", "PostAlienTeamSpawnInitialStructures",
-	function( OldFunc, self, TechPoint)
-		local Tower, CommandStructure = OldFunc(self, TechPoint)
-		Shine.Hook.Call( "PostAlienTeamSpawnInitialStructures", self, TechPoint, Tower, CommandStructure )
-		return Tower, CommandStructure
-	end)
 
 function Plugin:Initialise()
 	self.Gamemode = Shine.GetGamemode()
@@ -461,34 +455,6 @@ function Plugin:OnGameReset()
 
     Server.spawnSelectionOverrides = false
     Server.teamSpawnOverride = false
-end
-
--- Needed to avoid that Harvester die at tech point where no cysts are pre-placed
--- Todo: Merge this into vanilla
-function Plugin:PostAlienTeamSpawnInitialStructures( Team, _, Tower )
-	local origin = Tower:GetOrigin()
-	if #GetEntitiesWithinRange( "Cyst", origin, kInfestationRadius ) > 0 then return end
-
-	local cystPoints, parent, normals = GetCystPoints( origin )
-
-	if parent then
-		local previousParent
-		for i = 2, #cystPoints do
-
-			local cyst = CreateEntity(Cyst.kMapName, cystPoints[i], Team:GetTeamNumber())
-			cyst:SetCoords(AlignCyst(Coords.GetTranslation(cystPoints[i]), normals[i]))
-
-			cyst:SetImmuneToRedeploymentTime(0.05)
-			cyst:SetConstructionComplete()
-			cyst:SetInfestationFullyGrown()
-
-			if not cyst:GetIsConnected() and previousParent then
-				cyst:ReplaceParent(previousParent)
-			end
-
-			previousParent = cyst
-		end
-	end
 end
 
 function Plugin:Notify( Player, String, Format, ... )
