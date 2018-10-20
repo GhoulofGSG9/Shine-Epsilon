@@ -75,7 +75,7 @@ function Plugin:ClientDisconnect(Client)
 end
 
 function Plugin:NS2StartVote(VoteName, Client)
-	local VoteOption =  self.Config[VoteName]
+	local VoteOption = self.Config[VoteName]
 	if VoteOption and (not VoteOption.Enabled or VoteOption.DisableWhenAdminOnline and #self.AdminClients > 0) then
 		self:Notify(Client, VoteOption.Message)
 		return false

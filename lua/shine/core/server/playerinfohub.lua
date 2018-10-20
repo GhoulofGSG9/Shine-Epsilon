@@ -235,7 +235,7 @@ function PlayerInfoHub:OnConnect( Client )
 		if not self.GeoData[ SteamId ] then
 			self.GeoData[ SteamId ] = -2
 
-			AddToHTTPQueue( StringFormat( "http://geoip.nekudo.com/api/%s", IPAddressToString( Server.GetClientAddress( Client ) ) ), function( Response )
+			AddToHTTPQueue( StringFormat( "https://freegeoip.app/json/%s", IPAddressToString( Server.GetClientAddress( Client ) ) ), function( Response )
 				local data = JsonDecode( Response )
 				PlayerInfoHub.GeoData[ SteamId ] = data or 0
 				Call( "OnReceiveGeoData", Client, PlayerInfoHub.GeoData[ SteamId ] )
