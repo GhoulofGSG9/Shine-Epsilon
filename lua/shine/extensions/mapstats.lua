@@ -15,7 +15,7 @@ function Plugin:Initialise()
 	local mapname = Shared.GetMapName()
 
 	if self.Config.Ignore[mapname] then
-		return false, "The mapstats plugin was set to ignore the czrrent map"
+		return false, "The mapstats plugin was set to ignore the current map"
 	end
 
 	self.Logpath = string.format("config://shine/logs/mapstats/%s.txt", mapname)
