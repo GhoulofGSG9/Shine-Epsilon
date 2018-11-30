@@ -4,11 +4,9 @@
 
 local Shine = Shine
 
-local GetOwner = Server.GetOwner
 local SharedTime = Shared.GetTime
 
 local Plugin = Plugin
-Plugin.Version = "1.0"
 Plugin.PrintName = "CustomTimeout"
 
 Plugin.HasConfig = true
@@ -31,7 +29,7 @@ function Plugin:Initialise()
 
 	for Client, DataTable in self.Users:Iterate() do
 		if Shine:IsValidClient( Client ) then
-			DataTable.LastMove = Time
+			DataTable.LastHeartbeat = Time
 		else
 			self.Users:Remove( Client )
 		end
@@ -71,7 +69,7 @@ end
 	Check if a player has been inactive for too long and disconnect them
 ]]
 function Plugin:EvaluatePlayer( Client, DataTable, Now )
-	if Now - DataTable.LastMove >= self.Config.Timeout then
+	if Now - DataTable.LastHeartbeat >= self.Config.Timeout then
 		self:KickClient( Client )
 	end
 end
@@ -88,27 +86,23 @@ function Plugin:ClientConnect( Client )
 	if not Player then return end
 
 	self.Users:Add( Client , {
-		LastMove = SharedTime(),
+		LastHeartbeat = SharedTime(),
 	})
 end
 
 --[[
-	Hook into movement processing to detect inactive clients.
+	Listen to client's heartbeat network messages to detect if they are active or not
 ]]
-function Plugin:OnProcessMove( Player )
-
-	local Client = GetOwner( Player )
-
-	if not Client then return end
+function Plugin:ReceiveHeartbeat( Client )
 	if Client:GetIsVirtual() then return end
 
 	local DataTable = self.Users:Get( Client )
 	if not DataTable then return end
 
 	local Time = SharedTime()
-	if DataTable.LastMove > Time then return end
+	if DataTable.LastHeartbeat > Time then return end
 
-	DataTable.LastMove = Time
+	DataTable.LastHeartbeat = Time
 end
 
 --[[
