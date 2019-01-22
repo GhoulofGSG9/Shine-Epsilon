@@ -10,7 +10,7 @@ local Lower = string.lower
 local StringFormat = string.format
 local IsType = Shine.IsType
 
-local Plugin = {}
+local Plugin = Shine.Plugin( ... )
 
 Plugin.Version = "1.1"
 Plugin.NS2Only = true
@@ -548,4 +548,4 @@ function Plugin:Cleanup()
 end
 
 
-Shine:RegisterExtension( "customspawns", Plugin )
+return Plugin

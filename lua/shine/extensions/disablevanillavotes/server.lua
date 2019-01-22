@@ -4,8 +4,7 @@
 	https://github.com/ShamelessCookie/tactical-freedom/blob/master/output/lua/shine/extensions/tf_disablestockvoting.lua
  ]]
 
-local Plugin = Plugin
-local Shine = Shine
+local Plugin = ...
 
 Plugin.Version = "1.0"
 
@@ -76,7 +75,10 @@ end
 
 function Plugin:NS2StartVote(VoteName, Client)
 	local VoteOption = self.Config[VoteName]
-	if VoteOption and (not VoteOption.Enabled or VoteOption.DisableWhenAdminOnline and #self.AdminClients > 0) then
+
+	if not VoteOption then return end
+
+	if not VoteOption.Enabled or VoteOption.DisableWhenAdminOnline and #self.AdminClients > 0 then
 		self:Notify(Client, VoteOption.Message)
 		return false
 	end

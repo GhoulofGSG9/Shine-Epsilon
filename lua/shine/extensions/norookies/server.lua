@@ -1,9 +1,8 @@
 --[[
 	Shine No Rookies - Server
 ]]
-local Shine = Shine
 local InfoHub = Shine.PlayerInfoHub
-local Plugin = Plugin
+local Plugin = ...
 
 Plugin.Version = "1.7"
 

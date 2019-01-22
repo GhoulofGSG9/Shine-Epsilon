@@ -2,7 +2,7 @@
 Shine Killstreak Plugin - Shared
 ]]
 
-local Plugin = {}
+local Plugin = Shine.Plugin( ... )
 Plugin.Version = "1.0"
 
 function Plugin:SetupDataTable()
@@ -18,4 +18,4 @@ function Plugin:SetupDataTable()
     self:AddNetworkMessage( "PlaySound", Sound, "Client" )
 end
 
-Shine:RegisterExtension( "killstreak", Plugin )
+return Plugin

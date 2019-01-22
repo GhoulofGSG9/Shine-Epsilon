@@ -2,10 +2,9 @@
     A verbose logging plugin intended to track down certain issues
 ]]
 
-local Shine = Shine
 local StringFormat = string.format
 
-local Plugin = {}
+local Plugin = Shine.Plugin( ... )
 Plugin.Version = "1.0"
 
 Plugin.HasConfig = true
@@ -77,11 +76,4 @@ function Plugin:PostJoinTeam( _, _, _, _, Force )
     end
 end
 
-
-
-function Plugin:Cleanup()
-    self.BaseClass.Cleanup( self )
-    self.Enabled = false
-end
-
-Shine:RegisterExtension( "verboselogging", Plugin )
+return Plugin

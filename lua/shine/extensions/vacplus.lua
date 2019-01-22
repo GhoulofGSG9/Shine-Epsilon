@@ -1,7 +1,6 @@
-local Shine = Shine
 local InfoHub = Shine.PlayerInfoHub
 
-local Plugin = {}
+local Plugin = Shine.Plugin( ... )
 
 Plugin.Version = "1.0"
 Plugin.HasConfig = true
@@ -101,4 +100,4 @@ function Plugin:Cleanup()
     self.Enabled = false
 end
 
-Shine:RegisterExtension( "vacplus", Plugin )
+return Plugin

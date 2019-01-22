@@ -1,12 +1,10 @@
 --[[
 Shine Killstreak Plugin - Client
 ]]
-
-local Shine = Shine
 local Notify = Shared.Message
 local StringFormat = string.format
 
-local Plugin = Plugin
+local Plugin = ...
 
 Plugin.HasConfig = true
 Plugin.ConfigName = "Killstreak.json"

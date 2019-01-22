@@ -1,12 +1,9 @@
 --[[
     Shine Epsilon Badges
 ]]
-local Shine = Shine
 local InfoHub = Shine.PlayerInfoHub
 
-local Plugin = {}
-
-local Notify = Shared.Message
+local Plugin = Shine.Plugin( ... )
 
 Plugin.Version = "1.6"
 
@@ -158,4 +155,4 @@ function Plugin:Cleanup()
     self.Enabled = false
 end
 
-Shine:RegisterExtension( "epsilonbadges", Plugin )
+return Plugin

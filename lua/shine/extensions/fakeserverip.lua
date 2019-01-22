@@ -1,5 +1,4 @@
-local Plugin = {}
-local Shine = Shine
+local Plugin = Shine.Plugin( ... )
 
 Plugin.Version = "1.0"
 
@@ -20,16 +19,13 @@ function Plugin:Initialise()
 	return true
 end
 
-Shine.Hook.SetupClassHook("Server", "GetIpAddress", "OnIPAddressToString", "ActivePre")
+function Plugin:OnFirstThink()
+	Shine.Hook.SetupClassHook("Server", "GetIpAddress", "OnIPAddressToString", "ActivePre")
+end
 
 function Plugin:OnIPAddressToString()
 	return self.Config.FakeIP
 end
 
-function Plugin:Cleanup()
-	self.BaseClass.Cleanup( self )
-	self.Enabled = false
-end
-
-Shine:RegisterExtension( "fakeserverip", Plugin )
+return Plugin
 

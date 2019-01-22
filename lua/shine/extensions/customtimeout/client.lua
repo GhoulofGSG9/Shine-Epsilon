@@ -1,7 +1,7 @@
 --[[
     Shine Custom Timeout plugin.
 ]]
-local Plugin = Plugin
+local Plugin = ...
 
 function Plugin:Initialise()
     self:CreateTimer( "SendHeartbeat", .2, -1, function() self:SendHeartBeat() end )

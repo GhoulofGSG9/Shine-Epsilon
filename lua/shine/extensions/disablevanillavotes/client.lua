@@ -4,8 +4,7 @@
 	https://github.com/ShamelessCookie/tactical-freedom/blob/master/output/lua/shine/extensions/tf_disablestockvoting.lua
  ]]
 
-local Plugin = Plugin
-local Shine = Shine
+local Plugin = ...
 
 function Plugin:ReceiveMessage( Data )
 	local ButtonBound = Shine.VoteButtonBound

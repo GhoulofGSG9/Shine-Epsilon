@@ -3,12 +3,11 @@
 ]]
 Script.Load( "lua/shine/core/server/playerinfohub.lua" )
 
-local Shine = Shine
 local InfoHub = Shine.PlayerInfoHub
 
 local StringFormat = string.format
 
-local Plugin = Plugin
+local Plugin = ...
 
 Plugin.Version = "1.0"
 Plugin.NS2Only = true

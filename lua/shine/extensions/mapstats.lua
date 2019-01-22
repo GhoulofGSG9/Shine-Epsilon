@@ -1,5 +1,4 @@
-local Shine = Shine
-local Plugin = {}
+local Plugin = Shine.Plugin( ... )
 
 Plugin.Version = "1.0"
 Plugin.HasConfig = true
@@ -38,5 +37,5 @@ function Plugin:EndGame( Gamerules, WinningTeam )
 	Shine.WriteFile(self.Logpath, Log)
 end
 
-Shine:RegisterExtension( "mapstats", Plugin )
+return Plugin
 

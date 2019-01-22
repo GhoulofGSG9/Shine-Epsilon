@@ -1,23 +1,12 @@
 --noinspection UnusedDef
-local Plugin = Plugin
-local Shine = Shine
+local Plugin = ...
 
---Hooks
-do
-	Shine.Hook.Add( "Think", "LoadPGPHooks", function()
-		local SetupGlobalHook = Shine.Hook.SetupGlobalHook
+function Plugin:OnFirstThink()
+	local SetupGlobalHook = Shine.Hook.SetupGlobalHook
 
-		SetupGlobalHook( "PlayerUI_GetPlayerResources", "PlayerUI_GetPlayerResources", "ActivePre" )
-		SetupGlobalHook( "PlayerUI_GetWeaponLevel", "PlayerUI_GetWeaponLevel", "ActivePre" )
-		SetupGlobalHook( "PlayerUI_GetArmorLevel", "PlayerUI_GetArmorLevel", "ActivePre" )
-
-		Shine.Hook.Remove( "Think", "LoadPGPHooks")
-	end)
-end
-
-function Plugin:Initialise()
-	self.Enabled = true
-	return true
+	SetupGlobalHook( "PlayerUI_GetPlayerResources", "PlayerUI_GetPlayerResources", "ActivePre" )
+	SetupGlobalHook( "PlayerUI_GetWeaponLevel", "PlayerUI_GetWeaponLevel", "ActivePre" )
+	SetupGlobalHook( "PlayerUI_GetArmorLevel", "PlayerUI_GetArmorLevel", "ActivePre" )
 end
 
 function Plugin:PlayerUI_GetPlayerResources()

@@ -1,6 +1,4 @@
-local Shine = Shine
-
-local Plugin = {}
+local Plugin = Shine.Plugin( ... )
 Plugin.Version = "1.4"
 Plugin.NS2Only = true
 
@@ -35,19 +33,7 @@ function Plugin:NetworkUpdate( Key, _, NewValue )
 	end
 end
 
---stuff for modular Exo mod ( guys really use the techtree )
-local function ReplaceModularExo_GetIsConfigValid( OldFunc, ... )
-	local Hook = Shine.Hook.Call( "ModularExo_GetIsConfigValid", ... )
-	if not Hook then return OldFunc(...) end
-
-	local a, b, resourceCost, powerSupply, powerCost, exoTexturePath = OldFunc(...)
-	resourceCost = resourceCost and 0
-
-	return a, b, resourceCost, powerSupply, powerCost, exoTexturePath
-end
-
---Hooks
-do
+function Plugin:OnFirstTink()
 	local SetupClassHook = Shine.Hook.SetupClassHook
 	local SetupGlobalHook = Shine.Hook.SetupGlobalHook
 
@@ -55,16 +41,22 @@ do
 	SetupClassHook( "TechNode", "GetHasTech", "GetHasTech", "ActivePre" )
 	SetupGlobalHook( "LookupTechData", "LookupTechData", "ActivePre" )
 
-	Shine.Hook.Add( "Think", "LoadSharedPGPHooks", function()
+	SetupClassHook( "Player", "GetGameStarted", "GetGameStarted", "ActivePre" )
+	SetupClassHook( "AlienTeamInfo", "OnUpdate", "AlienTeamInfoUpdate", "PassivePost" )
 
-		SetupClassHook( "Player", "GetGameStarted", "GetGameStarted", "ActivePre" )
+	-- stuff for modular Exo mod ( guys really use the techtree )
+	if ModularExo_GetIsConfigValid then
+		local function ReplaceModularExo_GetIsConfigValid( OldFunc, ... )
+			local Hook = Shine.Hook.Call( "ModularExo_GetIsConfigValid", ... )
+			if not Hook then return OldFunc(...) end
 
-		SetupClassHook( "AlienTeamInfo", "OnUpdate", "AlienTeamInfoUpdate", "PassivePost" )
+			local a, b, resourceCost, powerSupply, powerCost, exoTexturePath = OldFunc(...)
+			resourceCost = resourceCost and 0
 
+			return a, b, resourceCost, powerSupply, powerCost, exoTexturePath
+		end
 		SetupGlobalHook( "ModularExo_GetIsConfigValid", "ModularExo_GetIsConfigValid", ReplaceModularExo_GetIsConfigValid )
-
-		Shine.Hook.Remove( "Think", "LoadSharedPGPHooks")
-	end)
+	end
 end
 
 function Plugin:LookupTechData( techId, fieldName )
@@ -129,4 +121,4 @@ function Plugin:ModularExo_GetIsConfigValid()
 	return GetGameInfoEntity():GetWarmUpActive()
 end
 
-Shine:RegisterExtension( "pregameplus", Plugin )
+return Plugin

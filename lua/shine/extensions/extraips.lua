@@ -1,10 +1,9 @@
 --[[
 	Shine ExtraIps Plugin
 ]]
-local Shine = Shine
 local StringFormat = string.format
 
-local Plugin = {}
+local Plugin = Shine.Plugin( ... )
 Plugin.Version = "1.0"
 Plugin.NS2Only = true
 
@@ -94,9 +93,4 @@ function Plugin:OnSpawnInitialStructures( Team, TechPoint )
 	end
 end
 
-function Plugin:Cleanup()
-	self.BaseClass.Cleanup( self )
-	self.Enabled = false
-end
-
-Shine:RegisterExtension( "extraips", Plugin )
+return Plugin

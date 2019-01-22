@@ -2,8 +2,7 @@
 --Original idea and design by Andrew Krigline (https://github.com/akrigline)
 --Original source can be found at https://github.com/akrigline/EnforceTeamSize
 ]]
-local Shine = Shine
-local Plugin = {}
+local Plugin = Shine.Plugin( ... )
 
 Plugin.HasConfig = true
 Plugin.ConfigName = "EnforceTeamSizes.json"
@@ -120,4 +119,4 @@ function Plugin:PreShuffleOptimiseTeams ( TeamMembers )
 	end
 end
 
-Shine:RegisterExtension("enforceteamsizes", Plugin )
+return Plugin

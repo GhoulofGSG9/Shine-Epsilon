@@ -1,12 +1,13 @@
 --[[
 	Shine No Rookies - Shared
 ]]
-local Shine = Shine
-local Plugin = {}
+local Plugin = Shine.Plugin( ... )
 
-Shine:RegisterExtension( "norookies", Plugin, {
+local Options = {
 	Base = "hiveteamrestriction",
 	BlacklistKeys = {
 		BuildBlockMessage = true
 	}
-} )
+}
+
+return Plugin, Options

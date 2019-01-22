@@ -1,4 +1,4 @@
-local Plugin = Plugin
+local Plugin = ...
 
 Plugin.HasConfig = true
 Plugin.ConfigName = "BotManager.json"

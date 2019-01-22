@@ -2,8 +2,7 @@
 	Shine Custom Text Commands
 ]]
 
-local Shine = Shine 
-local Plugin = {}
+local Plugin = Shine.Plugin( ... )
 
 local StringFormat = string.format
 local unpack = unpack
@@ -49,4 +48,4 @@ function Plugin:CreateCommands()
 	end
 end
 
-Shine:RegisterExtension( "customtextcommands", Plugin )
+return Plugin

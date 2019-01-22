@@ -2,11 +2,10 @@
 Shine Killstreak Plugin - Server
 ]]
 
-local Shine = Shine
 local StringFormat = string.format
 local IsType = Shine.IsType
 
-local Plugin = Plugin
+local Plugin = ...
 
 Plugin.HasConfig = true
 Plugin.ConfigName = "Killstreak.json"

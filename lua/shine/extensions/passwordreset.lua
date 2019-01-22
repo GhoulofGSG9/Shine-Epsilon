@@ -1,11 +1,9 @@
 --[[
     Shine PasswordReset
 ]]
-
-local Shine = Shine
 local Notify = Shared.Message
 
-local Plugin = {}
+local Plugin = Shine.Plugin( ... )
 Plugin.Version = "1.0"
 
 Plugin.HasConfig = true
@@ -45,9 +43,4 @@ function Plugin:ClientDisconnect()
     end )
 end
 
-function Plugin:Cleanup()
-    self.BaseClass.Cleanup( self )
-    self.Enabled = false
-end
-
-Shine:RegisterExtension( "passwordreset", Plugin )
+return Plugin

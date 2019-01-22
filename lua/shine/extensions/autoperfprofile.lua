@@ -2,10 +2,7 @@
     Shine Auto performance profiling
 ]]
 
-local Shine = Shine
-local Notify = Shared.Message
-
-local Plugin = {}
+local Plugin = Shine.Plugin( ... )
 Plugin.Version = "1.1"
 
 Plugin.HasConfig = true
@@ -46,5 +43,5 @@ function Plugin:Cleanup()
 	self.Enabled = false
 end
 
-Shine:RegisterExtension( "autoperfprofile", Plugin )
+return Plugin
 

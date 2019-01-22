@@ -1,12 +1,9 @@
 --[[
 	Shine Custom Timeout plugin.
 ]]
-
-local Shine = Shine
-
 local SharedTime = Shared.GetTime
 
-local Plugin = Plugin
+local Plugin = ...
 Plugin.PrintName = "CustomTimeout"
 
 Plugin.HasConfig = true

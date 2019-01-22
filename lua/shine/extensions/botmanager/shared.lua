@@ -1,11 +1,7 @@
 --[[
     Shine BotManager
 ]]
-
-local Shine = Shine
-local Notify = Shared.Message
-
-local Plugin = {}
+local Plugin = Shine.Plugin( ... )
 Plugin.Version = "0.2"
 
 function Plugin:SetupDataTable()
@@ -59,9 +55,4 @@ function Plugin:GetRookieMode(GameInfo)
 	end
 end
 
-function Plugin:Cleanup()
-	self.BaseClass.Cleanup( self )
-	self.Enabled = false
-end
-
-Shine:RegisterExtension( "botmanager", Plugin )
+return Plugin
