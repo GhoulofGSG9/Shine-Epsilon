@@ -137,10 +137,10 @@ function Plugin:OnEntityKilled( _, Victim, Attacker )
     self:CheckForMultiKills( Attacker:GetName(), self.Killstreaks[ AttackerClient ], Attacker:GetTeamNumber() )
 end
 
-Shine.Hook.SetupGlobalHook( "RemoveAllObstacles", "OnGameReset", "PassivePost" )
+Shine.Hook.SetupGlobalHook( "RemoveAllObstacles", "OnRemoveAllObstacles", "PassivePost" )
 
 --Gamereset
-function Plugin:OnGameReset()
+function Plugin:OnRemoveAllObstacles()
     self.Killstreaks = {}
 end
 
