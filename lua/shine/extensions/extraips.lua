@@ -4,7 +4,7 @@
 local StringFormat = string.format
 
 local Plugin = Shine.Plugin( ... )
-Plugin.Version = "1.0"
+Plugin.Version = "1.1"
 Plugin.NS2Only = true
 
 Plugin.HasConfig = true
@@ -23,72 +23,79 @@ function Plugin:Initialise()
 	end
 
 	self.Enabled = true
+
 	return true
 end
 
-local count = 0
-local takenInfantryPortalPoints = {}
-
-local function SpawnInfantryPortal(self, techPoint, force)
-	
-	if Plugin.Enabled and not force and count > 0 then return end
-	
-    local techPointOrigin = techPoint:GetOrigin() + Vector(0, 2, 0)
-    
-    local spawnPoint
-    
-    -- First check the predefined spawn points. Look for a close one.
-    for p = 1, #Server.infantryPortalSpawnPoints do
-		
-		if not takenInfantryPortalPoints[p] then 
-			local predefinedSpawnPoint = Server.infantryPortalSpawnPoints[p]
-			if (predefinedSpawnPoint - techPointOrigin):GetLength() <= kInfantryPortalAttachRange then
-				spawnPoint = predefinedSpawnPoint
-				takenInfantryPortalPoints[p] = true
-				break
-			end
-		end
-        
-    end
-    
-    if not spawnPoint then
-		
-        spawnPoint = GetRandomBuildPosition( kTechId.InfantryPortal, techPointOrigin, kInfantryPortalAttachRange )
-        spawnPoint = spawnPoint and spawnPoint - Vector( 0, 0.6, 0 )
-		
-    end
-    
-    if spawnPoint then
-    
-        local ip = CreateEntity(InfantryPortal.kMapName, spawnPoint, self:GetTeamNumber())
-        
-        SetRandomOrientation(ip)
-        ip:SetConstructionComplete()
-        
-		count = count + 1
-    end
-    
-end
-
 function Plugin:OnFirstThink()
-	Shine.Hook.ReplaceLocalFunction( MarineTeam.SpawnInitialStructures, "SpawnInfantryPortal", SpawnInfantryPortal )
-
 	Shine.Hook.SetupClassHook( "MarineTeam", "SpawnInitialStructures", "OnSpawnInitialStructures", "PassivePost")
-	Shine.Hook.SetupClassHook( "MarineTeam", "ResetTeam", "PreMarineTeamReset", "PassivePre")
+	Shine.Hook.SetupClassHook( "MarineTeam", "SpawnInfantryPortal", "OnSpawnInfantryPortal", "ActivePre")
+	Shine.Hook.SetupClassHook( "MarineTeam", "AddPlayer", "OnAddPlayer", "PassivePost")
 end
 
-function Plugin:PreMarineTeamReset()
-	count = 0
-	takenInfantryPortalPoints = {}
+function Plugin:OnSpawnInfantryPortal(Team, _, Force)
+    if Team.spawnedInfantryPortal >= 1 and not Force then return false end
 end
 
-function Plugin:OnSpawnInitialStructures( Team, TechPoint )
+function Plugin:SpawnInfantryPortal(Team, TechPoint, IPIndex)
+    if IPIndex <= self.spawnedInfantryPortal then return end
+
+    Team:SpawnInfantryPortal(TechPoint, true)
+    self.spawnedInfantryPortal = self.spawnedInfantryPortal + 1
+end
+
+function Plugin:GetTechPoint(Team)
+    -- check that the initial tech point is still controlled by the marines
+    local techPoint = Team.startTechPoint
+    local techPointOrigin = techPoint:GetOrigin()
+
+    local commandStations = GetEntitiesForTeam("CommandStation", Team:GetTeamNumber())
+    local numCommandStations = #commandStations
+
+    -- abort if marines don't have any command stations at the moment
+    if numCommandStations == 0 then return end
+
+    local inRange = false
+    local rangeSquared = kInfantryPortalAttachRange * kInfantryPortalAttachRange
+
+    for i = 1, numCommandStations do
+        local commandStation = commandStations[i]
+        if (commandStation:GetOrigin() - techPointOrigin):GetLengthSquaredXZ() <= rangeSquared then
+            inRange = true
+            break
+        end
+    end
+
+    if not inRange then
+        techPoint = commandStations[1]
+    end
+
+    return techPoint
+end
+
+function Plugin:OnAddPlayer(Team)
+    if Team.spawnedInfantryPortal < 1 then return end
+
+    local MinPlayers = self.Config.MinPlayers
+    local _, PlayerCount = Shine.GetAllPlayers()
+    local TechPoint = self:GetTechPoint(Team)
+
+    for i = 1, #MinPlayers do
+        if PlayerCount >= MinPlayers[i] then
+            self:SpawnInfantryPortal(Team, TechPoint, i)
+        end
+    end
+end
+
+function Plugin:OnSpawnInitialStructures( Team, TechPoint)
+    self.spawnedInfantryPortal = 0
+
 	local MinPlayers = self.Config.MinPlayers
 	local _, PlayerCount = Shine.GetAllPlayers()
 	
 	for i = 1, #MinPlayers do
 		if PlayerCount >= MinPlayers[i] then 
-			SpawnInfantryPortal(Team, TechPoint, true)
+			self:SpawnInfantryPortal(Team, TechPoint, i)
 		end
 	end
 end
