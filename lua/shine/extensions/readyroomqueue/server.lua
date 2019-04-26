@@ -1,5 +1,9 @@
 local Shine = Shine
 
+local Notify = Shared.Message
+
+local TableConcat = table.concat
+
 local Plugin = ...
 Plugin.PrintName = "Ready Room Queue"
 
@@ -61,6 +65,10 @@ function Plugin:PostJoinTeam( _, _, _, NewTeam)
 end
 
 function Plugin:Enqueue( Client )
+    if not Client:GetIsSpectator() then
+        self:NotifyTranslatedError("ENQUEUE_ERROR_PLAYER")
+    end
+
     local SteamID = Client:GetUserId()
 
     if not SteamID or SteamID < 1 then return end
@@ -97,15 +105,15 @@ function Plugin:UpdateQueuePositions(queue, start, message)
     if start == 0 then
         queue:ResetPosition()
     else
-        queue:SetPosition(start)
+        queue:SetPosition(start - 1)
     end
 
     local next, oldPos = queue:GetNext()
     while next do
         local newPos = oldPos + offset
-        queue:Add(next, newPos)
         local Client = Shine.GetClientByNS2ID( next )
         if Client then
+            queue:Add(next, newPos)
             self:SendTranslatedNotify(Client, message, {
                 Position = newPos
             })
@@ -123,16 +131,14 @@ function Plugin:Dequeue( Client )
 
     local SteamID = Client:GetUserId()
 
-    local position = self.PlayerQueue:Get( SteamID )
+    local position = self.PlayerQueue:Remove(SteamID)
     if not position then return false end
 
     self:UpdateQueuePositions(self.PlayerQueue, position)
-    self.PlayerQueue:Remove(SteamID)
 
-    position = self.ReservedQueue:Get(SteamID)
+    position = self.ReservedQueue:Remove(SteamID)
     if position then
-        self:UpdateQueuePositions(self.ReservedQueue, position) -- Todo Add Message
-        self.ReservedQueue:Remove(SteamID)
+        self:UpdateQueuePositions(self.ReservedQueue, position)
     end
 
     return true
@@ -141,7 +147,6 @@ end
 function Plugin:PopReserved()
     local Gamerules = GetGamerules()
     if not Gamerules then -- abort mission
-        -- Todo Print error
         return
     end
 
@@ -154,15 +159,13 @@ function Plugin:PopReserved()
     local Player = Client:GetControllingPlayer()
     if not Gamerules:GetCanJoinPlayingTeam(Player, true) then
         self.ReservedQueue:Add(First, 1)
-
-        -- Todo Print error
         return false
     end
 
     Gamerules:JoinTeam(Player, kTeamReadyRoom )
     self:NotifyTranslated( Client, "QUEUE_LEAVE" )
 
-    self:UpdateQueuePositions(self.ReservedQueue) --Todo Add Message
+    self:UpdateQueuePositions(self.ReservedQueue)
     return true
 end
 
@@ -196,6 +199,42 @@ function Plugin:Pop()
     return true
 end
 
+function Plugin:PrintQueue(Client)
+    local Message = {
+        "Player Slot Queue:"
+    }
+
+    for SteamId, Position in self.PlayerQueue:Iterate() do
+        local ClientName = "Unknown"
+        local Client = Shine.GetClientByNS2ID(SteamId)
+        if Client then
+            ClientName = Shine.GetClientName(Client)
+        end
+
+        Message[#Message + 1] = string.format("%d - %s[%d]", Position, ClientName, SteamId)
+    end
+
+    Message[#Message + 1] = "\n Reserved Slot Queue:"
+
+    for SteamId, Position in self.ReservedQueue:Iterate() do
+        local ClientName = "Unknown"
+        local Client = Shine.GetClientByNS2ID(SteamId)
+        if Client then
+            ClientName = Shine.GetClientName(Client)
+        end
+
+        Message[#Message + 1] = string.format("%d - %s[%d]", Position, ClientName, SteamId)
+    end
+
+    if not Client then
+        Notify( TableConcat( Message, "\n" ) )
+    else
+        for i = 1, #Message do
+            ServerAdminPrint( Client, Message[ i ] )
+        end
+    end
+end
+
 function Plugin:CreateCommands()
     local function EnqueuPlayer( Client )
         if not Client then return end
@@ -203,7 +242,7 @@ function Plugin:CreateCommands()
         self:Enqueue(Client)
     end
     local Enqueue = self:BindCommand( "sh_rr_enqueue", "rr_enqueue", EnqueuPlayer, true )
-    --Enqueue:Help()
+    Enqueue:Help("Enter the queue for a player slot")
 
     local function DequeuePlayer( Client )
 
@@ -216,7 +255,7 @@ function Plugin:CreateCommands()
     end
 
     local Dequeue = self:BindCommand( "sh_rr_dequeue", "rr_dequeue", DequeuePlayer, true )
-    --Dequeue:Help()
+    Dequeue:Help("Leave the player slot queue")
 
     local function DisplayPosition( Client )
         local position = self:GetQueuePosition(Client)
@@ -230,7 +269,12 @@ function Plugin:CreateCommands()
         })
     end
     local Position = self:BindCommand( "sh_rr_position", "rr_position", DisplayPosition, true )
-    --Position:Help()
+    Position:Help("Returns your current position in the player slot queue")
+
+    local function PrintQueue(Client)
+        self:PrintQueue(Client)
+    end
+    local Print = self:BindCommand( "sh_rr_printqueue", nil , PrintQueue, true )
 end
 
 function Plugin:Cleanup()

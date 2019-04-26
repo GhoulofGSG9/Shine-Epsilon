@@ -8,5 +8,6 @@
   "PIORITY_QUEUE_POSITION": "Your current position in the reserved slot queue is {Position}.",
   "QUEUE_POSITION_UNKNOWN": "You haven't joined the player slot queue yet!",
   "DEQUEUE_SUCCESS": "You left the players slot queue!",
-  "QUEUE_LEAVE": "A player slot became available. You now get moved to the Ready Room! Thanks for waiting."
+  "QUEUE_LEAVE": "A player slot became available. You now get moved to the Ready Room! Thanks for waiting.",
+  "ENQUEUE_ERROR_PLAYER": "Only spectators can queue for a player slot!"
 }
