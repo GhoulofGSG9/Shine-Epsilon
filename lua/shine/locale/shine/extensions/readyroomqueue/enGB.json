@@ -1,4 +1,0 @@
-{
-  "NOTIFY_PREFIX": "[ReadyRoomQueue]",
-  "WARN_KICK_ON_CONNECT": "You have been AFK for over {AFKTime:Duration}. You may be kicked when new players attempt to connect."
-}

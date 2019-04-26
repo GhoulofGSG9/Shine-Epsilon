@@ -1,19 +1,24 @@
-local Plugin = {}
+local Plugin = Shine.Plugin(...)
+
+Plugin.Version = "1.0"
+
 Plugin.NotifyPrefixColour = {
     255, 160, 0
 }
 
 function Plugin:SetupDataTable()
     local MessageTypes = {
-        QueueChanged = {
+        QueuePosition = {
             Position = "integer"
         },
-        MapCycle = {
-            TimeLeft = "integer"
-        }
     }
 
-    self:AddTranslatedNotify( "UNSTICKING", MessageTypes.TimeLeft )
+    self:AddNetworkMessages( "AddTranslatedNotify", {
+        [ MessageTypes.QueuePosition ] = {
+            "QUEUE_CHANGED", "PIORITY_QUEUE_CHANGED", "QUEUE_ADDED", "PIORITY_QUEUE_ADDED",
+            "QUEUE_POSITION", "PIORITY_QUEUE_POSITION"
+        }
+    } )
 end
 
-Shine:RegisterExtension( "readyroomqueue", Plugin )
+return Plugin
