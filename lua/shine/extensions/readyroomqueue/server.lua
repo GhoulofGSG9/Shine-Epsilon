@@ -96,33 +96,24 @@ function Plugin:Enqueue( Client )
     end
 end
 
-function Plugin:UpdateQueuePositions(queue, start, message)
-    start = start or 0
+function Plugin:UpdateQueuePositions(queue, message)
     message = message or "QUEUE_CHANGED"
 
-    local offset = -1
-
-    if start == 0 then
-        queue:ResetPosition()
-    else
-        queue:SetPosition(start - 1)
-    end
-
-    local next, oldPos = queue:GetNext()
-    while next do
-        local newPos = oldPos + offset
-        local Client = Shine.GetClientByNS2ID( next )
+    local i = 1
+    for SteamId, Position in queue:Iterate() do
+        local Client = Shine.GetClientByNS2ID( SteamId )
         if Client then
-            queue:Add(next, newPos)
-            self:SendTranslatedNotify(Client, message, {
-                Position = newPos
-            })
-        else
-            queue:RemoveAtPosition()
-            offset = offset - 1
-        end
+            if Position ~= i then
+                queue:Add(SteamId, i)
+                self:SendTranslatedNotify(Client, message, {
+                    Position = i
+                })
+            end
 
-        next, oldPos = queue:GetNext()
+            i = i + 1
+        else
+            queue:Remove(SteamId)
+        end
     end
 end
 
@@ -134,14 +125,19 @@ function Plugin:Dequeue( Client )
     local position = self.PlayerQueue:Remove(SteamID)
     if not position then return false end
 
-    self:UpdateQueuePositions(self.PlayerQueue, position)
+    self:UpdateQueuePositions(self.PlayerQueue)
 
     position = self.ReservedQueue:Remove(SteamID)
     if position then
-        self:UpdateQueuePositions(self.ReservedQueue, position)
+        self:UpdateQueuePositions(self.ReservedQueue, "PIORITY_QUEUE_CHANGED")
     end
 
     return true
+end
+
+function Plugin.GetFirst(Queue)
+    Queue:ResetPosition()
+    return Queue:GetNext()
 end
 
 function Plugin:PopReserved()
@@ -150,33 +146,36 @@ function Plugin:PopReserved()
         return
     end
 
-    local First = self.ReservedQueue:RemoveAtPosition(1)
+    local First = self.GetFirst(self.ReservedQueue)
     if not First then return end --empty queue
 
     local Client = Shine.GetClientByNS2ID( First )
     assert(Client)
 
     local Player = Client:GetControllingPlayer()
-    if not Gamerules:GetCanJoinPlayingTeam(Player, true) then
-        self.ReservedQueue:Add(First, 1)
+    if not Player or Gamerules:GetCanJoinPlayingTeam(Player, true) then
         return false
     end
 
-    Gamerules:JoinTeam(Player, kTeamReadyRoom )
+    if not Gamerules:JoinTeam(Player, kTeamReadyRoom ) then
+        return false
+    end
+
+    self.ReservedQueue:Remove(First)
     self:NotifyTranslated( Client, "QUEUE_LEAVE" )
 
-    self:UpdateQueuePositions(self.ReservedQueue)
+    self:UpdateQueuePositions(self.ReservedQueue, "PIORITY_QUEUE_CHANGED")
+
     return true
 end
 
 function Plugin:Pop()
     local Gamerules = GetGamerules()
     if not Gamerules then -- abort mission
-        -- Todo Print error
         return
     end
 
-    local First = self.PlayerQueue:RemoveAtPosition(1)
+    local First = self.GetFirst(self.PlayerQueue)
     if not First then return end --empty queue
 
     local Client = Shine.GetClientByNS2ID( First )
@@ -185,17 +184,18 @@ function Plugin:Pop()
     local Player = Client:GetControllingPlayer()
 
     if not Gamerules:GetCanJoinPlayingTeam(Player, true) then
-        self.PlayerQueue:Add(First, 1)
-
-        self:PopReserved()
-
-        return true
+        return self:PopReserved()
     end
 
-    Gamerules:JoinTeam(Player, kTeamReadyRoom )
+    if not Gamerules:JoinTeam(Player, kTeamReadyRoom) then
+        return false
+    end
+
+    self.PlayerQueue:Remove(First)
     self:NotifyTranslated( Client, "QUEUE_LEAVE" )
 
     self:UpdateQueuePositions(self.PlayerQueue)
+
     return true
 end
 
@@ -206,9 +206,9 @@ function Plugin:PrintQueue(Client)
 
     for SteamId, Position in self.PlayerQueue:Iterate() do
         local ClientName = "Unknown"
-        local Client = Shine.GetClientByNS2ID(SteamId)
-        if Client then
-            ClientName = Shine.GetClientName(Client)
+        local QueuedClient = Shine.GetClientByNS2ID(SteamId)
+        if QueuedClient then
+            ClientName = Shine.GetClientName(QueuedClient)
         end
 
         Message[#Message + 1] = string.format("%d - %s[%d]", Position, ClientName, SteamId)
@@ -218,9 +218,9 @@ function Plugin:PrintQueue(Client)
 
     for SteamId, Position in self.ReservedQueue:Iterate() do
         local ClientName = "Unknown"
-        local Client = Shine.GetClientByNS2ID(SteamId)
-        if Client then
-            ClientName = Shine.GetClientName(Client)
+        local QueuedClient = Shine.GetClientByNS2ID(SteamId)
+        if QueuedClient then
+            ClientName = Shine.GetClientName(QueuedClient)
         end
 
         Message[#Message + 1] = string.format("%d - %s[%d]", Position, ClientName, SteamId)
