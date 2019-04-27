@@ -16,7 +16,7 @@ function Plugin:SetupDataTable()
     self:AddNetworkMessages( "AddTranslatedNotify", {
         [ MessageTypes.QueuePosition ] = {
             "QUEUE_CHANGED", "PIORITY_QUEUE_CHANGED", "QUEUE_ADDED", "PIORITY_QUEUE_ADDED",
-            "QUEUE_POSITION", "PIORITY_QUEUE_POSITION"
+            "QUEUE_POSITION", "PIORITY_QUEUE_POSITION", "QUEUE_INFORM",
         }
     } )
 end

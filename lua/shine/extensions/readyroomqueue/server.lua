@@ -1,5 +1,3 @@
-local Shine = Shine
-
 local Notify = Shared.Message
 
 local TableConcat = table.concat
@@ -30,6 +28,8 @@ function Plugin:OnFirstThink()
 
         return result
     end )
+
+    Shine.Hook.SetupClassHook( "NS2Gamerules", "UpdateToReadyRoom", "OnUpdateToReadyRoom", "Halt")
 end
 
 function Plugin:ClientDisconnect( Client )
@@ -52,16 +52,56 @@ function Plugin:OnGetCanJoinPlayingTeam( _, Player, Allowed)
     end
 end
 
+-- Fix that spectators are moved into the RR at round end
+function Plugin:OnUpdateToReadyRoom(Gamerules, Force)
+    local state = Gamerules:GetGameState()
+    if(state == kGameState.Team1Won or state == kGameState.Team2Won or state == kGameState.Draw) and not GetConcedeSequenceActive() then
+        if Force or Gamerules.timeSinceGameStateChanged >= 8 then
+            -- Force the commanders to logout before we spawn people
+            -- in the ready room
+            Gamerules:LogoutCommanders()
+
+            -- Set all players to ready room team
+            local function SetReadyRoomTeam(player)
+                if player:GetIsSpectator() then return end
+
+                player:SetCameraDistance(0)
+                Gamerules:JoinTeam(player, kTeamReadyRoom)
+            end
+            Server.ForAllPlayers(SetReadyRoomTeam)
+
+            -- Spawn them there and reset teams
+            Gamerules:ResetGame()
+        end
+
+    end
+end
+
 function Plugin:GetQueuePosition(Client)
     local SteamId = Client:GetUserId()
 
     return self.PlayerQueue:Get(SteamId)
 end
 
-function Plugin:PostJoinTeam( _, _, _, NewTeam)
+function Plugin:PostJoinTeam( Gamerules, Player, _, NewTeam)
     if NewTeam ~= kSpectatorIndex then return end
 
+    local SteamId = Player:GetSteamId()
+    if SteamId and self.HistoricPlayers:Contains(SteamId) then
+        Print("Removing historic entry for %s", SteamId)
+        self.HistoricPlayers:Remove(SteamId)
+    end
+
     self:Pop()
+
+    if not Gamerules:GetCanJoinPlayingTeam(Player, true) then
+        local Client = Player:GetClient()
+        if Client then
+            self:SendTranslatedNotify(Client, "QUEUE_INFORM", {
+                Position = self.PlayerQueue:GetCount()
+            })
+        end
+    end
 end
 
 function Plugin:Enqueue( Client )
@@ -161,6 +201,8 @@ function Plugin:PopReserved()
         return false
     end
 
+    Player:SetCameraDistance(0)
+
     self.ReservedQueue:Remove(First)
     self:NotifyTranslated( Client, "QUEUE_LEAVE" )
 
@@ -190,6 +232,8 @@ function Plugin:Pop()
     if not Gamerules:JoinTeam(Player, kTeamReadyRoom) then
         return false
     end
+
+    Player:SetCameraDistance(0)
 
     self.PlayerQueue:Remove(First)
     self:NotifyTranslated( Client, "QUEUE_LEAVE" )
