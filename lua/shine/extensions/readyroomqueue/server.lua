@@ -326,10 +326,13 @@ function Plugin:Pop()
 end
 
 function Plugin:PrintQueue( Client )
-    local Message = {
-        "Player Slot Queue:"
-    }
+    local Message = {}
 
+    if self.PlayerQueue:GetCount() == 0 then
+        Message[1] = "Player Slot Queue is currently empty."
+    else
+
+        Message[#Message + 1] = "Player Slot Queue:"
         for SteamId, Position in self.PlayerQueue:Iterate() do
             local ClientName = "Unknown"
             local QueuedClient = Shine.GetClientByNS2ID( SteamId )
@@ -340,6 +343,7 @@ function Plugin:PrintQueue( Client )
             Message[#Message + 1] = string.format("%d - %s[%d]", Position, ClientName, SteamId)
         end
 
+        if self.ReservedQueue:GetCount() > 0 then
             Message[#Message + 1] = "\n Reserved Slot Queue:"
 
             for SteamId, Position in self.ReservedQueue:Iterate() do
@@ -351,6 +355,9 @@ function Plugin:PrintQueue( Client )
 
                 Message[#Message + 1] = string.format("%d - %s[%d]", Position, ClientName, SteamId)
             end
+        end
+
+    end
 
     if not Client then
         Notify( TableConcat( Message, "\n" ) )
