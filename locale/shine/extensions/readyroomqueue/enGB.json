@@ -10,5 +10,6 @@
   "DEQUEUE_SUCCESS": "You left the players slot queue!",
   "QUEUE_LEAVE": "A player slot became available. You now get moved to the Ready Room! Thanks for waiting.",
   "ENQUEUE_ERROR_PLAYER": "Only spectators can queue for a player slot!",
-  "QUEUE_INFORM": "If you want to play please press F4 or enter !rr_enqueue into the chat. Currently {Position} player are waiting for a player slot!"
+  "QUEUE_INFORM": "If you want to play please press F4 or enter !rr_enqueue into the chat. Currently {Position} player are waiting for a player slot!",
+  "QUEUE_WELCOME_BACK": "Welcome back! We restored your previous player slot queue position ({Position}). To leave the queue enter !rr_dequeue into the chat."
 }
