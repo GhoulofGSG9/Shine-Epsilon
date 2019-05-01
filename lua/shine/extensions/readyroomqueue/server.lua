@@ -9,6 +9,7 @@ Plugin.HasConfig = true
 
 Plugin.ConfigName = "ReadRoomQueue.json"
 Plugin.DefaultConfig = {
+    RestoreQueueAfterMapchange = true,
     QueuePositionMaxReservationTime = 300, -- how long we reserve a queue position after a map change.
     QueueHistoryLifeTime = 300 -- max amount of time the queue history is preserved after a mapchange. Increase/decrease this value based on server loading time
 }
@@ -31,8 +32,11 @@ function Plugin:Initialise()
 end
 
 function Plugin:LoadQueueHistory()
-    local QueueHistory = Shine.LoadJSONFile( self.QueueHistoryFile ) or {}
     self.HistoricPlayers = Shine.Set()
+
+    if not self.Config.RestoreQueueAfterMapchange then return end
+
+    local QueueHistory = Shine.LoadJSONFile( self.QueueHistoryFile ) or {}
 
     local now = Shared.GetSystemTime()
 
@@ -411,6 +415,8 @@ function Plugin:CreateCommands()
 end
 
 function Plugin:MapChange()
+    if not self.Config.RestoreQueueAfterMapchange then return end
+    
     self:SaveQueueHistory()
 end
 
