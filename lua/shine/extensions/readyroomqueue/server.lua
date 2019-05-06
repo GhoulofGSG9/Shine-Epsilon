@@ -24,6 +24,8 @@ function Plugin:Initialise()
     self.PlayerQueue = Shine.Map()
     self.ReservedQueue = Shine.Map() -- for players with reserved slots
 
+    self.ConnectionChecked = {}
+
     self:LoadQueueHistory()
 
     self:CreateCommands()
@@ -79,19 +81,70 @@ function Plugin:SaveQueueHistory()
     Shine.SaveJSONFile( QueueHistory, self.QueueHistoryFile )
 end
 
-
 function Plugin:OnFirstThink()
-    Shine.Hook.SetupClassHook( "Gamerules", "GetCanJoinPlayingTeam", "OnGetCanJoinPlayingTeam", function( OldFunc, self, player, skipHook )
-        local result = OldFunc( self, player )
+    Shine.Hook.SetupClassHook( "Gamerules", "GetCanJoinPlayingTeam", "OnGetCanJoinPlayingTeam", function(OldFunc, gamerules, player, skipHook )
+        local result = OldFunc( gamerules, player )
 
         if not skipHook then
-            Shine.Hook.Call( "OnGetCanJoinPlayingTeam", self, player, result )
+            Shine.Hook.Call( "OnGetCanJoinPlayingTeam", gamerules, player, result )
         end
 
         return result
     end )
 
     Shine.Hook.SetupClassHook( "NS2Gamerules", "UpdateToReadyRoom", "OnUpdateToReadyRoom", "Halt")
+
+    Shine.Hook.SetupClassHook( "Server", "GetNumPlayersTotal", "GetNumPlayersTotal", "ActivePre")
+    Shine.Hook.SetupClassHook( "Server", "GetNumSpectators", "GetNumSpectators", "ActivePre")
+end
+
+function Plugin:CheckConnectionAllowed(SteamId)
+    self.ConnectionChecked[SteamId] = true
+end
+
+function Plugin:ClientConnect(Client)
+    local SteamId = Client:GetUserId()
+    if not self.ConnectionChecked[SteamId] then
+        Shared.Message("Warning: %s bypassed the CheckConnectionAllowed event", Shine.GetClientInfo(Client))
+
+        if Client:GetIsSpectator() then return end
+
+        local numPlayers = Server.GetNumPlayersTotal() - 1
+        local maxPlayers = Server.GetMaxPlayers()
+        local numRes = Server.GetReservedSlotLimit()
+
+        local Player = Client:GetControllingPlayer()
+
+        --check for free reserved slots
+        if GetHasReservedSlotAccess(SteamId) and numPlayers > maxPlayers then
+            if Player then
+                Player:SetIsSpectator(true)
+            else
+                Client:SetIsSpectator(true)
+            end
+
+            return
+        end
+
+        --check for free player slots
+        if numPlayers > (maxPlayers - numRes) then
+            if Player then
+                Player:SetIsSpectator(true)
+            else
+                Client:SetIsSpectator(true)
+            end
+        end
+    end
+
+    self.ConnectionChecked[SteamId] = nil
+end
+
+function Plugin:GetNumSpectators()
+    return #GetEntitiesForTeam( "Player", kSpectatorIndex )
+end
+
+function Plugin:GetNumPlayersTotal()
+    return Server.GetNumClientsTotal() - self:GetNumSpectators()
 end
 
 function Plugin:ClientDisconnect( Client )
