@@ -103,6 +103,8 @@ function Plugin:ClientDisconnect( Client )
         Client:SetIsSpectator(true)
         self:Pop()
     end
+
+    Client:SetIsSpectator(false) -- make sure we don't end up with clients not getting cleared from the spectator list
 end
 
 function Plugin:OnGetCanJoinPlayingTeam( _, Player, Allowed)
@@ -266,7 +268,7 @@ function Plugin:GetFirstClient( Queue )
         if not self.HistoricPlayers:Contains( SteamId ) then
             local QueuedClient = Shine.GetClientByNS2ID( SteamId )
             if QueuedClient then
-                return QueuedClient
+                return QueuedClient, SteamId
             end
         end
     end
@@ -278,24 +280,24 @@ function Plugin:PopReserved()
         return
     end
 
-    local First = self:GetFirstClient(self.ReservedQueue)
+    local First, SteamId = self:GetFirstClient( self.ReservedQueue )
     if not First then return end --empty queue
 
-    local Player = Client:GetControllingPlayer()
-    if not Player or Gamerules:GetCanJoinPlayingTeam(Player, true) then
+    local Player = First:GetControllingPlayer()
+    if not Player or Gamerules:GetCanJoinPlayingTeam( Player, true ) then
         return false
     end
 
-    if not Gamerules:JoinTeam(Player, kTeamReadyRoom ) then
+    if not Gamerules:JoinTeam( Player, kTeamReadyRoom ) then
         return false
     end
 
     Player:SetCameraDistance(0)
 
-    self.ReservedQueue:Remove(First)
-    self:NotifyTranslated( Client, "QUEUE_LEAVE" )
+    self.ReservedQueue:Remove( SteamId )
+    self:NotifyTranslated( First, "QUEUE_LEAVE" )
 
-    self:UpdateQueuePositions(self.ReservedQueue, "PIORITY_QUEUE_CHANGED")
+    self:UpdateQueuePositions( self.ReservedQueue, "PIORITY_QUEUE_CHANGED" )
 
     return true
 end
@@ -306,25 +308,25 @@ function Plugin:Pop()
         return
     end
 
-    local First = self:GetFirstClient(self.PlayerQueue)
+    local First, SteamId = self:GetFirstClient( self.PlayerQueue )
     if not First then return end --empty queue
 
-    local Player = Client:GetControllingPlayer()
+    local Player = First:GetControllingPlayer()
 
     if not Gamerules:GetCanJoinPlayingTeam(Player, true) then
         return self:PopReserved()
     end
 
-    if not Gamerules:JoinTeam(Player, kTeamReadyRoom) then
+    if not Gamerules:JoinTeam( Player, kTeamReadyRoom ) then
         return false
     end
 
     Player:SetCameraDistance(0)
 
-    self.PlayerQueue:Remove(First)
-    self:NotifyTranslated( Client, "QUEUE_LEAVE" )
+    self.PlayerQueue:Remove( SteamId )
+    self:NotifyTranslated( First, "QUEUE_LEAVE" )
 
-    self:UpdateQueuePositions(self.PlayerQueue)
+    self:UpdateQueuePositions( self.PlayerQueue )
 
     return true
 end
@@ -395,23 +397,42 @@ function Plugin:CreateCommands()
     Dequeue:Help("Leave the player slot queue")
 
     local function DisplayPosition( Client )
-        local position = self:GetQueuePosition(Client)
+        local position = self:GetQueuePosition( Client )
         if not position then
             self:NotifyTranslatedError( Client, "QUEUE_POSITION_UNKNOWN")
             return
         end
 
-        self:SendTranslatedNotify(Client, "QUEUE_POSITION", {
+        self:SendTranslatedNotify( Client, "QUEUE_POSITION", {
             Position = position
         })
     end
     local Position = self:BindCommand( "sh_rr_position", "rr_position", DisplayPosition, true )
     Position:Help("Returns your current position in the player slot queue")
 
-    local function PrintQueue(Client)
-        self:PrintQueue(Client)
+    local function PrintQueue( Client )
+        self:PrintQueue( Client )
     end
-    local Print = self:BindCommand( "sh_rr_printqueue", nil , PrintQueue, true )
+    self:BindCommand( "sh_rr_printqueue", nil , PrintQueue, true )
+
+    local function ListClients( Client )
+        local Message = {}
+
+        local Clients, Count = Shine.GetAllClients()
+        for i = 1, Count do
+            local client = Clients[ i ]
+            Message[#Message + 1] = string.format("%s - %s", Shine.GetClientInfo(client), client:GetIsSpectator())
+        end
+
+        if not Client then
+            Notify( TableConcat( Message, "\n" ) )
+        else
+            for i = 1, #Message do
+                ServerAdminPrint( Client, Message[ i ] )
+            end
+        end
+    end
+    self:BindCommand( "sh_rr_listclients", nil , ListClients, true )
 end
 
 function Plugin:MapChange()
