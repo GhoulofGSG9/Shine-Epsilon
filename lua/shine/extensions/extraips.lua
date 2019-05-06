@@ -74,7 +74,7 @@ function Plugin:GetTechPoint(Team)
 end
 
 function Plugin:OnAddPlayer(Team)
-    if Team.spawnedInfantryPortal < 1 then return end
+    if not Team.spawnedInfantryPortal or Team.spawnedInfantryPortal < 1 then return end
 
     local MinPlayers = self.Config.MinPlayers
     local _, PlayerCount = Shine.GetAllPlayers()
