@@ -24,7 +24,7 @@ function Plugin:Initialise()
     self.PlayerQueue = Shine.Map()
     self.ReservedQueue = Shine.Map() -- for players with reserved slots
 
-    self.ConnectionChecked = {}
+    self.connectionChecked = {}
 
     self:LoadQueueHistory()
 
@@ -93,58 +93,34 @@ function Plugin:OnFirstThink()
     end )
 
     Shine.Hook.SetupClassHook( "NS2Gamerules", "UpdateToReadyRoom", "OnUpdateToReadyRoom", "Halt")
-
-    Shine.Hook.SetupClassHook( "Server", "GetNumPlayersTotal", "GetNumPlayersTotal", "ActivePre")
-    Shine.Hook.SetupClassHook( "Server", "GetNumSpectators", "GetNumSpectators", "ActivePre")
 end
 
-function Plugin:CheckConnectionAllowed(SteamId)
-    self.ConnectionChecked[SteamId] = true
-end
-
-function Plugin:ClientConnect(Client)
-    local SteamId = Client:GetUserId()
-    if not self.ConnectionChecked[SteamId] then
-        Shared.Message("Warning: %s bypassed the CheckConnectionAllowed event", Shine.GetClientInfo(Client))
-
-        if Client:GetIsSpectator() then return end
-
-        local numPlayers = Server.GetNumPlayersTotal() - 1
-        local maxPlayers = Server.GetMaxPlayers()
-        local numRes = Server.GetReservedSlotLimit()
-
-        local Player = Client:GetControllingPlayer()
-
-        --check for free reserved slots
-        if GetHasReservedSlotAccess(SteamId) and numPlayers > maxPlayers then
-            if Player then
-                Player:SetIsSpectator(true)
-            else
-                Client:SetIsSpectator(true)
-            end
-
-            return
-        end
-
-        --check for free player slots
-        if numPlayers > (maxPlayers - numRes) then
-            if Player then
-                Player:SetIsSpectator(true)
-            else
-                Client:SetIsSpectator(true)
-            end
-        end
+function Plugin:ClientConnect( Client )
+    local steamID = Client:GetUserId()
+    if self.connectionChecked[ steamID ] then
+        return
     end
 
-    self.ConnectionChecked[SteamId] = nil
+    self.connectionChecked[ steamID ] = nil
+
+    self:Print("%s skipped connection check! Moving to spectator team.", Shine.GetClientInfo( Client ))
+
+    local Gamerules = GetGamerules()
+    if not Gamerules then -- abort mission
+        return
+    end
+
+    local Player = Client:GetControllingPlayer()
+    if not Player then
+        Client:SetIsSpectator( true )
+        return
+    end
+
+    Gamerules:JoinTeam( Player, kSpectatorIndex )
 end
 
-function Plugin:GetNumSpectators()
-    return #GetEntitiesForTeam( "Player", kSpectatorIndex )
-end
-
-function Plugin:GetNumPlayersTotal()
-    return Server.GetNumClientsTotal() - self:GetNumSpectators()
+function Plugin:CheckConnectionAllowed( ID )
+    self.connectionChecked[ ID ] = true
 end
 
 function Plugin:ClientDisconnect( Client )
@@ -160,7 +136,7 @@ function Plugin:ClientDisconnect( Client )
     Client:SetIsSpectator(false) -- make sure we don't end up with clients not getting cleared from the spectator list
 end
 
-function Plugin:OnGetCanJoinPlayingTeam( _, Player, Allowed)
+function Plugin:OnGetCanJoinPlayingTeam( _, Player, Allowed )
     if not Allowed and Player:GetIsSpectator() then
         local Client = Player:GetClient()
         if Client then
@@ -170,22 +146,22 @@ function Plugin:OnGetCanJoinPlayingTeam( _, Player, Allowed)
 end
 
 -- Fix that spectators are moved into the RR at round end
-function Plugin:OnUpdateToReadyRoom(Gamerules, Force)
+function Plugin:OnUpdateToReadyRoom( Gamerules, Force )
     local state = Gamerules:GetGameState()
-    if(state == kGameState.Team1Won or state == kGameState.Team2Won or state == kGameState.Draw) and not GetConcedeSequenceActive() then
+    if (state == kGameState.Team1Won or state == kGameState.Team2Won or state == kGameState.Draw) and not GetConcedeSequenceActive() then
         if Force or Gamerules.timeSinceGameStateChanged >= 8 then
             -- Force the commanders to logout before we spawn people
             -- in the ready room
             Gamerules:LogoutCommanders()
 
             -- Set all players to ready room team
-            local function SetReadyRoomTeam(player)
+            local function SetReadyRoomTeam( player )
                 if player:GetIsSpectator() then return end
 
                 player:SetCameraDistance(0)
-                Gamerules:JoinTeam(player, kTeamReadyRoom)
+                Gamerules:JoinTeam( player, kTeamReadyRoom )
             end
-            Server.ForAllPlayers(SetReadyRoomTeam)
+            Server.ForAllPlayers( SetReadyRoomTeam )
 
             -- Spawn them there and reset teams
             Gamerules:ResetGame()
@@ -220,7 +196,7 @@ function Plugin:PostJoinTeam( Gamerules, Player, _, NewTeam)
 
     self:Pop()
 
-    if not Gamerules:GetCanJoinPlayingTeam(Player, true) then
+    if not self:GetCanJoinPlayingTeam( Player ) then
         local Client = Player:GetClient()
         if Client then
             if position == 0 then
@@ -269,7 +245,7 @@ function Plugin:Enqueue( Client )
     end
 end
 
-function Plugin:UpdateQueuePositions(Queue, Message)
+function Plugin:UpdateQueuePositions( Queue, Message )
     Message = Message or "QUEUE_CHANGED"
 
     local i = 1
@@ -286,7 +262,7 @@ function Plugin:UpdateQueuePositions(Queue, Message)
             i = i + 1
 
         -- Historic player entry
-        elseif self.HistoricPlayers:Contains(SteamId) then
+        elseif self.HistoricPlayers:Contains( SteamId ) then
 
             Queue:Add( SteamId, i )
             i = i + 1
@@ -337,7 +313,7 @@ function Plugin:PopReserved()
     if not First then return end --empty queue
 
     local Player = First:GetControllingPlayer()
-    if not Player or Gamerules:GetCanJoinPlayingTeam( Player, true ) then
+    if not Player or Gamerules:GetCanJoinPlayingTeam( Player ) then
         return false
     end
 
@@ -355,6 +331,31 @@ function Plugin:PopReserved()
     return true
 end
 
+-- Confirm we don't end up with too many player due to bugged spectator counter
+function Plugin:GetCanJoinPlayingTeam( Player )
+    if not Player:GetIsSpectator() then return true end
+
+    local Gamerules = GetGamerules()
+    if not Gamerules then
+        return false
+    end
+
+    local numPlayer = 0
+    local numSpectator = 0
+    local GameIDs = Shine.GameIDs
+    for Client in GameIDs:Iterate() do
+        if not Client:GetIsSpectator() then
+            numPlayer = numPlayer + 1
+        else
+            numSpectator = numSpectator + 1
+        end
+    end
+
+    if numPlayer >= Server.GetMaxPlayers() then return false end
+
+    return Gamerules:GetCanJoinPlayingTeam( Player, true )
+end
+
 function Plugin:Pop()
     local Gamerules = GetGamerules()
     if not Gamerules then -- abort mission
@@ -366,7 +367,7 @@ function Plugin:Pop()
 
     local Player = First:GetControllingPlayer()
 
-    if not Gamerules:GetCanJoinPlayingTeam(Player, true) then
+    if not self:GetCanJoinPlayingTeam( Player ) then
         return self:PopReserved()
     end
 
@@ -496,5 +497,7 @@ end
 
 function Plugin:Cleanup()
     self.BaseClass.Cleanup( self )
+
+    self.connectionChecked = nil
     self.Enabled = false
 end
