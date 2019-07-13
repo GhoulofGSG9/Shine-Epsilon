@@ -214,7 +214,7 @@ end
 
 function Plugin:Enqueue( Client )
     if not Client:GetIsSpectator() then
-        self:NotifyTranslatedError("ENQUEUE_ERROR_PLAYER")
+        self:NotifyTranslatedError(Client, "ENQUEUE_ERROR_PLAYER")
     end
 
     local SteamID = Client:GetUserId()
