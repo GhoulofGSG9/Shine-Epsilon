@@ -11,26 +11,28 @@ Plugin.HasConfig = true
 Plugin.ConfigName = "ExtraIps.json"
 Plugin.DefaultConfig =
 {
-	MinPlayers = { 18, 26 }
+    MinPlayers = { 18, 26 }
 }
 Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
 
 function Plugin:Initialise()
-	local Gamemode = Shine.GetGamemode()
-	if Gamemode ~= "ns2" and Gamemode ~= "mvm" then        
-		return false, StringFormat( "The ExtraIps plugin does not work with %s.", Gamemode )
-	end
+    local Gamemode = Shine.GetGamemode()
+    if Gamemode ~= "ns2" and Gamemode ~= "mvm" then
+        return false, StringFormat( "The ExtraIps plugin does not work with %s.", Gamemode )
+    end
 
-	self.Enabled = true
+    self.spawnedInfantryPortal = 0
 
-	return true
+    self.Enabled = true
+
+    return true
 end
 
 function Plugin:OnFirstThink()
-	Shine.Hook.SetupClassHook( "MarineTeam", "SpawnInitialStructures", "OnSpawnInitialStructures", "PassivePost")
-	Shine.Hook.SetupClassHook( "MarineTeam", "SpawnInfantryPortal", "OnSpawnInfantryPortal", "ActivePre")
-	Shine.Hook.SetupClassHook( "MarineTeam", "AddPlayer", "OnAddPlayer", "PassivePost")
+    Shine.Hook.SetupClassHook( "MarineTeam", "SpawnInitialStructures", "OnSpawnInitialStructures", "PassivePost")
+    Shine.Hook.SetupClassHook( "MarineTeam", "SpawnInfantryPortal", "OnSpawnInfantryPortal", "ActivePre")
+    Shine.Hook.SetupClassHook( "MarineTeam", "AddPlayer", "OnAddPlayer", "PassivePost")
 end
 
 function Plugin:OnSpawnInfantryPortal(Team, _, Force)
@@ -39,7 +41,6 @@ end
 
 function Plugin:SpawnInfantryPortal(Team, TechPoint, IPIndex)
     if IPIndex <= self.spawnedInfantryPortal then return end
-
     Team:SpawnInfantryPortal(TechPoint, true)
     self.spawnedInfantryPortal = self.spawnedInfantryPortal + 1
 end
@@ -90,14 +91,14 @@ end
 function Plugin:OnSpawnInitialStructures( Team, TechPoint)
     self.spawnedInfantryPortal = 0
 
-	local MinPlayers = self.Config.MinPlayers
-	local _, PlayerCount = Shine.GetAllPlayers()
-	
-	for i = 1, #MinPlayers do
-		if PlayerCount >= MinPlayers[i] then 
-			self:SpawnInfantryPortal(Team, TechPoint, i)
-		end
-	end
+    local MinPlayers = self.Config.MinPlayers
+    local _, PlayerCount = Shine.GetAllPlayers()
+
+    for i = 1, #MinPlayers do
+        if PlayerCount >= MinPlayers[i] then
+            self:SpawnInfantryPortal(Team, TechPoint, i)
+        end
+    end
 end
 
 return Plugin
