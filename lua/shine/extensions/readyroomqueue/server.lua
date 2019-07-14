@@ -96,6 +96,10 @@ function Plugin:OnFirstThink()
 end
 
 function Plugin:ClientConnect( Client )
+    if not Client or Client:GetIsVirtual() then -- ignore bots
+        return
+    end
+
     local steamID = Client:GetUserId()
     if self.connectionChecked[ steamID ] then
         self.connectionChecked[ steamID ] = nil
