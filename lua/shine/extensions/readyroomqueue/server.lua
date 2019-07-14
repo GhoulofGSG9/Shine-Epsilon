@@ -98,12 +98,11 @@ end
 function Plugin:ClientConnect( Client )
     local steamID = Client:GetUserId()
     if self.connectionChecked[ steamID ] then
+        self.connectionChecked[ steamID ] = nil
         return
     end
 
-    self.connectionChecked[ steamID ] = nil
-
-    self:Print("%s skipped connection check! Moving to spectator team.", Shine.GetClientInfo( Client ))
+    self:Print("%s skipped connection check! Moving to spectator team.", true, Shine.GetClientInfo( Client ))
 
     local Gamerules = GetGamerules()
     if not Gamerules then -- abort mission
