@@ -24,8 +24,6 @@ function Plugin:Initialise()
     self.PlayerQueue = Shine.Map()
     self.ReservedQueue = Shine.Map() -- for players with reserved slots
 
-    self.connectionChecked = {}
-
     self:LoadQueueHistory()
 
     self:CreateCommands()
@@ -96,34 +94,32 @@ function Plugin:OnFirstThink()
 end
 
 function Plugin:ClientConnect( Client )
-    if not Client or Client:GetIsVirtual() then -- ignore bots
+    if not Client or Client:GetIsVirtual() or Client:GetIsSpectator() then -- ignore bots and spectators
         return
     end
 
-    local steamID = Client:GetUserId()
-    if self.connectionChecked[ steamID ] then
-        self.connectionChecked[ steamID ] = nil
+    local Player = Client:GetControllingPlayer()
+    if not Player then
         return
     end
-
-    self:Print("%s skipped connection check! Moving to spectator team.", true, Shine.GetClientInfo( Client ))
 
     local Gamerules = GetGamerules()
     if not Gamerules then -- abort mission
         return
     end
 
-    local Player = Client:GetControllingPlayer()
-    if not Player then
-        Client:SetIsSpectator( true )
-        return
+    local numPlayer = 0
+    local GameIDs = Shine.GameIDs
+    for GameClient in GameIDs:Iterate() do
+        if not GameClient:GetIsSpectator() then
+            numPlayer = numPlayer + 1
+        end
     end
 
-    Gamerules:JoinTeam( Player, kSpectatorIndex )
-end
-
-function Plugin:CheckConnectionAllowed( ID )
-    self.connectionChecked[ ID ] = true
+    if numPlayer > Server.GetMaxPlayers() then
+        self:Print("Player slot overflow detected! Moving %s to spectator team.", true, Shine.GetClientInfo( Client ))
+        Gamerules:JoinTeam( Player, kSpectatorIndex )
+    end
 end
 
 function Plugin:ClientDisconnect( Client )
@@ -179,7 +175,7 @@ function Plugin:GetQueuePosition(Client)
     return self.PlayerQueue:Get(SteamId)
 end
 
-function Plugin:PostJoinTeam( Gamerules, Player, _, NewTeam)
+function Plugin:PostJoinTeam( _, Player, _, NewTeam)
     if NewTeam ~= kSpectatorIndex then
 
         -- Make sure clients don't stay in the queue if they get moved to a playing slot
@@ -344,13 +340,10 @@ function Plugin:GetCanJoinPlayingTeam( Player )
     end
 
     local numPlayer = 0
-    local numSpectator = 0
     local GameIDs = Shine.GameIDs
     for Client in GameIDs:Iterate() do
         if not Client:GetIsSpectator() then
             numPlayer = numPlayer + 1
-        else
-            numSpectator = numSpectator + 1
         end
     end
 
