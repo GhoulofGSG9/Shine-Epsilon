@@ -93,35 +93,6 @@ function Plugin:OnFirstThink()
     Shine.Hook.SetupClassHook( "NS2Gamerules", "UpdateToReadyRoom", "OnUpdateToReadyRoom", "Halt")
 end
 
-function Plugin:ClientConnect( Client )
-    if not Client or Client:GetIsVirtual() or Client:GetIsSpectator() then -- ignore bots and spectators
-        return
-    end
-
-    local Player = Client:GetControllingPlayer()
-    if not Player then
-        return
-    end
-
-    local Gamerules = GetGamerules()
-    if not Gamerules then -- abort mission
-        return
-    end
-
-    local numPlayer = 0
-    local GameIDs = Shine.GameIDs
-    for GameClient in GameIDs:Iterate() do
-        if not GameClient:GetIsSpectator() then
-            numPlayer = numPlayer + 1
-        end
-    end
-
-    if numPlayer > Server.GetMaxPlayers() then
-        self:Print("Player slot overflow detected! Moving %s to spectator team.", true, Shine.GetClientInfo( Client ))
-        Gamerules:JoinTeam( Player, kSpectatorIndex )
-    end
-end
-
 function Plugin:ClientDisconnect( Client )
     if not Client or Client:GetIsVirtual() then return end
 
