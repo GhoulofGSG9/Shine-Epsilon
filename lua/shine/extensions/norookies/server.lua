@@ -61,8 +61,8 @@ function Plugin:Initialise()
 end
 
 function Plugin:OnFirstThink()
-	if self.Config.BlockTeams and Server.DisableQuickPlay then
-		self:Print("Tagging Server as incompatible to the quickplay queue because norookies is not supported by it.")
+	if Server.DisableQuickPlay and self.Config.BlockTeams and self.Config.MinPlaytime > 0 then
+		self:Print("Tagging Server as incompatible to the quickplay queue because a playtime restriction is not supported by it.")
 		Server.DisableQuickPlay()
 	end
 end
@@ -88,8 +88,9 @@ function Plugin:EndGame()
 	Enabled = true
 end
 
-function Plugin:CheckCommLogin( _, Player )
-	if not self.Config.BlockCC or not Player or not Player.GetClient or Shine.GetHumanPlayerCount() < self.Config.MinPlayerCom then return end
+function Plugin:ValidateCommanderLogin( _, _, Player )
+	if not self.Config.BlockCC or not Player
+            or not Player.GetClient or Shine.GetHumanPlayerCount() < self.Config.MinPlayerCom then return end
 
 	return self:Check( Player, true )
 end
