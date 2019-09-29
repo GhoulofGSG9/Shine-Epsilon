@@ -11,7 +11,11 @@ Plugin.ConfigName = "ReadRoomQueue.json"
 Plugin.DefaultConfig = {
     RestoreQueueAfterMapchange = true,
     QueuePositionMaxReservationTime = 300, -- how long we reserve a queue position after a map change.
-    QueueHistoryLifeTime = 300 -- max amount of time the queue history is preserved after a mapchange. Increase/decrease this value based on server loading time
+    QueueHistoryLifeTime = 300, -- max amount of time the queue history is preserved after a mapchange. Increase/decrease this value based on server loading time
+    VIPPlayers = {
+        Enabled = false,
+        PermissionString = "sh_vip"
+    }
 }
 Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
@@ -21,6 +25,8 @@ Plugin.QueueHistoryFile = "config://shine/temp/rr_queue_history.json"
 function Plugin:Initialise()
     self.Enabled = true
 
+    -- Using Map instead of Set because Set doesn't provide any easy way to get a value's current position
+    -- and Queue doesn't allow to insert at a specific position without iterating over the all elements
     self.PlayerQueue = Shine.Map()
     self.ReservedQueue = Shine.Map() -- for players with reserved slots
 
@@ -48,7 +54,7 @@ function Plugin:LoadQueueHistory()
     if QueueHistory.PlayerQueue then
         for i = 1, #QueueHistory.PlayerQueue do
             local SteamId = QueueHistory.PlayerQueue[i]
-            self.PlayerQueue:Add( SteamId, i )
+            self:InsertIntoQueue(self.PlayerQueue, SteamId, i )
             self.HistoricPlayers:Add( SteamId )
         end
     end
@@ -56,7 +62,7 @@ function Plugin:LoadQueueHistory()
     if QueueHistory.ReservedQueue then
         for i = 1, #QueueHistory.ReservedQueue do
             local SteamId = QueueHistory.ReservedQueue[i]
-            self.ReservedQueue:Add(SteamId, i)
+            self:InsertIntoQueue(self.ReservedQueue, SteamId, i )
         end
     end
 
@@ -139,14 +145,13 @@ function Plugin:OnUpdateToReadyRoom( Gamerules, Force )
 
     end
 end
-
-function Plugin:GetQueuePosition(Client)
+function Plugin:GetQueuePosition( Client )
     local SteamId = Client:GetUserId()
 
     return self.PlayerQueue:Get(SteamId)
 end
 
-function Plugin:PostJoinTeam( _, Player, _, NewTeam)
+function Plugin:PostJoinTeam( _, Player, _, NewTeam )
     if NewTeam ~= kSpectatorIndex then
 
         -- Make sure clients don't stay in the queue if they get moved to a playing slot
@@ -182,6 +187,54 @@ function Plugin:PostJoinTeam( _, Player, _, NewTeam)
     end
 end
 
+-- Allows to insert new Key to a specific postion in the Maps Keys array
+-- Also Position is the Value to add for given key in the map
+function Plugin:InsertIntoQueue( Queue, Key, Position, UpdateMessageName )
+    if Key == nil then return end -- ensure Key is not nil
+
+    local NumMembers = Queue.NumMembers + 1
+    if Position > NumMembers then return end -- ensure we are not inserting to an invalid position
+
+    Position = Position or NumMembers -- set position to end of map if not specified otherwise
+
+    -- Key allready exists in map, abort mission!
+    if Queue.MemberLookup[ Key ] ~= nil then
+        Queue.MemberLookup[ Key ] = Position
+        return
+    end
+
+    Queue.NumMembers = NumMembers
+    table.insert(Queue.Keys, Position, Key)
+    Queue.MemberLookup[ Key ] = Position
+
+    if UpdateMessageName and Position < NumMembers then
+        self:UpdateQueuePositions(Queue, UpdateMessageName)
+    end
+end
+
+function Plugin:GetQueueInsertPosition( Queue, Client )
+    local VIPPlayersEnabled = self.Config.VIPPlayers.Enabled
+    local PermissionString = self.Config.VIPPlayers.PermissionString
+    if VIPPlayersEnabled and Shine:HasAccess(Client, PermissionString) then
+
+        local position = 1
+        for SteamID in Queue:Iterate() do
+            local c = Shine.GetClientByNS2ID(SteamID)
+            if c then
+                if Shine:HasAccess(c, PermissionString) then
+                    position = position + 1
+                else
+                    break
+                end
+            end
+        end
+
+        return position
+    end
+
+    return Queue:GetCount() + 1
+end
+
 function Plugin:Enqueue( Client )
     if not Client:GetIsSpectator() then
         self:NotifyTranslatedError(Client, "ENQUEUE_ERROR_PLAYER")
@@ -200,15 +253,15 @@ function Plugin:Enqueue( Client )
         return
     end
 
-    position = self.PlayerQueue:GetCount() + 1
-    self.PlayerQueue:Add(SteamID, position)
+    position = self:GetQueueInsertPosition(self.PlayerQueue, Client)
+    self:InsertIntoQueue(self.PlayerQueue, SteamID, position, "QUEUE_CHANGED_VIP")
     self:SendTranslatedNotify(Client, "QUEUE_ADDED", {
         Position = position
     })
 
     if GetHasReservedSlotAccess( SteamID ) then
-        position = self.ReservedQueue:GetCount() + 1
-        self.ReservedQueue:Add(SteamID, position)
+        position = self:GetQueueInsertPosition(self.ReservedQueue, Client)
+        self:InsertIntoQueue(self.ReservedQueue, SteamID, position, "PIORITY_QUEUE_CHANGED_VIP")
         self:SendTranslatedNotify(Client, "PIORITY_QUEUE_ADDED", {
             Position = position
         })
@@ -219,12 +272,12 @@ function Plugin:UpdateQueuePositions( Queue, Message )
     Message = Message or "QUEUE_CHANGED"
 
     local i = 1
-    for SteamId, Position in Queue:Iterate() do
-        local Client = Shine.GetClientByNS2ID( SteamId )
+    for SteamID, Position in Queue:Iterate() do
+        local Client = Shine.GetClientByNS2ID( SteamID )
         if Client then
 
             if Position ~= i then
-                Queue:Add( SteamId, i )
+                Queue:Add( SteamID, i )
                 self:SendTranslatedNotify( Client, Message, {
                     Position = i
                 })
@@ -232,14 +285,14 @@ function Plugin:UpdateQueuePositions( Queue, Message )
             i = i + 1
 
         -- Historic player entry
-        elseif self.HistoricPlayers:Contains( SteamId ) then
+        elseif self.HistoricPlayers:Contains( SteamID ) then
 
-            Queue:Add( SteamId, i )
+            Queue:Add( SteamID, i )
             i = i + 1
 
         -- player disconnected but somehow wasn't removed
         else
-            Queue:Remove( SteamId )
+            Queue:Remove( SteamID )
         end
     end
 end
