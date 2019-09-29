@@ -20,6 +20,8 @@ function Plugin:SetupDataTable()
             "QUEUE_CHANGED_VIP", "PIORITY_QUEUE_CHANGED_VIP",
         }
     } )
+
+    self:AddNetworkMessage( "QueueLeft", {}, "Client")
 end
 
 return Plugin

@@ -372,7 +372,7 @@ function Plugin:Pop()
     Player:SetCameraDistance(0)
 
     self.PlayerQueue:Remove( SteamId )
-    self:NotifyTranslated( First, "QUEUE_LEAVE" )
+    self:SendNetworkMessage( First, "QueueLeft", {}, true )
 
     self:UpdateQueuePositions( self.PlayerQueue )
 
