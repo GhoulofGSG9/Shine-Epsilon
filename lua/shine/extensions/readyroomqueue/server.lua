@@ -21,6 +21,7 @@ Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
 
 Plugin.QueueHistoryFile = "config://shine/temp/rr_queue_history.json"
+Plugin.QueueWaitTimeHistoryFile = "config://shine/temp/rr_queue_wait_time_history.json"
 
 function Plugin:Initialise()
     self.Enabled = true
@@ -32,9 +33,33 @@ function Plugin:Initialise()
 
     self:LoadQueueHistory()
 
+    self:LoadWaitTimeHistory()
+
     self:CreateCommands()
 
     return true
+end
+
+function Plugin:LoadWaitTimeHistory()
+    local WaitTimeHistory = Shine.LoadJSONFile( self.QueueWaitTimeHistoryFile ) or {
+        AVGWaitTime = 0,
+        SampleSize = 0
+    }
+
+    self.AVGWaitTime = WaitTimeHistory.AVGWaitTime
+    self.AVGWaitTimeSampleSize = WaitTimeHistory.SampleSize
+end
+
+function Plugin:UpdateWaitTimeHistory( WaitTime )
+    local SumWaitTimes = self.AVGWaitTime * self.AVGWaitTimeSampleSize + WaitTime
+    self.AVGWaitTimeSampleSize = self.AVGWaitTimeSampleSize + 1
+    self.AVGWaitTime = math.round( SumWaitTimes / self.AVGWaitTimeSampleSize )
+
+    local WaitTimeHistory = {
+        AVGWaitTime = self.AVGWaitTime,
+        SampleSize = self.AVGWaitTimeSampleSize
+    }
+    Shine.SaveJSONFile( WaitTimeHistory, self.QueueWaitTimeHistoryFile )
 end
 
 function Plugin:LoadQueueHistory()
@@ -209,6 +234,16 @@ function Plugin:GetQueueInsertPosition( Queue, Client )
     return Queue:GetCount() + 1
 end
 
+function Plugin:SendQueuePosition( Client, Position )
+    self:SendTranslatedNotify(Client, "QUEUE_POSITION", {
+        Position = Position
+    })
+
+    if self.AVGWaitTimeSampleSize > 0 then
+        self:SendNetworkMessage( Client, "WaitTime", { Time = self.AVGWaitTime } )
+    end
+end
+
 function Plugin:Enqueue( Client )
     if not Client:GetIsSpectator() then
         self:NotifyTranslatedError(Client, "ENQUEUE_ERROR_PLAYER")
@@ -220,10 +255,7 @@ function Plugin:Enqueue( Client )
 
     local position = self.PlayerQueue:Get( SteamID )
     if position then
-        self:SendTranslatedNotify(Client, "QUEUE_POSITION", {
-            Position = position
-        })
-
+        self:SendQueuePosition()
         return
     end
 
@@ -233,6 +265,10 @@ function Plugin:Enqueue( Client )
         Position = position
     })
 
+    if self.AVGWaitTimeSampleSize > 0 then
+        self:SendNetworkMessage( Client, "WaitTime", { Time = self.AVGWaitTime }, true)
+    end
+
     if GetHasReservedSlotAccess( SteamID ) then
         position = self:GetQueueInsertPosition(self.ReservedQueue, Client)
         self:InsertIntoQueue(self.ReservedQueue, SteamID, position, "PIORITY_QUEUE_CHANGED_VIP")
@@ -240,6 +276,9 @@ function Plugin:Enqueue( Client )
             Position = position
         })
     end
+
+    -- Save join time for later
+    Client.RRQueueJoinTime = Shared.GetTime()
 end
 
 function Plugin:UpdateQueuePositions( Queue, Message )
@@ -374,6 +413,10 @@ function Plugin:Pop()
     self.PlayerQueue:Remove( SteamId )
     self:SendNetworkMessage( First, "QueueLeft", {}, true )
 
+    if First.RRQueueJoinTime then
+        self:UpdateWaitTimeHistory( Shared.GetTime() - First.RRQueueJoinTime )
+    end
+
     self:UpdateQueuePositions( self.PlayerQueue )
 
     return true
@@ -451,9 +494,7 @@ function Plugin:CreateCommands()
             return
         end
 
-        self:SendTranslatedNotify( Client, "QUEUE_POSITION", {
-            Position = position
-        })
+        self:SendQueuePosition( Client, position )
     end
     local Position = self:BindCommand( "sh_rr_position", "rr_position", DisplayPosition, true )
     Position:Help("Returns your current position in the player slot queue")

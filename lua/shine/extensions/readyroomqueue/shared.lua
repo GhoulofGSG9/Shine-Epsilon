@@ -10,7 +10,7 @@ function Plugin:SetupDataTable()
     local MessageTypes = {
         QueuePosition = {
             Position = "integer"
-        },
+        }
     }
 
     self:AddNetworkMessages( "AddTranslatedNotify", {
@@ -22,6 +22,7 @@ function Plugin:SetupDataTable()
     } )
 
     self:AddNetworkMessage( "QueueLeft", {}, "Client")
+    self:AddNetworkMessage( "WaitTime", { Time = "integer" }, "Client")
 end
 
 return Plugin
