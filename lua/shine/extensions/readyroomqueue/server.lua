@@ -240,7 +240,7 @@ function Plugin:SendQueuePosition( Client, Position )
     })
 
     if self.AVGWaitTimeSampleSize > 0 then
-        self:SendNetworkMessage( Client, "WaitTime", { Time = self.AVGWaitTime } )
+        self:SendNetworkMessage( Client, "WaitTime", { Time = self.AVGWaitTime }, true )
     end
 end
 
