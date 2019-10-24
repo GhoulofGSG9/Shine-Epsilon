@@ -246,7 +246,7 @@ end
 
 function Plugin:Enqueue( Client )
     if not Client:GetIsSpectator() then
-        self:NotifyTranslatedError(Client, "ENQUEUE_ERROR_PLAYER")
+        self:NotifyTranslatedError( Client, "ENQUEUE_ERROR_PLAYER" )
     end
 
     local SteamID = Client:GetUserId()
@@ -255,13 +255,13 @@ function Plugin:Enqueue( Client )
 
     local position = self.PlayerQueue:Get( SteamID )
     if position then
-        self:SendQueuePosition()
+        self:SendQueuePosition( Client, position )
         return
     end
 
     position = self:GetQueueInsertPosition(self.PlayerQueue, Client)
     self:InsertIntoQueue(self.PlayerQueue, SteamID, position, "QUEUE_CHANGED_VIP")
-    self:SendTranslatedNotify(Client, "QUEUE_ADDED", {
+    self:SendTranslatedNotify( Client, "QUEUE_ADDED", {
         Position = position
     })
 
