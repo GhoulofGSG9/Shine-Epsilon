@@ -213,7 +213,7 @@ function PlayerInfoHub:OnConnect( Client )
 
 		if not self.ENSLData[ SteamId ] then
 			self.ENSLData[ SteamId ] = -2
-			AddToHTTPQueue( StringFormat( "http://www.ensl.org/api/v1/users/show/%s.steamid", SteamId ),function( Response )
+			AddToHTTPQueue( StringFormat( "https://www.ensl.org/api/v1/users/show/%s.steamid", SteamId ),function( Response )
 				local data = JsonDecode( Response )
 
 				--The ENSL page does not respond in json if the given id
