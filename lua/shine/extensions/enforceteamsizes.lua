@@ -27,10 +27,10 @@ Plugin.DefaultConfig = {
 			TooManyMessage = "The %s have currently too many players. Please spectate until the round ends.",
 			InformAboutFreeSpace = {3},
 			InformMessage = "A player left the %s. So you can join up now."
-		},
-		IgnoreBots = true
+		}
 	},
-	MessageNameColor = {0, 255, 0 }
+	MessageNameColor = {0, 255, 0 },
+	IgnoreBots = true,
 }
 Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
@@ -89,6 +89,8 @@ function Plugin:PostJoinTeam( Gamerules, _, OldTeam )
 end
 
 function Plugin:JoinTeam( Gamerules, Player, NewTeam, _, ShineForce )
+	if self.Config.IgnoreBots and Player:GetIsVirtual() then return end
+
 	local TeamIndex = string.format("Team%s", NewTeam)
 	if ShineForce or NewTeam == kTeamReadyRoom or not self.Config.Teams[TeamIndex] then return end
 
