@@ -341,16 +341,19 @@ end
 
 --Restrict teams also at voterandom
 function Plugin:PreShuffleOptimiseTeams ( TeamMembers )
+	local Gamerules = GetGamerules()
+	if not Gamerules then return end -- can't move players without Gamerules, so abort
+
 	for i = 1, 2 do
 		for j = #TeamMembers[i], 1, -1 do
 			local Player = TeamMembers[i][j]
 
 			if self:Check(Player, nil, true) == false then
 				--Move player into the ready room
-				pcall( Gamerules.JoinTeam, Gamerules, Player, kTeamReadyRoom, nil, true )
-
-				--remove the player's entry in the table
-				table.remove(TeamMembers[i], j)
+				if Gamerules:JoinTeam(Player, kTeamReadyRoom, true, true ) then
+					--remove the player's entry in the table after moving them into the ReadyRoom
+					table.remove(TeamMembers[i], j)
+				end
 			end
 		end
 	end
