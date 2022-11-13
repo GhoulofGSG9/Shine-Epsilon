@@ -295,6 +295,52 @@ Add( "ClientConnect", "GetPlayerInfo", function( Client )
 	PlayerInfoHub:OnConnect( Client )
 end )
 
+if not GetHiveDataBySteamId then
+	function GetHiveDataBySteamId(SteamId)
+
+		local client = Shine.GetClientByNS2ID(SteamId)
+		if not client then return end
+
+		local kThunderdomeStatFields_TimePlayed = "td_total_time_player"
+		local kThunderdomeStatFields_TimePlayedCommander = "td_total_time_commander"
+		local kThunderdomeStatFields_Victories = "td_rounds_won_player"
+		local kThunderdomeStatFields_CommanderVictories = "td_rounds_won_commander"
+
+
+		local skillData =
+		{
+			skill = Server.GetUserStat_Int(client, Server.kSkillFields_Skill) or 0,
+			skill_offset = Server.GetUserStat_Int(client, Server.kSkillFields_SkillOffset) or 0,
+			comm_skill = Server.GetUserStat_Int(client, Server.kSkillFields_CommSkill) or 0,
+			comm_skill_offset = Server.GetUserStat_Int(client, Server.kSkillFields_CommSkillOffset) or 0,
+			adagrad = Server.GetUserStat_Float(client, Server.kSkillFields_Adagrad) or 0,
+			comm_adagrad = Server.GetUserStat_Float(client, Server.kSkillFields_CommAdagrad) or 0,
+			skill_sign = Server.GetUserStat_Int(client, Server.kSkillFields_SkillSign) or 0,
+			comm_skill_sign = Server.GetUserStat_Int(client, Server.kSkillFields_CommSkillSign) or 0,
+
+			td_skill = Server.GetUserStat_Int(client, Server.kSkillFields_TD_Skill) or 0,
+			td_skill_offset = Server.GetUserStat_Int(client, Server.kSkillFields_TD_SkillOffset) or 0,
+			td_comm_skill = Server.GetUserStat_Int(client, Server.kSkillFields_TD_CommSkill) or 0,
+			td_comm_skill_offset = Server.GetUserStat_Int(client, Server.kSkillFields_TD_CommSkillOffset) or 0,
+			td_adagrad = Server.GetUserStat_Float(client, Server.kSkillFields_TD_Adagrad) or 0,
+			td_comm_adagrad = Server.GetUserStat_Float(client, Server.kSkillFields_TD_CommAdagrad) or 0,
+			td_skill_sign = Server.GetUserStat_Int(client, Server.kSkillFields_TD_SkillSign) or 0,
+			td_comm_skill_sign = Server.GetUserStat_Int(client, Server.kSkillFields_TD_CommSkillSign) or 0,
+
+			score = Server.GetUserStat_Int(client, Server.kSkillFields_Score) or 0,
+			level = Server.GetUserStat_Int(client, Server.kSkillFields_Level) or 0,
+			xp = Server.GetUserStat_Int(client, Server.kSkillFields_Xp) or 0,
+
+			time_played = Server.GetUserStat_Int(client, kThunderdomeStatFields_TimePlayed) or -1,
+			com_time_played= Server.GetUserStat_Int(client, kThunderdomeStatFields_TimePlayedCommander) or -1,
+			rounds_won = Server.GetUserStat_Int(client, kThunderdomeStatFields_Victories) or -1,
+			com_rounds_won = Server.GetUserStat_Int(client, kThunderdomeStatFields_CommanderVictories) or -1
+		}
+
+		return skillData
+	end
+end
+
 Shine.Hook.SetupClassHook("ScoringMixin", "SetPlayerLevel", "OnSetPlayerLevel", "PassivePost")
 Add("OnSetPlayerLevel", "HiveRequestFinished", function(Player)
 	local Client = Player.GetClient and Player:GetClient()
