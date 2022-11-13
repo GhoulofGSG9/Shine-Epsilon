@@ -235,8 +235,9 @@ function PlayerInfoHub:OnConnect( Client )
 		if not self.GeoData[ SteamId ] then
 			self.GeoData[ SteamId ] = -2
 
-			AddToHTTPQueue( StringFormat( "https://freegeoip.live/json/%s", IPAddressToString( Server.GetClientAddress( Client ) ) ), function( Response )
+			AddToHTTPQueue( StringFormat( "http://ip-api.com/json/%s", IPAddressToString( Server.GetClientAddress( Client ) ) ), function( Response )
 				local data = JsonDecode( Response )
+
 				PlayerInfoHub.GeoData[ SteamId ] = data or 0
 				Call( "OnReceiveGeoData", Client, PlayerInfoHub.GeoData[ SteamId ] )
 			end, function()
