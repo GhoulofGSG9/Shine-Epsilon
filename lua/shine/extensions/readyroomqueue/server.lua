@@ -186,8 +186,8 @@ function Plugin:PostJoinTeam( _, Player, _, NewTeam )
     end
 end
 
--- Allows to insert new Key to a specific postion in the Maps Keys array
--- Also Position is the Value to add for given key in the map
+-- Allows to insert new key to a specific position in the Maps Keys array
+-- Also position is the value to add for given key in the map
 function Plugin:InsertIntoQueue( Queue, Key, Position, UpdateMessageName )
     if Key == nil then return end -- ensure Key is not nil
 
@@ -466,12 +466,12 @@ function Plugin:PrintQueue( Client )
 end
 
 function Plugin:CreateCommands()
-    local function EnqueuPlayer( Client )
+    local function EnqueuePlayer(Client )
         if not Client then return end
 
         self:Enqueue(Client)
     end
-    local Enqueue = self:BindCommand( "sh_rr_enqueue", "rr_enqueue", EnqueuPlayer, true )
+    local Enqueue = self:BindCommand( "sh_rr_enqueue", "rr_enqueue", EnqueuePlayer, true )
     Enqueue:Help("Enter the queue for a player slot")
 
     local function DequeuePlayer( Client )
