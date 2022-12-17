@@ -4,7 +4,7 @@
 local InfoHub = Shine.PlayerInfoHub
 local Plugin = ...
 
-Plugin.Version = "1.7"
+Plugin.Version = "1.8"
 
 Plugin.ConfigName = "NoRookies.json"
 Plugin.DefaultConfig =
@@ -27,7 +27,8 @@ Plugin.DefaultConfig =
 	KickMessage = "You will be kicked in %s seconds",
 	WaitMessage = "Please wait while we fetch your stats.",
 	Debug = false,
-	LastPluginVersion = "1.6"
+	UseHiveLevel = false,
+	LastPluginVersion = "1.8"
 }
 
 Plugin.PrintName = "No Rookies"
@@ -131,11 +132,16 @@ function Plugin:CheckValues( Playerdata, SteamId, ComCheck )
 		end
 	end
 
+	if self.Config.UseHiveLevel then
+		Playtime = Playerdata.level * 3600
+	end
+
 	local Min = ComCheck and self.Config.MinComPlaytime or self.Config.MinPlaytime
 	local Check = Playtime >= Min * 3600
 
 	if self.Config.Debug then
-		Print(string.format("NoRookie Debug: Playtime of %s = %s secs, Passed Check %s? %s", SteamId, Playtime, ComCheck and 2 or 1, Check))
+		Print(string.format("NoRookie Debug: %s of %s = %s, Passed Check %s? %s",
+				self.Config.UseHiveLevel and "Level" or "Playtime", SteamId, Playtime, ComCheck and 2 or 1, Check))
 	end
 
 	self.Passed[ComCheck and 2 or 1][SteamId] = Check
