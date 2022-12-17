@@ -31,7 +31,6 @@ These are all the plug-ins that are shipped with Epsilon Package:
 * [Killstreak](https://github.com/GhoulofGSG9/Shine-Epsilon/wiki/Killstreak)
 * [NoRookies](https://github.com/GhoulofGSG9/Shine-Epsilon/wiki/NoRookies)
 * [PregamePlus](https://github.com/GhoulofGSG9/Shine-Epsilon/wiki/PregamePlus)
-* [RookiesOnly](https://github.com/GhoulofGSG9/Shine-Epsilon/wiki/Rookies-Only)
 * [CustomSpawns](https://github.com/GhoulofGSG9/Shine-Epsilon/wiki/CustomSpawns)
 * [EpsilonBadges](https://github.com/GhoulofGSG9/Shine-Epsilon/wiki/Epsilon-Badges)
 * [ExtraIps](https://github.com/GhoulofGSG9/Shine-Epsilon/wiki/ExtraIps)
@@ -39,6 +38,6 @@ These are all the plug-ins that are shipped with Epsilon Package:
 * [PasswordReset](https://github.com/GhoulofGSG9/Shine-Epsilon/wiki/PasswordReset)
 * [VACPlus](https://github.com/GhoulofGSG9/Shine-Epsilon/wiki/VACPlus)
 
-##Source Code and Issue tracker
+## Source Code and Issue tracker
 
 Both can be found at the project's [Github repo](https://github.com/GhoulofGSG9/Shine-Epsilon). Any kind of issue reports or pull request are welcomed.
