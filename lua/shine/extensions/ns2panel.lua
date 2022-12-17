@@ -22,6 +22,12 @@ Plugin.BaseUrl = "https://ns2panel.com/"
 function Plugin:Initialise()
     self.Enabled = true
 
+    if ModLoader and ModLoader.GetModInfo("NS2Panel") then
+        return false,
+        "Please do not use the NS2Panel Mod and NS2Panel Shine extension at the same time.\n" ..
+        "Using both will cause duplicate round reports at NS2Panel!"
+    end
+
     if self.Config.AuthToken == "" then
         return false,
         "Please add your ns2panel auth token to the plugin config!\n" ..
