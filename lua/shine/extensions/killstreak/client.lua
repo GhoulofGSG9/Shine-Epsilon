@@ -50,7 +50,7 @@ function Plugin:Initialise()
 		   self.Config.SoundVolume = 100
 		end
 		 
-		if self.Config.PlaySounds then Shine.AddStartupMessage( StringFormat( "Shine is set to play killstreak sounds with a volume of %s . You can change this with sh_setsoundvolume.",self.Config.SoundVolume)) end
+		if self.Config.PlaySounds then Shine.AddStartupMessage( StringFormat( "Shine is set to play killstreak sounds with a volume of %s . You can change this with sh_soundvolume.",self.Config.SoundVolume)) end
 	end
 	
     return true
