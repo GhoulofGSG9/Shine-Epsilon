@@ -13,6 +13,10 @@ Plugin.DefaultConfig = {
     RoundEndReport = {
         MaxSubmitRetries = 3,
         SubmitTimeout = 5
+    },
+    PlayerConnectReport = {
+        Enabled = true,
+        SubmitTimeout = 5
     }
 }
 Plugin.CheckConfig = true
@@ -45,6 +49,20 @@ function Plugin:OnFirstThink()
     SetupGlobalHook("StatsUI_SaveRoundStats", "PostSaveRounStats", "PassivePost")
 end
 
+function Plugin:ClientConfirmConnect( Client )
+    if not self.Config.PlayerConnectReport.Enabled then return end
+
+    if not Client or Client:GetIsVirtual() then return end
+
+    local PlayerPingEndpoint = "api/player-ping"
+    local RequestBody = {
+        ip =  IPAddressToString( Server.GetClientAddress( Client ) ),
+        steam_id = Client:GetUserId()
+    }
+    local RequestPath = string.format("%s%s", self.BaseUrl, PlayerPingEndpoint)
+    Shine.TimedHTTPRequest( RequestPath, "POST", RequestBody,
+            function() end, function() end, self.Config.PlayerConnectReport.SubmitTimeout)
+end
 
 function Plugin:PostSaveRounStats( WinningTeam )
     local NewRoundEndpoint = "new-round"
