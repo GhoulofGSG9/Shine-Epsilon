@@ -151,11 +151,14 @@ function Plugin:SendPlayerSkillReport( Client )
     local player = Client:GetControllingPlayer()
     if not player then return end
 
+    --skip virtual players (bots)
+    if player:GetIsVirtual() then return end
+
     local skillReport = {
         steam_id = Client:GetUserId(),
         ip_address = IPAddressToString( Server.GetClientAddress( Client ) ),
-        skill = player.GetSkill and player:GetSkill() or nil,
-        skillOffset = player.GetSkillOffset and player:GetSkillOffset() or nil,
+        skill = player.GetPlayerSkill and player:GetPlayerSkill() or nil,
+        skillOffset = player.GetPlayerSkillOffset and player:GetPlayerSkillOffset() or nil,
         commSkill = player.GetCommanderSkill and player:GetCommanderSkill() or nil,
         commSkillOffset = player.GetCommanderSkillOffset and player:GetCommanderSkillOffset() or nil,
         adagrad = player.GetAdagradSum and player:GetAdagradSum() or nil,
