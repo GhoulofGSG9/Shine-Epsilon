@@ -5,8 +5,16 @@ local Shine = Shine
 
 local StringFormat = string.format
 local JsonDecode = json.decode
+local tostring = tostring
+local Type = type
+local IPairs = ipairs
+local Pairs = pairs
+local TableInsert = table.insert
+local TableRemove = table.remove
 
 local Add = Shine.Hook.Add
+local IsValidClient = Shine.IsValidClient
+local GetAllClients = Shine.GetAllClients
 
 Shine.PlayerInfoHub = {}
 local PlayerInfoHub = Shine.PlayerInfoHub
@@ -16,54 +24,205 @@ PlayerInfoHub.GeoData = {}
 PlayerInfoHub.ENSLData = {}
 
 local function Call( Name, Client, ... )
-	if not Shine:IsValidClient( Client ) then return end
+	if not IsValidClient( Shine, Client ) then return end
 	Shine.Hook.Call( Name, Client, ... )
 end
 
-local Queue = {}
-local current = 0
-local last = 0
-local working = false
+local ExternalAPIHandler = Shine.ExternalAPIHandler
+local ENSLPoolSize = 256
 
-local function ProcessQueue()
-	PROFILE("PlayerInfoHub:ProcessQueue()")
-	working = true
-	current = current + 1
+PlayerInfoHub.ENSLEndpointBySteamId = PlayerInfoHub.ENSLEndpointBySteamId or {}
+PlayerInfoHub.ENSLSteamIdByEndpointIndex = PlayerInfoHub.ENSLSteamIdByEndpointIndex or {}
+PlayerInfoHub.ENSLNextEndpointIndex = PlayerInfoHub.ENSLNextEndpointIndex or 1
 
-	local node = Queue[current]
+local function RegisterExternalAPIEndpoints()
+	ExternalAPIHandler = Shine.ExternalAPIHandler
+	if not ExternalAPIHandler or PlayerInfoHub.ExternalEndpointsRegistered then return end
 
-	local function OnSuccess( Response )
-		node[2](Response)
+	Shine.RegisterExternalAPIEndPoint( "Steam", "GetNS2PlayTime", {
+		Protocol = "GET",
+		URL = "IPlayerService/GetOwnedGames/v1/",
+		Params = {
+			steamid = Shine.NS2IDTo64,
+			appid = function( AppID )
+				return { { "appids_filter[0]", tostring( AppID ) } }
+			end
+		},
+		DefaultRequestParams = {
+			format = "json"
+		},
+		GetCacheKey = function( Params )
+			return StringFormat( "%s:%s", tostring( Params.steamid ), tostring( Params.appid ) )
+		end,
+		ResponseTransformer = function( Response )
+			if Type( Response ) ~= "table" then return nil end
 
-		if current < last then
-			ProcessQueue()
-		else
-			working = false
+			local Game = Response.response and Response.response.games and Response.response.games[ 1 ]
+			if not Game then return 0 end
+
+			return ( Game.playtime_forever or 0 ) * 60
 		end
+	} )
+
+	Shine.RegisterExternalAPIEndPoint( "Steam", "GetPlayerBansByNS2ID", {
+		Protocol = "GET",
+		URL = "ISteamUser/GetPlayerBans/v1/",
+		Params = {
+			steamids = Shine.NS2IDTo64
+		},
+		DefaultRequestParams = {
+			format = "json"
+		},
+		GetCacheKey = function( Params ) return tostring( Params.steamids ) end,
+		ResponseTransformer = function( Response )
+			if Type( Response ) ~= "table" then return nil end
+			return Response.players and Response.players[ 1 ] or 0
+		end
+	} )
+
+	Shine.RegisterExternalAPIEndPoint( "Steam", "GetNS2Badges", {
+		Protocol = "GET",
+		URL = "IPlayerService/GetBadges/v1/",
+		Params = {
+			steamid = Shine.NS2IDTo64
+		},
+		DefaultRequestParams = {
+			format = "json"
+		},
+		GetCacheKey = function( Params ) return tostring( Params.steamid ) end,
+		ResponseTransformer = function( Response )
+			if Type( Response ) ~= "table" then return nil end
+
+			local Badges = {
+				Normal = 0,
+				Foil = 0
+			}
+
+			local BadgeData = Response.response and Response.response.badges
+			if BadgeData then
+				for i = 1, #BadgeData do
+					local Badge = BadgeData[ i ]
+					if Badge.appid == 4920 then
+						if Badge.border_color == 1 then
+							Badges.Foil = 1
+						else
+							Badges.Normal = Badge.level
+						end
+					end
+				end
+			end
+
+			return Badges
+		end
+	} )
+
+	if not ExternalAPIHandler:GetAPI( "GeoIP" ) then
+		Shine.RegisterExternalAPI( "GeoIP", {
+			URL = "http://ip-api.com/",
+			Params = {},
+			GlobalRequestParams = {},
+			EndPoints = {}
+		} )
 	end
 
-	local function OnTimeout()
-		node[3]()
-
-		if current < last then
-			ProcessQueue()
-		else
-			working = false
-		end
+	if not ExternalAPIHandler:GetAPI( "ENSL" ) then
+		Shine.RegisterExternalAPI( "ENSL", {
+			URL = "http://www.ensl.org/",
+			Params = {},
+			GlobalRequestParams = {},
+			EndPoints = {}
+		} )
 	end
 
-	Shine.TimedHTTPRequest(node[1], "GET", OnSuccess, OnTimeout, 15)
+	Shine.RegisterExternalAPIEndPoint( "GeoIP", "Lookup", {
+		Protocol = "GET",
+		URL = "json/",
+		Params = {
+			query = tostring
+		},
+		GetCacheKey = function( Params ) return tostring( Params.query ) end,
+		ResponseTransformer = function( Response )
+			if Type( Response ) ~= "table" then return nil end
+			if Response.status == "fail" then return 0 end
+			return Response
+		end
+	} )
+
+	PlayerInfoHub.ExternalEndpointsRegistered = true
 end
 
-local function AddToHTTPQueue( Address, OnSuccess, OnTimeout)
-	last = last + 1
-	Queue[last] = {
-		Address,
-		OnSuccess,
-		OnTimeout
-	}
+RegisterExternalAPIEndpoints()
 
-	if not working then ProcessQueue() end
+local function PerformExternalRequest( APIName, EndPointName, Params, OnSuccess, OnFailure )
+	ExternalAPIHandler = Shine.ExternalAPIHandler
+	if not ExternalAPIHandler then
+		OnFailure()
+		return
+	end
+
+	ExternalAPIHandler:PerformRequest( APIName, EndPointName, Params, {
+		OnSuccess = OnSuccess,
+		OnFailure = OnFailure,
+		OnTimeout = OnFailure
+	}, 2 )
+end
+
+local function RegisterENSLEndPoint( EndPointName, SteamId )
+	Shine.RegisterExternalAPIEndPoint( "ENSL", EndPointName, {
+		Protocol = "GET",
+		URL = StringFormat( "api/v1/users/show/%s.steamid", SteamId ),
+		Params = {},
+		GetCacheKey = function() return tostring( SteamId ) end,
+		ResponseTransformer = function( Response )
+			if Type( Response ) ~= "table" then return nil end
+
+			if Response and not Response.id then return 0 end
+
+			return Response or 0
+		end
+	} )
+end
+
+local function GetENSLEndPointName( SteamId )
+	local EndPointName = PlayerInfoHub.ENSLEndpointBySteamId[ SteamId ]
+	if EndPointName then
+		return EndPointName
+	end
+
+	local Index = PlayerInfoHub.ENSLNextEndpointIndex
+	PlayerInfoHub.ENSLNextEndpointIndex = Index + 1
+	if PlayerInfoHub.ENSLNextEndpointIndex > ENSLPoolSize then
+		PlayerInfoHub.ENSLNextEndpointIndex = 1
+	end
+
+	local PreviousSteamId = PlayerInfoHub.ENSLSteamIdByEndpointIndex[ Index ]
+	if PreviousSteamId then
+		PlayerInfoHub.ENSLEndpointBySteamId[ PreviousSteamId ] = nil
+	end
+
+	EndPointName = StringFormat( "GetUserBySteamIDSlot_%s", Index )
+	PlayerInfoHub.ENSLSteamIdByEndpointIndex[ Index ] = SteamId
+	PlayerInfoHub.ENSLEndpointBySteamId[ SteamId ] = EndPointName
+
+	RegisterENSLEndPoint( EndPointName, SteamId )
+
+	return EndPointName
+end
+
+local function PerformENSLRequest( SteamId, OnSuccess, OnFailure )
+	RegisterExternalAPIEndpoints()
+	ExternalAPIHandler = Shine.ExternalAPIHandler
+	if not ExternalAPIHandler then
+		OnFailure()
+		return
+	end
+
+	local EndPointName = GetENSLEndPointName( SteamId )
+	if not ExternalAPIHandler:GetEndPoint( "ENSL", EndPointName ) then
+		RegisterENSLEndPoint( EndPointName, SteamId )
+	end
+
+	PerformExternalRequest( "ENSL", EndPointName, {}, OnSuccess, OnFailure )
 end
 
 --[[
@@ -86,34 +245,37 @@ PlayerInfoHub.HiveQueue = {}
 
 function PlayerInfoHub:Request( Name, DataType)
 	if not Name or not DataType then return end
+	local Requests = self.Requests
 
-	if type(DataType) == "table" then
-		for _, type in ipairs(DataType) do
-			table.insert(self.Requests[type], Name)
+	if Type( DataType ) == "table" then
+		for i = 1, #DataType do
+			local RequestType = DataType[ i ]
+			TableInsert( Requests[ RequestType ], Name )
 		end
 	else
-		table.insert(self.Requests[DataType], Name)
+		TableInsert( Requests[ DataType ], Name )
 	end
 
-
-	for _, client in ipairs(Shine.GetAllClients()) do
-		self:OnConnect(client)
+	local Clients = GetAllClients()
+	for i = 1, #Clients do
+		self:OnConnect( Clients[ i ] )
 	end
 end
 
 function PlayerInfoHub:RemoveRequest( Name, DataType)
+	local Requests = self.Requests
 	if not DataType then
-		for _, type in pairs(self.Requests) do
-			for i, name in ipairs(type) do
+		for _, RequestList in Pairs( Requests ) do
+			for i, name in IPairs( RequestList ) do
 				if name == Name then
-					table.remove(type, i)
+					TableRemove( RequestList, i )
 				end
 			end
 		end
 	else
-		for i, name in ipairs(self.Requests[DataType]) do
+		for i, name in IPairs( Requests[ DataType ] ) do
 			if name == Name then
-				table.remove(self.Requests[DataType], i)
+				TableRemove( Requests[ DataType ], i )
 			end
 		end
 	end
@@ -121,17 +283,22 @@ end
 
 function PlayerInfoHub:OnConnect( Client )
 	PROFILE("PlayerInfoHub:OnConnect()")
-	if not Shine:IsValidClient( Client ) then return end
+	if not IsValidClient( Shine, Client ) then return end
 
 	local SteamId = Client:GetUserId()
 	if not SteamId or SteamId <= 0 then return end
+	local SteamData = self.SteamData
+	local GeoData = self.GeoData
+	local ENSLData = self.ENSLData
+	local Requests = self.Requests
 
-	local SteamId64 = StringFormat( "%s%s", 76561, SteamId + 197960265728 )
-
-	if not self.SteamData[ SteamId ] then
-		self.SteamData[ SteamId ] = {}
-		self.SteamData[ SteamId ].Badges = {}
+	if not SteamData[ SteamId ] then
+		SteamData[ SteamId ] = {
+			Badges = {}
+		}
 	end
+
+	local SteamEntry = SteamData[ SteamId ]
 
 	local HiveData = self:GetHiveData( SteamId )
 	if not HiveData then
@@ -151,140 +318,142 @@ function PlayerInfoHub:OnConnect( Client )
 	 - -2 = Fetching
 	 - -1 = Timeout
 	 ]]
-	if self.Requests.STEAMPLAYTIME[1] then
+	if Requests.STEAMPLAYTIME[1] then
 		local function CallEvent()
-			if (not PlayerInfoHub.Requests.STEAMBADGES[1] or PlayerInfoHub.SteamData[ SteamId ].Badges.Normal ~= -2) and
-					(not PlayerInfoHub.Requests.STEAMBANS[1] or PlayerInfoHub.SteamData[ SteamId ].Bans ~= -2) then
-				Call( "OnReceiveSteamData", Client, PlayerInfoHub.SteamData[ SteamId ] )
+			if (not Requests.STEAMBADGES[1] or SteamEntry.Badges.Normal ~= -2) and
+					(not Requests.STEAMBANS[1] or SteamEntry.Bans ~= -2) then
+				Call( "OnReceiveSteamData", Client, SteamEntry )
 			end
 		end
 
-		if not self.SteamData[ SteamId ].PlayTime then
-			PlayerInfoHub.SteamData[ SteamId ].PlayTime = -2
+		if not SteamEntry.PlayTime then
+			SteamEntry.PlayTime = -2
+			ExternalAPIHandler = Shine.ExternalAPIHandler
 
-			AddToHTTPQueue( StringFormat( "http://api.steampowered.com/IPlayerService/GetOwnedGames/v1/?key=2EFCCE2AF701859CDB6BBA3112F95972&SteamId=%s&appids_filter[0]=4920", SteamId64 ), function( Response )
-				local Temp = JsonDecode( Response )
-
-				Temp = Temp and Temp.response and Temp.response.games and Temp.response.games[1]
-				if not Temp then
-					PlayerInfoHub.SteamData[ SteamId ].PlayTime = 0
-					return
-				else
-					PlayerInfoHub.SteamData[ SteamId ].PlayTime = Temp.playtime_forever and Temp.playtime_forever * 60 or 0
-				end
-
+			if not ExternalAPIHandler or not ExternalAPIHandler:HasAPIKey( "Steam" ) then
+				SteamEntry.PlayTime = -1
 				CallEvent()
-			end, function()
-				PlayerInfoHub.SteamData[ SteamId ].PlayTime = -1
-				CallEvent()
-			end )
-		elseif self.SteamData[ SteamId ].PlayTime ~= -2 then
+			else
+				PerformExternalRequest( "Steam", "GetNS2PlayTime", {
+					steamid = SteamId,
+					appid = 4920
+				}, function( PlayTime )
+					SteamEntry.PlayTime = PlayTime or 0
+					CallEvent()
+				end, function()
+					SteamEntry.PlayTime = -1
+					CallEvent()
+				end )
+			end
+		elseif SteamEntry.PlayTime ~= -2 then
 			CallEvent()
 		end
 	end
 
-	if self.Requests.STEAMBANS[1] then
+	if Requests.STEAMBANS[1] then
 		local function CallEvent()
-			if (not PlayerInfoHub.Requests.STEAMPLAYTIME[1] or PlayerInfoHub.SteamData[ SteamId ].PlayTime ~= -2) and
-					(not PlayerInfoHub.Requests.STEAMBADGES[1] or PlayerInfoHub.SteamData[ SteamId ].Badges.Normal ~= -2) then
-				Call( "OnReceiveSteamData", Client, PlayerInfoHub.SteamData[ SteamId ] )
+			if (not Requests.STEAMPLAYTIME[1] or SteamEntry.PlayTime ~= -2) and
+					(not Requests.STEAMBADGES[1] or SteamEntry.Badges.Normal ~= -2) then
+				Call( "OnReceiveSteamData", Client, SteamEntry )
 			end
 		end
 
-		if not self.SteamData[ SteamId ].Bans then
-			self.SteamData[ SteamId ].Bans = -2
-			AddToHTTPQueue( StringFormat( "http://api.steampowered.com/ISteamUser/GetPlayerBans/v1/?key=2EFCCE2AF701859CDB6BBA3112F95972&steamids=%s", SteamId64 ),function( Response )
-				local data = JsonDecode( Response )
-				PlayerInfoHub.SteamData[ SteamId ].Bans = data and data.players and data.players[1] or 0
+		if not SteamEntry.Bans then
+			SteamEntry.Bans = -2
+			ExternalAPIHandler = Shine.ExternalAPIHandler
+
+			if not ExternalAPIHandler or not ExternalAPIHandler:HasAPIKey( "Steam" ) then
+				SteamEntry.Bans = -1
 				CallEvent()
-			end, function()
-				PlayerInfoHub.SteamData[ SteamId ].Bans = -1
-				CallEvent()
-			end)
-		elseif self.SteamData[ SteamId ].Bans ~= -2 then
+			else
+				PerformExternalRequest( "Steam", "GetPlayerBansByNS2ID", {
+					steamids = SteamId
+				}, function( Data )
+					SteamEntry.Bans = Data or 0
+					CallEvent()
+				end, function()
+					SteamEntry.Bans = -1
+					CallEvent()
+				end )
+			end
+		elseif SteamEntry.Bans ~= -2 then
 			CallEvent()
 		end
 	end
 	
-	if self.Requests.ENSL[1] then
+	if Requests.ENSL[1] then
 		local function CallEvent()
-			Call( "OnReceiveENSLData", Client, PlayerInfoHub.ENSLData[ SteamId ] )
+			Call( "OnReceiveENSLData", Client, ENSLData[ SteamId ] )
 		end
 
-		if not self.ENSLData[ SteamId ] then
-			self.ENSLData[ SteamId ] = -2
-			AddToHTTPQueue( StringFormat( "http://www.ensl.org/api/v1/users/show/%s.steamid", SteamId ),function( Response )
-				local data = JsonDecode( Response )
+		if not ENSLData[ SteamId ] then
+			ENSLData[ SteamId ] = -2
 
-				--The ENSL page does not respond in json if the given id
-				--does not exsist in the db but with a full error page.
-				if data and not data.id then data = nil end
-
-				PlayerInfoHub.ENSLData[ SteamId ] = data or 0
+			PerformENSLRequest( SteamId, function( Data )
+				ENSLData[ SteamId ] = Data
 				CallEvent()
 			end, function()
-				PlayerInfoHub.ENSLData[ SteamId ] = -1
+				ENSLData[ SteamId ] = -1
 				CallEvent()
-			end)
-		elseif self.ENSLData[ SteamId ] ~= -2 then
+			end )
+		elseif ENSLData[ SteamId ] ~= -2 then
 			CallEvent()
 		end
 	end
 
-	if self.Requests.GEODATA[1] then
-		if not self.GeoData[ SteamId ] then
-			self.GeoData[ SteamId ] = -2
+	if Requests.GEODATA[1] then
+		if not GeoData[ SteamId ] then
+			GeoData[ SteamId ] = -2
 
-			AddToHTTPQueue( StringFormat( "http://ip-api.com/json/%s", IPAddressToString( Server.GetClientAddress( Client ) ) ), function( Response )
-				local data = JsonDecode( Response )
-
-				PlayerInfoHub.GeoData[ SteamId ] = data or 0
-				Call( "OnReceiveGeoData", Client, PlayerInfoHub.GeoData[ SteamId ] )
+			PerformExternalRequest( "GeoIP", "Lookup", {
+				query = IPAddressToString( Server.GetClientAddress( Client ) )
+			}, function( Data )
+				GeoData[ SteamId ] = Data or 0
+				Call( "OnReceiveGeoData", Client, GeoData[ SteamId ] )
 			end, function()
-				PlayerInfoHub.GeoData[ SteamId ] = -1
-				Call( "OnReceiveGeoData", Client, PlayerInfoHub.GeoData[ SteamId ] )
-			end)
-		elseif self.GeoData[ SteamId ] ~= -2 then
-			Call( "OnReceiveGeoData", Client, PlayerInfoHub.GeoData[ SteamId ] )
+				GeoData[ SteamId ] = -1
+				Call( "OnReceiveGeoData", Client, GeoData[ SteamId ] )
+			end )
+		elseif GeoData[ SteamId ] ~= -2 then
+			Call( "OnReceiveGeoData", Client, GeoData[ SteamId ] )
 		end
 	end
 
-	if self.Requests.STEAMBADGES[1] then
+	if Requests.STEAMBADGES[1] then
 		local function CallEvent()
-			if (not PlayerInfoHub.Requests.STEAMPLAYTIME[1] or PlayerInfoHub.SteamData[ SteamId ].PlayTime ~= -2) and
-					(not PlayerInfoHub.Requests.STEAMBANS[1] or PlayerInfoHub.SteamData[ SteamId ].Bans ~= -2) then
-				Call( "OnReceiveSteamData", Client, PlayerInfoHub.SteamData[ SteamId ] )
+			if (not Requests.STEAMPLAYTIME[1] or SteamEntry.PlayTime ~= -2) and
+					(not Requests.STEAMBANS[1] or SteamEntry.Bans ~= -2) then
+				Call( "OnReceiveSteamData", Client, SteamEntry )
 			end
 		end
 
-		if not self.SteamData[ SteamId ].Badges.Normal then
-			PlayerInfoHub.SteamData[ SteamId ].Badges.Normal = -2
+		if not SteamEntry.Badges.Normal then
+			SteamEntry.Badges.Normal = -2
+			ExternalAPIHandler = Shine.ExternalAPIHandler
 
-			AddToHTTPQueue( StringFormat( "http://api.steampowered.com/IPlayerService/GetBadges/v1/?key=2EFCCE2AF701859CDB6BBA3112F95972&SteamId=%s", SteamId64 ),function( Response )
-				PlayerInfoHub.SteamData[ SteamId ].Badges.Normal = 0
-				PlayerInfoHub.SteamData[ SteamId ].Badges.Foil = 0
-
-				local data = JsonDecode( Response )
-				local badgedata = data and data.response.badges
-				if badgedata then
-					for _, badge in ipairs(badgedata) do
-						if badge.appid == 4920 then
-							if badge.border_color == 1 then
-								PlayerInfoHub.SteamData[ SteamId ].Badges.Foil = 1
-							else
-								PlayerInfoHub.SteamData[ SteamId ].Badges.Normal = badge.level
-							end
-						end
-					end
-				end
-
+			if not ExternalAPIHandler or not ExternalAPIHandler:HasAPIKey( "Steam" ) then
+				SteamEntry.Badges.Normal = -1
+				SteamEntry.Badges.Foil = -1
 				CallEvent()
-			end, function()
-				PlayerInfoHub.SteamData[ SteamId ].Badges.Normal = -1
-				PlayerInfoHub.SteamData[ SteamId ].Badges.Foil = -1
-				CallEvent()
-			end )
-		elseif PlayerInfoHub.SteamData[ SteamId ].Badges.Normal ~= -2 then
+			else
+				PerformExternalRequest( "Steam", "GetNS2Badges", {
+					steamid = SteamId
+				}, function( Badges )
+					Badges = Badges or {
+						Normal = 0,
+						Foil = 0
+					}
+
+					SteamEntry.Badges.Normal = Badges.Normal
+					SteamEntry.Badges.Foil = Badges.Foil
+					CallEvent()
+				end, function()
+					SteamEntry.Badges.Normal = -1
+					SteamEntry.Badges.Foil = -1
+					CallEvent()
+				end )
+			end
+		elseif SteamEntry.Badges.Normal ~= -2 then
 			CallEvent()
 		end
 	end
@@ -381,51 +550,55 @@ end
 -- If a Name is give it will only check for requst registered with the given name
  ]]
 function PlayerInfoHub:GetIsRequestFinished( SteamId, Name )
+	local Requests = self.Requests
+	local SteamData = self.SteamData[ SteamId ]
+	local ENSLData = self.ENSLData[ SteamId ]
+	local GeoData = self.GeoData[ SteamId ]
 
 	if not Name then
-		return (not self.Requests.STEAMPLAYTIME[1] or self.SteamData[ SteamId ].Playtime ~= -2 ) and
-				(not self.Requests.STEAMBADGES[1] or self.SteamData[ SteamId ].Badges.Normal ~= -2) and
-				(not self.Requests.STEAMBANS[1] or self.SteamData[ SteamId ].Bans ~= -2) and
-				(not self.Requests.ENSL[1] or self.ENSLData[ SteamId ].Bans ~= -2) and
-				(not self.Requests.GEODATA[1] or self.GeoData[ SteamId ] ~= -2) and self.HiveQueue[ SteamId ] == false
+		return (not Requests.STEAMPLAYTIME[1] or SteamData.Playtime ~= -2 ) and
+				(not Requests.STEAMBADGES[1] or SteamData.Badges.Normal ~= -2) and
+				(not Requests.STEAMBANS[1] or SteamData.Bans ~= -2) and
+				(not Requests.ENSL[1] or ENSLData.Bans ~= -2) and
+				(not Requests.GEODATA[1] or GeoData ~= -2) and self.HiveQueue[ SteamId ] == false
 	else
 		local result = self.HiveQueue[ SteamId ] == false
 		if not result then return false end --avoid any not needed for loop via if checks
 
-		for _, name in ipairs(self.Requests.STEAMPLAYTIME) do
+		for _, name in IPairs( Requests.STEAMPLAYTIME ) do
 			if name == Name then
-				result = self.SteamData[ SteamId ].Playtime ~= -2
+				result = SteamData.Playtime ~= -2
 				break
 			end
 		end
 		if not result then return false end
 
-		for _, name in ipairs(self.Requests.STEAMBADGES) do
+		for _, name in IPairs( Requests.STEAMBADGES ) do
 			if name == Name then
-				result = self.SteamData[ SteamId ].Badges.Normal ~= -2
+				result = SteamData.Badges.Normal ~= -2
 				break
 			end
 		end
 		if not result then return false end
 
-		for _, name in ipairs(self.Requests.STEAMBANS) do
+		for _, name in IPairs( Requests.STEAMBANS ) do
 			if name == Name then
-				result = self.SteamData[ SteamId ].Bans ~= -2
+				result = SteamData.Bans ~= -2
 				break
 			end
 		end
 		if not result then return false end
 
-		for _, name in ipairs(self.Requests.GEODATA) do
+		for _, name in IPairs( Requests.GEODATA ) do
 			if name == Name then
-				result = self.GeoData[ SteamId ] ~= -2
+				result = GeoData ~= -2
 				break
 			end
 		end
 
-		for _, name in ipairs(self.Requests.ENSL) do
+		for _, name in IPairs( Requests.ENSL ) do
 			if name == Name then
-				result = self.ENSLData[ SteamId ] ~= -2
+				result = ENSLData ~= -2
 				break
 			end
 		end
