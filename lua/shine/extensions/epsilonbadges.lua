@@ -120,8 +120,14 @@ function Plugin:OnReceiveGeoData( Client, GeoData )
             Client:GetUserId(), type(GeoData) == "table" and table.ToString(GeoData) or GeoData))
     end
     
-    local Nationality = type(GeoData) == "table" and GeoData.countryCode or "UNO"
-    local Country = type(GeoData) == "table" and GeoData.country or "Unknown"
+    local Nationality = "UNO"
+    local Country = "Unknown"
+
+    if type(GeoData) == "table" then
+        local Location = GeoData.location
+        Nationality = (type(Location) == "table" and Location.country_code) or GeoData.countryCode or Nationality
+        Country = (type(Location) == "table" and Location.country) or GeoData.country or Country
+    end
 
     local SetBagde = self:SetBadge( Client, Nationality, self.Config.FlagsRow,
         string.format("Nationality - %s", Country), self.Config.ForceFlagsBadge )
