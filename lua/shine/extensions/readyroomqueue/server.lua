@@ -10,6 +10,7 @@ Plugin.HasConfig = true
 Plugin.ConfigName = "ReadRoomQueue.json"
 Plugin.DefaultConfig = {
     RestoreQueueAfterMapchange = true,
+    Debug = false,
     QueuePositionMaxReservationTime = 300, -- how long we reserve a queue position after a map change.
     QueueHistoryLifeTime = 300, -- max amount of time the queue history is preserved after a mapchange. Increase/decrease this value based on server loading time
     VIPPlayers = {
@@ -115,7 +116,10 @@ function Plugin:OnFirstThink()
         local result = OldFunc( gamerules, player )
 
         if not skipHook then
-            Shine.Hook.Call( "OnGetCanJoinPlayingTeam", gamerules, player, result )
+            local HookResult = { Shine.Hook.Call( "OnGetCanJoinPlayingTeam", gamerules, player, result ) }
+            if HookResult[ 1 ] ~= nil then
+                return unpack( HookResult )
+            end
         end
 
         return result
@@ -136,12 +140,52 @@ function Plugin:ClientDisconnect( Client )
 end
 
 function Plugin:OnGetCanJoinPlayingTeam( _, Player, Allowed )
-    if not Allowed and Player:GetIsSpectator() then
-        local Client = Player:GetClient()
-        if Client then
-            self:Enqueue(Client)
+    local Client = Player:GetClient()
+    if not Client then return end
+
+    local SteamID = Client:GetUserId()
+    if not SteamID or SteamID < 1 then return end
+
+    local QueueCount = self.PlayerQueue:GetCount()
+    if Allowed and QueueCount > 0 then
+        local _, FirstSteamID = self:GetFirstClient( self.PlayerQueue )
+        if FirstSteamID and FirstSteamID ~= SteamID then
+            if self.Config.Debug then
+                local TeamNumber = Player.GetTeamNumber and Player:GetTeamNumber() or -1
+                self:Print( "Blocking join for %s[%s] (team=%s spectator=%s), queue head is %s.", true,
+                    Shine.GetClientName( Client ), SteamID, tostring( TeamNumber ), tostring( Player:GetIsSpectator() ), tostring( FirstSteamID ) )
+            end
+
+            self:Enqueue( Client )
+            return false
         end
     end
+
+    if not Allowed then
+        if self.Config.Debug then
+            local TeamNumber = Player.GetTeamNumber and Player:GetTeamNumber() or -1
+            self:Print( "Denied join for %s[%s] (team=%s spectator=%s), queueing.", true,
+                Shine.GetClientName( Client ), SteamID, tostring( TeamNumber ), tostring( Player:GetIsSpectator() ) )
+        end
+
+        self:Enqueue( Client )
+    end
+end
+
+function Plugin:CanClientQueue( Client )
+    if not Client then return false end
+
+    if Client:GetIsSpectator() then
+        return true
+    end
+
+    local Player = Client:GetControllingPlayer()
+    if not Player then
+        return false
+    end
+
+    local TeamNumber = Player:GetTeamNumber()
+    return TeamNumber == kTeamReadyRoom or TeamNumber == kSpectatorIndex
 end
 
 function Plugin:GetQueuePosition( Client )
@@ -245,8 +289,9 @@ function Plugin:SendQueuePosition( Client, Position )
 end
 
 function Plugin:Enqueue( Client )
-    if not Client:GetIsSpectator() then
+    if not self:CanClientQueue( Client ) then
         self:NotifyTranslatedError( Client, "ENQUEUE_ERROR_PLAYER" )
+        return false
     end
 
     local SteamID = Client:GetUserId()
@@ -279,6 +324,8 @@ function Plugin:Enqueue( Client )
 
     -- Save join time for later
     Client.RRQueueJoinTime = Shared.GetTime()
+
+    return true
 end
 
 function Plugin:UpdateQueuePositions( Queue, Message )
@@ -478,6 +525,7 @@ function Plugin:CreateCommands()
 
         if not self:Dequeue(Client) then
             self:NotifyTranslatedError( Client, "DEQUEUE_FAILED")
+            return
         end
 
 
