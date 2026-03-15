@@ -140,6 +140,13 @@ function Plugin:ClientDisconnect( Client )
 end
 
 function Plugin:OnGetCanJoinPlayingTeam( _, Player, Allowed )
+    -- Only spectators need queue management. Ready room players already hold a player slot.
+    -- Note: NS2Gamerules:JoinTeam checks GetCanJoinPlayingTeam BEFORE calling SetIsSpectator(false),
+    -- so even a player being popped from the queue (via JoinTeam to kTeamReadyRoom) is still flagged
+    -- as a spectator when this hook fires. This means the popped player will correctly enter the
+    -- blocking branch below and be identified as first in queue.
+    if not Player:GetIsSpectator() then return end
+
     local Client = Player:GetClient()
     if not Client then return end
 
@@ -148,6 +155,8 @@ function Plugin:OnGetCanJoinPlayingTeam( _, Player, Allowed )
 
     local QueueCount = self.PlayerQueue:GetCount()
     if Allowed and QueueCount > 0 then
+        -- A slot is available, but there are queued players.
+        -- Only allow the first queued player through; block everyone else to prevent queue skipping.
         local _, FirstSteamID = self:GetFirstClient( self.PlayerQueue )
         if FirstSteamID and FirstSteamID ~= SteamID then
             if self.Config.Debug then
@@ -162,6 +171,7 @@ function Plugin:OnGetCanJoinPlayingTeam( _, Player, Allowed )
     end
 
     if not Allowed then
+        -- Server is full, enqueue the spectator.
         if self.Config.Debug then
             local TeamNumber = Player.GetTeamNumber and Player:GetTeamNumber() or -1
             self:Print( "Denied join for %s[%s] (team=%s spectator=%s), queueing.", true,
