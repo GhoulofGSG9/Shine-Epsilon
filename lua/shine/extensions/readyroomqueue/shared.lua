@@ -10,6 +10,9 @@ function Plugin:SetupDataTable()
     local MessageTypes = {
         QueuePosition = {
             Position = "integer"
+        },
+        GraceTime = {
+            Time = "integer"
         }
     }
 
@@ -18,6 +21,9 @@ function Plugin:SetupDataTable()
             "QUEUE_CHANGED", "PIORITY_QUEUE_CHANGED", "QUEUE_ADDED", "PIORITY_QUEUE_ADDED",
             "QUEUE_POSITION", "PIORITY_QUEUE_POSITION", "QUEUE_INFORM", "QUEUE_WELCOME_BACK",
             "QUEUE_CHANGED_VIP", "PIORITY_QUEUE_CHANGED_VIP",
+        },
+        [ MessageTypes.GraceTime ] = {
+            "RR_GRACE_WARNING"
         }
     } )
 

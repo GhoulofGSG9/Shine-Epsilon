@@ -224,7 +224,11 @@ function Plugin:OnGetCanJoinPlayingTeam( _, Player, Allowed )
 
     self:Enqueue( Client )
 
-    if self.Popping then return end
+    if self.Popping then
+        self:DebugPrint( "Blocked %s[%s] from skipping the queue, a pop is already running.",
+            Shine.GetClientName( Client ), SteamID )
+        return false
+    end
 
     self.Popping = true
     local Ok, Granted = pcall( self.Pop, self )
@@ -291,6 +295,9 @@ function Plugin:PostJoinTeam( _, Player, OldTeam, NewTeam )
 
     self:Pop()
 
+    -- A reclaim moves them here on purpose and tells them their real position right afterwards.
+    if self.ReclaimingSteamID and Client and Client:GetUserId() == self.ReclaimingSteamID then return end
+
     if not self:GetCanJoinPlayingTeam( Player ) then
         if Client then
             if position == 0 then
@@ -334,7 +341,7 @@ end
 function Plugin:GetQueueInsertPosition( Queue, Client )
     local VIPPlayersEnabled = self.Config.VIPPlayers.Enabled
     local PermissionString = self.Config.VIPPlayers.PermissionString
-    if VIPPlayersEnabled and Shine:HasAccess(Client, PermissionString) then
+    if VIPPlayersEnabled and not Client.RRReclaimed and Shine:HasAccess(Client, PermissionString) then
 
         local position = 1
         for SteamID in Queue:Iterate() do
@@ -364,7 +371,7 @@ function Plugin:SendQueuePosition( Client, Position )
     end
 end
 
-function Plugin:Enqueue( Client )
+function Plugin:Enqueue( Client, Reclaimed )
     if not self:CanClientQueue( Client ) then
         self:NotifyTranslatedError( Client, "ENQUEUE_ERROR_PLAYER" )
         return false
@@ -373,6 +380,8 @@ function Plugin:Enqueue( Client )
     local SteamID = Client:GetUserId()
 
     if not SteamID or SteamID < 1 then return false end
+
+    Client.RRReclaimed = Reclaimed or nil
 
     local position = self.PlayerQueue:Get( SteamID )
     if position then
@@ -437,18 +446,21 @@ function Plugin:Dequeue( Client )
     if not Client then return end
 
     local SteamId = Client:GetUserId()
+    Client.RRReclaimed = nil
 
-    local position = self.PlayerQueue:Remove( SteamId )
+    local Removed = false
 
-    if self.ReservedQueue:Remove( SteamId ) then
+    if self.ReservedQueue:Remove( SteamId ) ~= nil then
         self:UpdateQueuePositions( self.ReservedQueue, "PIORITY_QUEUE_CHANGED" )
+        Removed = true
     end
 
-    if not position then return false end
+    if self.PlayerQueue:Remove( SteamId ) ~= nil then
+        self:UpdateQueuePositions( self.PlayerQueue )
+        Removed = true
+    end
 
-    self:UpdateQueuePositions( self.PlayerQueue )
-
-    return true
+    return Removed
 end
 
 function Plugin:GetFirstClient( Queue )
@@ -509,7 +521,7 @@ end
     Returns the first client in the given queue that could be given a player slot right now, looking only
     at the entries ahead of BeforeSteamID. The key order of the map is the queue order.
 ]]
-function Plugin:GetFirstServableClient( Queue, BeforeSteamID, RequireReservedAccess )
+function Plugin:GetFirstServableClient( Queue, BeforeSteamID, RequireReservedAccess, SkipReclaimed )
     local Keys = Queue:GetKeys()
 
     for i = 1, #Keys do
@@ -521,6 +533,7 @@ function Plugin:GetFirstServableClient( Queue, BeforeSteamID, RequireReservedAcc
             local QueuedClient = Shine.GetClientByNS2ID( SteamID )
 
             if QueuedClient and QueuedClient:GetIsSpectator()
+            and not ( SkipReclaimed and QueuedClient.RRReclaimed )
             and ( not RequireReservedAccess or GetHasReservedSlotAccess( SteamID ) ) then
                 return QueuedClient, SteamID
             end
@@ -583,9 +596,9 @@ function Plugin:OnSlotGranted( Client, SteamID )
     self.PlayerQueue:Remove( SteamID )
     self.ReservedQueue:Remove( SteamID )
     self.GraceExpiries[ SteamID ] = nil
+    Client.RRReclaimed = nil
 
     self:SendNetworkMessage( Client, "QueueLeft", {}, true )
-    self:NotifyTranslated( Client, "QUEUE_LEAVE" )
 
     if Client.RRQueueJoinTime then
         self:UpdateWaitTimeHistory( Shared.GetTime() - Client.RRQueueJoinTime )
@@ -686,9 +699,44 @@ function Plugin:Pop( IgnoreClient )
     return Granted
 end
 
--- Kept for backwards compatibility with anything calling into the plugin.
-function Plugin:PopReserved()
-    return self:PopQueue( self.ReservedQueue, true )
+--[[
+    True while freeing one more player slot would let somebody in the queue in. Players the grace period
+    itself queued do not count, or every reclaim would create the demand for the next one.
+]]
+function Plugin:HasWaitingClient()
+    local NumPlayers, MaxPlayers, NumReserved = self:GetSlotCounts()
+    NumPlayers = NumPlayers - 1
+
+    if NumPlayers < MaxPlayers - NumReserved
+    and self:GetFirstServableClient( self.PlayerQueue, nil, false, true ) then
+        return true
+    end
+
+    return NumPlayers < MaxPlayers
+        and self:GetFirstServableClient( self.ReservedQueue, nil, true, true ) ~= nil
+end
+
+-- Callers are responsible for making sure somebody is actually waiting for the slot.
+function Plugin:StartReadyRoomGrace( Client, SteamID )
+    local Config = self.Config.ReadyRoomGracePeriod
+    if not Config.Enabled then return false end
+
+    if self.GraceExpiries[ SteamID ] then return false end
+
+    -- Never touch bots, the round end move that drops the whole server into the ready room, or the pre
+    -- game ready room where everybody is meant to be sitting around anyway.
+    if Client:GetIsVirtual() or self.InRoundEndMove then return false end
+
+    local Gamerules = GetGamerules()
+    if not Gamerules or not Gamerules:GetGameStarted() then return false end
+
+    self.GraceExpiries[ SteamID ] = Shared.GetTime() + Config.Time
+
+    self:SendTranslatedNotify( Client, "RR_GRACE_WARNING", {
+        Time = Config.Time
+    })
+
+    return true
 end
 
 --[[
@@ -706,32 +754,36 @@ function Plugin:UpdateReadyRoomGrace( Client, OldTeam, NewTeam )
         return
     end
 
-    local Config = self.Config.ReadyRoomGracePeriod
-    if not Config.Enabled then return end
-
-    -- Only players giving up a playing team slot are on the clock.
+    -- Only players giving up a playing team slot go on the clock right here. Anybody else sitting in the
+    -- ready room on a player slot is picked up by the tick as soon as somebody starts waiting.
     if OldTeam ~= kTeam1Index and OldTeam ~= kTeam2Index then return end
 
-    -- Never touch bots, the round end move that drops the whole server into the ready room, or the pre
-    -- game ready room where everybody is meant to be sitting around anyway.
-    if Client:GetIsVirtual() or self.InRoundEndMove then return end
-
-    local Gamerules = GetGamerules()
-    if not Gamerules or not Gamerules:GetGameStarted() then return end
-
     -- Nobody is waiting, so let them keep their slot for as long as they like.
-    if not self:GetFirstServableClient( self.PlayerQueue )
-    and not self:GetFirstServableClient( self.ReservedQueue, nil, true ) then
-        return
+    if not self:HasWaitingClient() then return end
+
+    self:StartReadyRoomGrace( Client, SteamID )
+end
+
+function Plugin:StartPendingReadyRoomGraces()
+    if not self.Config.ReadyRoomGracePeriod.Enabled then return end
+    if not self:HasWaitingClient() then return end
+
+    local Clients = Shine.GameIDs:GetKeys()
+    for i = 1, #Clients do
+        local Client = Clients[ i ]
+
+        if not Client:GetIsVirtual() and not Client:GetIsSpectator() then
+            local SteamID = Client:GetUserId()
+
+            if SteamID and SteamID > 0 and not self.GraceExpiries[ SteamID ] then
+                local Player = Client:GetControllingPlayer()
+
+                if Player and Player:GetTeamNumber() == kTeamReadyRoom then
+                    self:StartReadyRoomGrace( Client, SteamID )
+                end
+            end
+        end
     end
-
-    if self.GraceExpiries[ SteamID ] then return end
-
-    self.GraceExpiries[ SteamID ] = Shared.GetTime() + Config.Time
-
-    self:SendTranslatedNotify( Client, "RR_GRACE_WARNING", {
-        Time = Config.Time
-    })
 end
 
 function Plugin:CheckReadyRoomGrace()
@@ -765,12 +817,11 @@ function Plugin:CheckReadyRoomGrace()
 
     for i = 1, #Expired do
         local SteamID = Expired[ i ]
-        self.GraceExpiries[ SteamID ] = nil
-
         local Client = Shine.GetClientByNS2ID( SteamID )
         local Player = Client and Client:GetControllingPlayer()
 
-        -- Re-check, an earlier reclaim in this same pass may have changed things.
+        -- Re-check, an earlier reclaim in this same pass may have changed things. The entry is left in
+        -- place so a failed move is retried next tick instead of starting a fresh grace period.
         if Client and Player and not Client:GetIsSpectator()
         and Player:GetTeamNumber() == kTeamReadyRoom then
             self:ReclaimPlayerSlot( Client, Player )
@@ -779,28 +830,39 @@ function Plugin:CheckReadyRoomGrace()
 end
 
 function Plugin:ReclaimPlayerSlot( Client, Player )
+    local SteamID = Client:GetUserId()
+
     -- Only take the slot back if it is actually going to be used by somebody.
-    if not self:GetFirstServableClient( self.PlayerQueue )
-    and not self:GetFirstServableClient( self.ReservedQueue, nil, true ) then
+    if not self:HasWaitingClient() then
+        self.GraceExpiries[ SteamID ] = nil
         return false
     end
 
     local Gamerules = GetGamerules()
     if not Gamerules then return false end
 
-    if not Gamerules:JoinTeam( Player, kSpectatorIndex, true ) then
-        self:DebugPrint( "Could not move %s out of the ready room to reclaim their player slot.",
-            Client:GetUserId() )
+    -- PostJoinTeam fires mid-move and would report a queue position that does not include them yet.
+    self.ReclaimingSteamID = SteamID
+
+    local Ok, Moved = pcall( Gamerules.JoinTeam, Gamerules, Player, kSpectatorIndex, true )
+
+    self.ReclaimingSteamID = nil
+
+    if not Ok then
+        error( Moved, 0 )
+    end
+
+    if not Moved then
+        self:DebugPrint( "Could not move %s out of the ready room to reclaim their player slot.", SteamID )
         return false
     end
 
-    self:DebugPrint( "Reclaimed the player slot of %s, their ready room grace period ran out.",
-        Client:GetUserId() )
+    self:DebugPrint( "Reclaimed the player slot of %s, their ready room grace period ran out.", SteamID )
 
     self:NotifyTranslated( Client, "RR_GRACE_EXPIRED" )
 
     if self.Config.ReadyRoomGracePeriod.EnqueueOnExpiry then
-        self:Enqueue( Client )
+        self:Enqueue( Client, true )
     end
 
     -- The move to the spectator team already popped the queue, this only covers the case where it did not.
@@ -812,13 +874,16 @@ end
 function Plugin:OnTick()
     self:CheckReadyRoomGrace()
 
-    if self.PlayerQueue:GetCount() == 0 and self.ReservedQueue:GetCount() == 0 then return end
+    if self.PlayerQueue:GetCount() > 0 or self.ReservedQueue:GetCount() > 0 then
+        -- Pick up player slots that were freed by something the plugin does not hook.
+        local NumPlayers, MaxPlayers = self:GetSlotCounts()
+        if NumPlayers < MaxPlayers then
+            self:Pop()
+        end
+    end
 
-    -- Pick up player slots that were freed by something the plugin does not hook.
-    local NumPlayers, MaxPlayers = self:GetSlotCounts()
-    if NumPlayers >= MaxPlayers then return end
-
-    self:Pop()
+    -- After the pop, so nobody is warned over a waiting player that a free slot is about to serve anyway.
+    self:StartPendingReadyRoomGraces()
 end
 
 function Plugin:PrintQueue( Client )
@@ -944,6 +1009,7 @@ function Plugin:Cleanup()
     self.InRoundEndMove = nil
     self.Popping = nil
     self.QueuesDirty = nil
+    self.ReclaimingSteamID = nil
     self.connectionChecked = nil
     self.Enabled = false
 end

@@ -10,11 +10,12 @@
   "PIORITY_QUEUE_POSITION": "Your current position in the reserved slot queue is {Position}.",
   "QUEUE_POSITION_UNKNOWN": "You haven't joined the player slot queue yet!",
   "DEQUEUE_SUCCESS": "You left the players slot queue!",
+  "DEQUEUE_FAILED": "You are not in the player slot queue!",
   "QUEUE_LEAVE": "A player slot became available. You now get moved to the Ready Room! Thanks for waiting.",
   "ENQUEUE_ERROR_PLAYER": "Only spectators can queue for a player slot!",
   "QUEUE_INFORM": "If you want to play please press F4 or enter !rr_enqueue into the chat. Currently {Position} player are waiting for a player slot!",
   "QUEUE_WELCOME_BACK": "Welcome back! We restored your previous player slot queue position ({Position}). To leave the queue enter !rr_dequeue into the chat.",
   "QUEUE_WAITTIME": "Average queue time is %s. You may want to consider seeding a empty server.",
-  "RR_GRACE_WARNING": "Players are waiting for a player slot. Rejoin a team within {Time} seconds or your slot will be given to the next player in the queue.",
+  "RR_GRACE_WARNING": "Players are waiting for a player slot. Join a team within {Time} seconds or your slot will be given to the next player in the queue.",
   "RR_GRACE_EXPIRED": "Your player slot was given to a player waiting in the queue. You are now using a spectator slot."
 }
