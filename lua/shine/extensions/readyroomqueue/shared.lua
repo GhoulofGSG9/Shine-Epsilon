@@ -11,24 +11,23 @@ function Plugin:SetupDataTable()
         QueuePosition = {
             Position = "integer"
         },
-        GraceTime = {
+        Time = {
             Time = "integer"
         }
     }
 
     self:AddNetworkMessages( "AddTranslatedNotify", {
         [ MessageTypes.QueuePosition ] = {
-            "QUEUE_CHANGED", "PIORITY_QUEUE_CHANGED", "QUEUE_ADDED", "PIORITY_QUEUE_ADDED",
-            "QUEUE_POSITION", "PIORITY_QUEUE_POSITION", "QUEUE_INFORM", "QUEUE_WELCOME_BACK",
-            "QUEUE_CHANGED_VIP", "PIORITY_QUEUE_CHANGED_VIP",
+            "QUEUE_CHANGED", "PRIORITY_QUEUE_CHANGED", "QUEUE_ADDED", "PRIORITY_QUEUE_ADDED",
+            "QUEUE_POSITION", "PRIORITY_QUEUE_POSITION", "QUEUE_INFORM", "QUEUE_WELCOME_BACK",
+            "QUEUE_CHANGED_VIP", "PRIORITY_QUEUE_CHANGED_VIP",
         },
-        [ MessageTypes.GraceTime ] = {
-            "RR_GRACE_WARNING"
+        [ MessageTypes.Time ] = {
+            "RR_GRACE_WARNING", "QUEUE_WAITTIME"
         }
     } )
 
     self:AddNetworkMessage( "QueueLeft", {}, "Client")
-    self:AddNetworkMessage( "WaitTime", { Time = "integer" }, "Client")
 end
 
 return Plugin

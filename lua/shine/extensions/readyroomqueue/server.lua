@@ -1,6 +1,8 @@
-local Notify = Shared.Message
-
-local TableConcat = table.concat
+local Max = math.max
+local Min = math.min
+local StringFormat = string.format
+local TableEmpty = table.Empty
+local TableQuickCopy = table.QuickCopy
 
 local Plugin = ...
 Plugin.PrintName = "Ready Room Queue"
@@ -27,6 +29,7 @@ Plugin.DefaultConfig = {
 }
 Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
+Plugin.CheckConfigRecursively = true
 
 Plugin.QueueHistoryFile = "config://shine/temp/rr_queue_history.json"
 Plugin.QueueWaitTimeHistoryFile = "config://shine/temp/rr_queue_wait_time_history.json"
@@ -34,9 +37,9 @@ Plugin.QueueWaitTimeHistoryFile = "config://shine/temp/rr_queue_wait_time_histor
 -- How often we look for free player slots that nobody claimed and for expired ready room grace periods.
 Plugin.TickInterval = 1
 
-function Plugin:Initialise()
-    self.Enabled = true
+Plugin.MaxWaitTimeSamples = 20
 
+function Plugin:Initialise()
     -- Using Map instead of Set because Set doesn't provide any easy way to get a value's current position
     -- and Queue doesn't allow to insert at a specific position without iterating over the all elements
     self.PlayerQueue = Shine.Map()
@@ -59,6 +62,12 @@ function Plugin:Initialise()
     return true
 end
 
+-- Shine's recursive check walks the old value after replacing a mistyped table, so fix the top level first.
+function Plugin:TypeCheckConfig( Config )
+    local Edited = Shine.TypeCheckConfig( self.__Name, Config, self.DefaultConfig )
+    return Shine.TypeCheckConfig( self.__Name, Config, self.DefaultConfig, true ) or Edited
+end
+
 function Plugin:DebugPrint( Message, ... )
     if not self.Config.Debug then return end
 
@@ -66,25 +75,22 @@ function Plugin:DebugPrint( Message, ... )
 end
 
 function Plugin:LoadWaitTimeHistory()
-    local WaitTimeHistory = Shine.LoadJSONFile( self.QueueWaitTimeHistoryFile ) or {
-        AVGWaitTime = 0,
-        SampleSize = 0
-    }
+    local WaitTimeHistory = Shine.LoadJSONFile( self.QueueWaitTimeHistoryFile ) or {}
 
-    self.AVGWaitTime = WaitTimeHistory.AVGWaitTime
-    self.AVGWaitTimeSampleSize = WaitTimeHistory.SampleSize
+    self.AVGWaitTime = tonumber( WaitTimeHistory.AVGWaitTime ) or 0
+    self.AVGWaitTimeSampleSize = Max( tonumber( WaitTimeHistory.SampleSize ) or 0, 0 )
 end
 
 function Plugin:UpdateWaitTimeHistory( WaitTime )
-    local SumWaitTimes = self.AVGWaitTime * self.AVGWaitTimeSampleSize + WaitTime
-    self.AVGWaitTimeSampleSize = self.AVGWaitTimeSampleSize + 1
-    self.AVGWaitTime = math.round( SumWaitTimes / self.AVGWaitTimeSampleSize )
+    local SampleSize = Min( self.AVGWaitTimeSampleSize + 1, self.MaxWaitTimeSamples )
 
-    local WaitTimeHistory = {
+    self.AVGWaitTime = self.AVGWaitTime + ( WaitTime - self.AVGWaitTime ) / SampleSize
+    self.AVGWaitTimeSampleSize = SampleSize
+
+    Shine.SaveJSONFile( {
         AVGWaitTime = self.AVGWaitTime,
         SampleSize = self.AVGWaitTimeSampleSize
-    }
-    Shine.SaveJSONFile( WaitTimeHistory, self.QueueWaitTimeHistoryFile )
+    }, self.QueueWaitTimeHistoryFile )
 end
 
 function Plugin:LoadQueueHistory()
@@ -94,60 +100,73 @@ function Plugin:LoadQueueHistory()
 
     local QueueHistory = Shine.LoadJSONFile( self.QueueHistoryFile ) or {}
 
-    local now = Shared.GetSystemTime()
-
-    local TimeStamp = QueueHistory.TimeStamp
-    if not TimeStamp or tonumber( TimeStamp ) + self.Config.QueueHistoryLifeTime < now then
+    local TimeStamp = tonumber( QueueHistory.TimeStamp )
+    if not TimeStamp or TimeStamp + self.Config.QueueHistoryLifeTime < Shared.GetSystemTime() then
         return
     end
 
-    if QueueHistory.PlayerQueue then
-        for i = 1, #QueueHistory.PlayerQueue do
-            local SteamId = QueueHistory.PlayerQueue[i]
-            self:InsertIntoQueue(self.PlayerQueue, SteamId, i )
-            self.HistoricPlayers:Add( SteamId )
-        end
+    Shine.SaveJSONFile( {}, self.QueueHistoryFile )
+
+    local PlayerQueue = QueueHistory.PlayerQueue or {}
+    for i = 1, #PlayerQueue do
+        local SteamID = PlayerQueue[ i ]
+        self.PlayerQueue:Add( SteamID, self.PlayerQueue:GetCount() + 1 )
+        self.HistoricPlayers:Add( SteamID )
     end
 
-    if QueueHistory.ReservedQueue then
-        for i = 1, #QueueHistory.ReservedQueue do
-            local SteamId = QueueHistory.ReservedQueue[i]
-            self:InsertIntoQueue(self.ReservedQueue, SteamId, i )
-        end
+    local ReservedQueue = QueueHistory.ReservedQueue or {}
+    for i = 1, #ReservedQueue do
+        self.ReservedQueue:Add( ReservedQueue[ i ], self.ReservedQueue:GetCount() + 1 )
     end
 
-    local function ClearHistory()
+    self:SimpleTimer( self.Config.QueuePositionMaxReservationTime, function()
         self.HistoricPlayers = Shine.Set()
+        self:UpdateAllQueuePositions()
+    end )
+end
 
-        self:UpdateQueuePositions( self.PlayerQueue )
-        self:UpdateQueuePositions( self.ReservedQueue, "PIORITY_QUEUE_CHANGED" )
+-- Players the grace period queued while idle have no spot to carry over to the next map.
+local function GetRestorableKeys( Queue )
+    local Keys = {}
+
+    for SteamID in Queue:Iterate() do
+        local QueuedClient = Shine.GetClientByNS2ID( SteamID )
+        if not ( QueuedClient and QueuedClient.RRReclaimed ) then
+            Keys[ #Keys + 1 ] = SteamID
+        end
     end
 
-    self:SimpleTimer( self.Config.QueuePositionMaxReservationTime, ClearHistory )
+    return Keys
 end
 
 function Plugin:SaveQueueHistory()
     local QueueHistory = {
-        PlayerQueue = self.PlayerQueue:GetKeys(),
-        ReservedQueue = self.ReservedQueue:GetKeys(),
+        PlayerQueue = GetRestorableKeys( self.PlayerQueue ),
+        ReservedQueue = GetRestorableKeys( self.ReservedQueue ),
         TimeStamp = Shared.GetSystemTime()
     }
     Shine.SaveJSONFile( QueueHistory, self.QueueHistoryFile )
 end
 
 function Plugin:OnFirstThink()
-    Shine.Hook.SetupClassHook( "Gamerules", "GetCanJoinPlayingTeam", "OnGetCanJoinPlayingTeam", function(OldFunc, gamerules, player, skipHook )
-        local result = OldFunc( gamerules, player )
+    Shine.Hook.SetupClassHook( "Gamerules", "GetCanJoinPlayingTeam", "OnGetCanJoinPlayingTeam",
+        function( OldFunc, Gamerules, Player )
+            local Allowed = OldFunc( Gamerules, Player )
 
-        if not skipHook then
-            local HookResult = { Shine.Hook.Call( "OnGetCanJoinPlayingTeam", gamerules, player, result ) }
-            if HookResult[ 1 ] ~= nil then
-                return unpack( HookResult )
+            local Result = Shine.Hook.Call( "OnGetCanJoinPlayingTeam", Gamerules, Player, Allowed )
+            if Result ~= nil then
+                return Result
             end
-        end
 
-        return result
-    end )
+            return Allowed
+        end )
+
+    -- Vanilla's GetCanJoinPlayingTeam never sees ShineForce, so remember which player a Shine admin move is
+    -- for. A plain hook at top priority, because shuffles force their moves through a top priority hook that
+    -- stops plugin hooks from running.
+    Shine.Hook.Add( "JoinTeam", "RRQueueAdminTeamMove", function( _, Player, NewTeam, _, ShineForce )
+        self.AdminTeamMove = ShineForce and NewTeam ~= kSpectatorIndex and Player or nil
+    end, Shine.Hook.MAX_PRIORITY )
 
     -- At the end of a round the gamerules move every single player back into the ready room. Those moves
     -- must never start a grace period, otherwise the whole server would end up in the spectator slots.
@@ -167,6 +186,22 @@ function Plugin:OnFirstThink()
         end )
 end
 
+function Plugin:ClientConnect( Client )
+    if Client:GetIsVirtual() then return end
+
+    if Client:GetIsSpectator() then
+        self:OnSpectatorJoined( Client )
+        return
+    end
+
+    local SteamID = Client:GetUserId()
+    if not self.HistoricPlayers:Contains( SteamID ) then return end
+
+    -- Joining the ready room on connect does not go through JoinTeam, nothing else would drop this entry.
+    self.HistoricPlayers:Remove( SteamID )
+    self:Dequeue( Client )
+end
+
 function Plugin:ClientDisconnect( Client )
     if not Client or Client:GetIsVirtual() then return end
 
@@ -182,15 +217,19 @@ function Plugin:ClientDisconnect( Client )
     -- A spectator was not holding a player slot, so nothing frees up by them leaving.
     if WasSpectator then return end
 
-    -- Their player slot is free now. Ignore them while counting, Shine may not have dropped them from
-    -- Shine.GameIDs yet depending on hook ordering.
-    self:Pop( Client )
+    -- The engine may still count them while this hook runs.
+    self:SimpleTimer( 0, function()
+        self:Pop()
+    end )
 end
 
 function Plugin:OnGetCanJoinPlayingTeam( _, Player, Allowed )
+    local AdminTeamMove = self.AdminTeamMove == Player
+    self.AdminTeamMove = nil
+
     -- Anyone that is not flagged as a spectator already occupies a player slot, so the queue has no
     -- business blocking them. This is what keeps the plugin from locking everyone out of the teams.
-    if not Player:GetIsSpectator() then return end
+    if not Player:GetIsSpectator() or AdminTeamMove then return end
 
     local Client = Player:GetClient()
     if not Client then return end
@@ -206,21 +245,32 @@ function Plugin:OnGetCanJoinPlayingTeam( _, Player, Allowed )
         return
     end
 
+    -- Vanilla only knows the engine's count, which can still miss a slot the plugin just handed out.
+    if not self:GetCanTakePlayerSlot( Client ) then
+        self:Enqueue( Client )
+        return false
+    end
+
     -- A player slot is free. Work out whether somebody ahead of them in the queue could actually take it,
     -- taking into account which kind of slot became free.
     local NumPlayers, MaxPlayers, NumReserved = self:GetSlotCounts()
 
-    local AheadID
+    local Queue, AheadID, AheadIndex
     if NumPlayers < MaxPlayers - NumReserved then
-        _, AheadID = self:GetFirstServableClient( self.PlayerQueue, SteamID )
+        Queue = self.PlayerQueue
+        _, AheadID, AheadIndex = self:GetFirstServableClient( Queue, SteamID, false, true )
     end
 
     if not AheadID and NumPlayers < MaxPlayers then
-        _, AheadID = self:GetFirstServableClient( self.ReservedQueue, SteamID, true )
+        Queue = self.ReservedQueue
+        _, AheadID, AheadIndex = self:GetFirstServableClient( Queue, SteamID, true, true )
     end
 
     -- Nobody is waiting that could use this slot, so let them have it. Never hold a slot hostage.
     if not AheadID then return end
+
+    -- A VIP the queue would put in front of everybody that could take the slot gets it straight away.
+    if not Queue:Get( SteamID ) and self:GetQueueInsertPosition( Queue, Client ) <= AheadIndex then return end
 
     self:Enqueue( Client )
 
@@ -238,8 +288,9 @@ function Plugin:OnGetCanJoinPlayingTeam( _, Player, Allowed )
         error( Granted, 0 )
     end
 
-    -- The pop may have handed the slot to this very player.
-    if not Client:GetIsSpectator() then return end
+    -- The pop handed the slot to this very player and already replaced their entity with a ready room one,
+    -- vanilla must not carry on with the old entity.
+    if not Client:GetIsSpectator() then return false end
 
     if Granted then
         self:DebugPrint( "Blocked %s[%s] from skipping the queue, the free slot went to %s.",
@@ -251,128 +302,126 @@ function Plugin:OnGetCanJoinPlayingTeam( _, Player, Allowed )
     return
 end
 
-function Plugin:CanClientQueue( Client )
-    if not Client then return false end
-
-    -- Only clients using a spectator slot can gain anything from the queue. A client sitting in the ready
-    -- room already holds a player slot, queueing them would only stall the queue for everybody else.
-    return Client:GetIsSpectator() == true
-end
-
-function Plugin:GetQueuePosition( Client )
-    local SteamId = Client:GetUserId()
-
-    return self.PlayerQueue:Get(SteamId)
-end
-
 function Plugin:PostJoinTeam( _, Player, OldTeam, NewTeam )
     local Client = Player:GetClient()
 
     if NewTeam ~= kSpectatorIndex then
-
         -- Make sure clients don't stay in the queue if they get moved to a playing slot
-        self:Dequeue(Client)
+        self:Dequeue( Client )
 
         self:UpdateReadyRoomGrace( Client, OldTeam, NewTeam )
 
         return
     end
 
-    if Client then
-        local SteamID = Client:GetUserId()
-        if SteamID then
-            self.GraceExpiries[ SteamID ] = nil
-        end
-    end
+    local SteamID = Client and Client:GetUserId()
+    if not SteamID then return end
 
-    local SteamId = Player:GetSteamId()
+    self.GraceExpiries[ SteamID ] = nil
 
-    local position = 0
-    if SteamId and self.HistoricPlayers:Contains( SteamId ) then
-        self.HistoricPlayers:Remove( SteamId )
-        position = self.PlayerQueue:Get( SteamId ) or 0
+    -- Vanilla moves connecting spectators here before Shine knows the client, which would make the pop drop
+    -- their restored queue entry and the client could not receive any message yet. ClientConnect takes over.
+    if not Shine:IsValidClient( Client ) then return end
+
+    self:OnSpectatorJoined( Client )
+end
+
+function Plugin:OnSpectatorJoined( Client )
+    local SteamID = Client:GetUserId()
+
+    local Position = 0
+    if self.HistoricPlayers:Contains( SteamID ) then
+        self.HistoricPlayers:Remove( SteamID )
+        Position = self.PlayerQueue:Get( SteamID ) or 0
     end
 
     self:Pop()
 
     -- A reclaim moves them here on purpose and tells them their real position right afterwards.
-    if self.ReclaimingSteamID and Client and Client:GetUserId() == self.ReclaimingSteamID then return end
+    if SteamID == self.ReclaimingSteamID then return end
 
-    if not self:GetCanJoinPlayingTeam( Player ) then
-        if Client then
-            if position == 0 then
-                self:SendTranslatedNotify(Client, "QUEUE_INFORM", {
-                    Position = self.PlayerQueue:GetCount()
-                })
-            else
-                self:SendTranslatedNotify(Client, "QUEUE_WELCOME_BACK", {
-                    Position = position
-                })
-            end
-        end
+    if self:GetCanTakePlayerSlot( Client ) then return end
+
+    if Position == 0 then
+        self:SendTranslatedNotify( Client, "QUEUE_INFORM", {
+            Position = self.PlayerQueue:GetCount()
+        } )
+    else
+        self:SendTranslatedNotify( Client, "QUEUE_WELCOME_BACK", {
+            Position = Position
+        } )
     end
 end
 
--- Allows to insert new key to a specific position in the Maps Keys array
--- Also position is the value to add for given key in the map
+-- Shine.Map has no positional insert, so this reaches into its internals.
 function Plugin:InsertIntoQueue( Queue, Key, Position, UpdateMessageName )
-    if Key == nil then return end -- ensure Key is not nil
+    if Queue:Get( Key ) then return end
 
-    local NumMembers = Queue.NumMembers + 1
-    if Position > NumMembers then return end -- ensure we are not inserting to an invalid position
-
-    Position = Position or NumMembers -- set position to end of map if not specified otherwise
-
-    -- Key allready exists in map, abort mission!
-    if Queue.MemberLookup[ Key ] ~= nil then
-        Queue.MemberLookup[ Key ] = Position
-        return
-    end
-
-    Queue.NumMembers = NumMembers
-    table.insert(Queue.Keys, Position, Key)
+    Queue.NumMembers = Queue.NumMembers + 1
+    table.insert( Queue.Keys, Position, Key )
     Queue.MemberLookup[ Key ] = Position
 
-    if UpdateMessageName and Position < NumMembers then
-        self:UpdateQueuePositions(Queue, UpdateMessageName)
+    if Position < Queue.NumMembers then
+        self:UpdateQueuePositions( Queue, UpdateMessageName )
     end
 end
 
 function Plugin:GetQueueInsertPosition( Queue, Client )
-    local VIPPlayersEnabled = self.Config.VIPPlayers.Enabled
-    local PermissionString = self.Config.VIPPlayers.PermissionString
-    if VIPPlayersEnabled and not Client.RRReclaimed and Shine:HasAccess(Client, PermissionString) then
-
-        local position = 1
-        for SteamID in Queue:Iterate() do
-            local c = Shine.GetClientByNS2ID(SteamID)
-            if c then
-                if Shine:HasAccess(c, PermissionString) then
-                    position = position + 1
-                else
-                    break
-                end
-            end
-        end
-
-        return position
+    local VIPConfig = self.Config.VIPPlayers
+    if not VIPConfig.Enabled or Client.RRReclaimed or not Shine:HasAccess( Client, VIPConfig.PermissionString ) then
+        return Queue:GetCount() + 1
     end
 
-    return Queue:GetCount() + 1
+    -- A connected non-VIP that was not connected when an earlier VIP queued can sit in front of that VIP,
+    -- so behind the last VIP as well as in front of the first non-VIP.
+    local Keys = Queue:GetKeys()
+    local FirstNonVIP, LastVIP
+
+    for i = 1, #Keys do
+        local QueuedClient = Shine.GetClientByNS2ID( Keys[ i ] )
+        if QueuedClient then
+            if not QueuedClient.RRReclaimed and Shine:HasAccess( QueuedClient, VIPConfig.PermissionString ) then
+                LastVIP = i
+            elseif not FirstNonVIP then
+                FirstNonVIP = i
+            end
+        end
+    end
+
+    return Max( FirstNonVIP or #Keys + 1, ( LastVIP or 0 ) + 1 )
+end
+
+function Plugin:SendWaitTime( Client )
+    if self.AVGWaitTimeSampleSize == 0 then return end
+
+    self:SendTranslatedNotify( Client, "QUEUE_WAITTIME", {
+        Time = math.round( self.AVGWaitTime )
+    } )
 end
 
 function Plugin:SendQueuePosition( Client, Position )
-    self:SendTranslatedNotify(Client, "QUEUE_POSITION", {
+    self:SendTranslatedNotify( Client, "QUEUE_POSITION", {
         Position = Position
-    })
+    } )
 
-    if self.AVGWaitTimeSampleSize > 0 then
-        self:SendNetworkMessage( Client, "WaitTime", { Time = self.AVGWaitTime }, true )
+    local ReservedPosition = self.ReservedQueue:Get( Client:GetUserId() )
+    if ReservedPosition then
+        self:SendTranslatedNotify( Client, "PRIORITY_QUEUE_POSITION", {
+            Position = ReservedPosition
+        } )
     end
+
+    self:SendWaitTime( Client )
 end
 
+--[[
+    Adds a spectator to the queue. Reclaimed marks players the grace period queued rather than players that
+    asked to play: they get no VIP jump and create no demand for further reclaims.
+
+    Output: false when they cannot queue, otherwise true plus their position if they were queued already.
+]]
 function Plugin:Enqueue( Client, Reclaimed )
-    if not self:CanClientQueue( Client ) then
+    if not Client:GetIsSpectator() then
         self:NotifyTranslatedError( Client, "ENQUEUE_ERROR_PLAYER" )
         return false
     end
@@ -381,34 +430,37 @@ function Plugin:Enqueue( Client, Reclaimed )
 
     if not SteamID or SteamID < 1 then return false end
 
+    -- Only time spent waiting by choice counts towards the average wait time.
+    if Reclaimed or Client.RRReclaimed then
+        Client.RRQueueJoinTime = not Reclaimed and Shared.GetTime() or nil
+    end
+
     Client.RRReclaimed = Reclaimed or nil
 
-    local position = self.PlayerQueue:Get( SteamID )
-    if position then
-        self:SendQueuePosition( Client, position )
-        return true
+    local Position = self.PlayerQueue:Get( SteamID )
+    if Position then
+        return true, Position
     end
 
-    position = self:GetQueueInsertPosition(self.PlayerQueue, Client)
-    self:InsertIntoQueue(self.PlayerQueue, SteamID, position, "QUEUE_CHANGED_VIP")
+    Position = self:GetQueueInsertPosition( self.PlayerQueue, Client )
+    self:InsertIntoQueue( self.PlayerQueue, SteamID, Position, "QUEUE_CHANGED_VIP" )
     self:SendTranslatedNotify( Client, "QUEUE_ADDED", {
-        Position = position
-    })
+        Position = Position
+    } )
 
-    if self.AVGWaitTimeSampleSize > 0 then
-        self:SendNetworkMessage( Client, "WaitTime", { Time = self.AVGWaitTime }, true)
-    end
+    self:SendWaitTime( Client )
 
     if GetHasReservedSlotAccess( SteamID ) then
-        position = self:GetQueueInsertPosition(self.ReservedQueue, Client)
-        self:InsertIntoQueue(self.ReservedQueue, SteamID, position, "PIORITY_QUEUE_CHANGED_VIP")
-        self:SendTranslatedNotify(Client, "PIORITY_QUEUE_ADDED", {
-            Position = position
-        })
+        Position = self:GetQueueInsertPosition( self.ReservedQueue, Client )
+        self:InsertIntoQueue( self.ReservedQueue, SteamID, Position, "PRIORITY_QUEUE_CHANGED_VIP" )
+        self:SendTranslatedNotify( Client, "PRIORITY_QUEUE_ADDED", {
+            Position = Position
+        } )
     end
 
-    -- Save join time for later
-    Client.RRQueueJoinTime = Shared.GetTime()
+    if not Reclaimed then
+        Client.RRQueueJoinTime = Shared.GetTime()
+    end
 
     return true
 end
@@ -442,6 +494,11 @@ function Plugin:UpdateQueuePositions( Queue, Message )
     end
 end
 
+function Plugin:UpdateAllQueuePositions()
+    self:UpdateQueuePositions( self.PlayerQueue )
+    self:UpdateQueuePositions( self.ReservedQueue, "PRIORITY_QUEUE_CHANGED" )
+end
+
 function Plugin:Dequeue( Client )
     if not Client then return end
 
@@ -451,7 +508,7 @@ function Plugin:Dequeue( Client )
     local Removed = false
 
     if self.ReservedQueue:Remove( SteamId ) ~= nil then
-        self:UpdateQueuePositions( self.ReservedQueue, "PIORITY_QUEUE_CHANGED" )
+        self:UpdateQueuePositions( self.ReservedQueue, "PRIORITY_QUEUE_CHANGED" )
         Removed = true
     end
 
@@ -463,35 +520,27 @@ function Plugin:Dequeue( Client )
     return Removed
 end
 
-function Plugin:GetFirstClient( Queue )
-    for SteamId in Queue:Iterate() do
-        if not self.HistoricPlayers:Contains( SteamId ) then
-            local QueuedClient = Shine.GetClientByNS2ID( SteamId )
-            if QueuedClient then
-                return QueuedClient, SteamId
-            end
-        end
-    end
-end
-
 --[[
     Counts how many player slots are currently taken.
 
-    Bots never carry the spectator flag and do not use up a player slot from the server's point of view, so
-    they must not be counted here. IgnoreClient can be used to skip a client that is on its way out.
+    Vanilla's count includes clients still loading into a player slot, the spectator flags of connected
+    clients include a flag the plugin flipped a moment ago even if the engine's counter lags behind. Any slot
+    either of them still sees as taken is never handed out, a stale count only delays a pop until the tick.
 
     Output: number of used player slots, the player slot limit, how many of those slots are reserved.
 ]]
-function Plugin:GetSlotCounts( IgnoreClient )
-    local NumPlayers = 0
+function Plugin:GetSlotCounts()
+    local NumFlagged = 0
 
     local Clients = Shine.GameIDs:GetKeys()
     for i = 1, #Clients do
         local Client = Clients[ i ]
-        if Client ~= IgnoreClient and not Client:GetIsVirtual() and not Client:GetIsSpectator() then
-            NumPlayers = NumPlayers + 1
+        if not Client:GetIsVirtual() and not Client:GetIsSpectator() then
+            NumFlagged = NumFlagged + 1
         end
     end
+
+    local NumPlayers = Max( Server.GetNumClientsTotal() - Server.GetNumSpectators(), NumFlagged )
 
     local MaxPlayers = Server.GetMaxPlayers()
     local NumReserved = Server.GetReservedSlotLimit() or 0
@@ -502,24 +551,21 @@ function Plugin:GetSlotCounts( IgnoreClient )
     return NumPlayers, MaxPlayers, NumReserved
 end
 
--- Confirm we don't end up with too many players due to a bugged spectator counter.
-function Plugin:GetCanJoinPlayingTeam( Player )
-    if not Player:GetIsSpectator() then return true end
+-- Checked locally rather than through the gamerules, which would pop a "server full" error at them.
+function Plugin:GetCanTakePlayerSlot( Client )
+    if not Client:GetIsSpectator() then return true end
 
-    local Gamerules = GetGamerules()
-    if not Gamerules then
-        return false
-    end
+    local NumPlayers, MaxPlayers, NumReserved = self:GetSlotCounts()
+    if NumPlayers < MaxPlayers - NumReserved then return true end
 
-    local NumPlayers, MaxPlayers = self:GetSlotCounts()
-    if NumPlayers >= MaxPlayers then return false end
-
-    return Gamerules:GetCanJoinPlayingTeam( Player, true )
+    return NumPlayers < MaxPlayers and GetHasReservedSlotAccess( Client:GetUserId() )
 end
 
 --[[
     Returns the first client in the given queue that could be given a player slot right now, looking only
     at the entries ahead of BeforeSteamID. The key order of the map is the queue order.
+
+    Output: the client, their SteamID and their index in the queue's keys.
 ]]
 function Plugin:GetFirstServableClient( Queue, BeforeSteamID, RequireReservedAccess, SkipReclaimed )
     local Keys = Queue:GetKeys()
@@ -535,7 +581,7 @@ function Plugin:GetFirstServableClient( Queue, BeforeSteamID, RequireReservedAcc
             if QueuedClient and QueuedClient:GetIsSpectator()
             and not ( SkipReclaimed and QueuedClient.RRReclaimed )
             and ( not RequireReservedAccess or GetHasReservedSlotAccess( SteamID ) ) then
-                return QueuedClient, SteamID
+                return QueuedClient, SteamID, i
             end
         end
     end
@@ -558,6 +604,7 @@ end
     Clearing the spectator flag is what actually claims the player slot, the move into the ready room is
     only there to get them out of the spectator team. That move has to be forced: without it JoinTeam
     returns false for anyone already sitting in the ready room, and the rookie only check would veto it.
+    It also needs ShineForce, or the readyroom plugin refuses it for a while after it assigned them a team.
     Joining an actual playing team afterwards still goes through all the usual vanilla checks.
 ]]
 function Plugin:GrantPlayerSlot( Client )
@@ -575,7 +622,7 @@ function Plugin:GrantPlayerSlot( Client )
     end
 
     if Player:GetTeamNumber() ~= kTeamReadyRoom then
-        if not Gamerules:JoinTeam( Player, kTeamReadyRoom, true ) then
+        if not Gamerules:JoinTeam( Player, kTeamReadyRoom, true, true ) then
             if WasSpectator then
                 Client:SetIsSpectator( true )
             end
@@ -596,63 +643,66 @@ function Plugin:OnSlotGranted( Client, SteamID )
     self.PlayerQueue:Remove( SteamID )
     self.ReservedQueue:Remove( SteamID )
     self.GraceExpiries[ SteamID ] = nil
-    Client.RRReclaimed = nil
 
     self:SendNetworkMessage( Client, "QueueLeft", {}, true )
 
     if Client.RRQueueJoinTime then
         self:UpdateWaitTimeHistory( Shared.GetTime() - Client.RRQueueJoinTime )
-        Client.RRQueueJoinTime = nil
     end
+
+    Client.RRQueueJoinTime = nil
+    Client.RRReclaimed = nil
 
     self.QueuesDirty = nil
 
-    self:UpdateQueuePositions( self.PlayerQueue )
-    self:UpdateQueuePositions( self.ReservedQueue, "PIORITY_QUEUE_CHANGED" )
+    self:UpdateAllQueuePositions()
 end
 
 --[[
     Walks the given queue in order and gives the free player slot to the first candidate that can take it.
 
     A candidate that cannot be served is skipped, never returned on. Giving up on the first failure is what
-    used to freeze the entire queue behind a single client that could not be moved.
+    used to freeze the entire queue behind a single client that could not be moved. Players the grace period
+    queued are only served once nobody else can take the slot.
 ]]
 function Plugin:PopQueue( Queue, RequireReservedAccess )
     -- Snapshot the keys, the map's iterator uses a shared cursor and entries get removed below.
-    local Candidates = {}
-    local Keys = Queue:GetKeys()
-    for i = 1, #Keys do
-        Candidates[ i ] = Keys[ i ]
-    end
+    local Candidates = TableQuickCopy( Queue:GetKeys() )
 
-    for i = 1, #Candidates do
-        local SteamID = Candidates[ i ]
+    for Pass = 1, 2 do
+        local WantReclaimed = Pass == 2
 
-        -- Skip entries that were removed while working through the snapshot.
-        if Queue:Get( SteamID ) then
-            local QueuedClient = Shine.GetClientByNS2ID( SteamID )
+        for i = 1, #Candidates do
+            local SteamID = Candidates[ i ]
 
-            if not QueuedClient then
-                -- Restored entries keep their position until their reservation runs out, drop the rest.
-                if not self.HistoricPlayers:Contains( SteamID ) then
-                    self:DebugPrint( "Dropping queue entry %s, the client is gone.", SteamID )
+            -- Skip entries that were removed while working through the snapshot.
+            if Queue:Get( SteamID ) then
+                local QueuedClient = Shine.GetClientByNS2ID( SteamID )
+
+                if not QueuedClient then
+                    -- Restored entries keep their position until their reservation runs out, drop the rest.
+                    if not self.HistoricPlayers:Contains( SteamID ) then
+                        self:DebugPrint( "Dropping queue entry %s, the client is gone.", SteamID )
+                        self:RemoveFromQueues( SteamID )
+                    end
+                elseif not QueuedClient:GetIsSpectator() then
+                    -- They already hold a player slot, the queue has nothing left to give them.
+                    self:DebugPrint( "Dropping %s from the queue, they already hold a player slot.", SteamID )
                     self:RemoveFromQueues( SteamID )
-                end
-            elseif self.HistoricPlayers:Contains( SteamID ) then
-                self:DebugPrint( "Skipping %s, waiting for them to reconnect after the map change.", SteamID )
-            elseif not QueuedClient:GetIsSpectator() then
-                -- They already hold a player slot, the queue has nothing left to give them.
-                self:DebugPrint( "Dropping %s from the queue, they already hold a player slot.", SteamID )
-                self:RemoveFromQueues( SteamID )
-            elseif RequireReservedAccess and not GetHasReservedSlotAccess( SteamID ) then
-                self:DebugPrint( "Skipping %s, only a reserved slot is free and they have no access.", SteamID )
-            elseif self:GrantPlayerSlot( QueuedClient ) then
-                self:DebugPrint( "Gave a player slot to %s.", SteamID )
-                self:OnSlotGranted( QueuedClient, SteamID )
+                elseif ( QueuedClient.RRReclaimed == true ) ~= WantReclaimed then
+                    -- Handled by the other pass.
+                elseif self.HistoricPlayers:Contains( SteamID ) then
+                    self:DebugPrint( "Skipping %s, waiting for them to reconnect after the map change.", SteamID )
+                elseif RequireReservedAccess and not GetHasReservedSlotAccess( SteamID ) then
+                    self:DebugPrint( "Skipping %s, only a reserved slot is free and they have no access.", SteamID )
+                elseif self:GrantPlayerSlot( QueuedClient ) then
+                    self:DebugPrint( "Gave a player slot to %s.", SteamID )
+                    self:OnSlotGranted( QueuedClient, SteamID )
 
-                return true
-            else
-                self:DebugPrint( "Could not move %s into the ready room, trying the next player.", SteamID )
+                    return true
+                else
+                    self:DebugPrint( "Could not move %s into the ready room, trying the next player.", SteamID )
+                end
             end
         end
     end
@@ -665,12 +715,12 @@ end
 
     Output: true when a client was given a player slot.
 ]]
-function Plugin:Pop( IgnoreClient )
+function Plugin:Pop()
     if not GetGamerules() then -- abort mission
         return false
     end
 
-    local NumPlayers, MaxPlayers, NumReserved = self:GetSlotCounts( IgnoreClient )
+    local NumPlayers, MaxPlayers, NumReserved = self:GetSlotCounts()
 
     self:DebugPrint( "Pop: %s/%s player slots used (%s reserved), %s queued, %s in the reserved queue.",
         NumPlayers, MaxPlayers, NumReserved, self.PlayerQueue:GetCount(), self.ReservedQueue:GetCount() )
@@ -692,8 +742,7 @@ function Plugin:Pop( IgnoreClient )
     if self.QueuesDirty then
         self.QueuesDirty = nil
 
-        self:UpdateQueuePositions( self.PlayerQueue )
-        self:UpdateQueuePositions( self.ReservedQueue, "PIORITY_QUEUE_CHANGED" )
+        self:UpdateAllQueuePositions()
     end
 
     return Granted
@@ -791,6 +840,12 @@ function Plugin:CheckReadyRoomGrace()
     if not Config.Enabled then return end
     if not next( self.GraceExpiries ) then return end
 
+    local Gamerules = GetGamerules()
+    if not Gamerules or not Gamerules:GetGameStarted() then
+        TableEmpty( self.GraceExpiries )
+        return
+    end
+
     local Now = Shared.GetTime()
 
     -- Snapshot first: reclaiming a slot pops the queue, which clears grace entries of other clients,
@@ -820,11 +875,13 @@ function Plugin:CheckReadyRoomGrace()
         local Client = Shine.GetClientByNS2ID( SteamID )
         local Player = Client and Client:GetControllingPlayer()
 
-        -- Re-check, an earlier reclaim in this same pass may have changed things. The entry is left in
-        -- place so a failed move is retried next tick instead of starting a fresh grace period.
+        -- The entry is left in place so a failed move is retried next tick instead of starting a fresh grace
+        -- period. One reclaim per tick: until the slot counts catch up with it, the waiter it was for still
+        -- looks like they are waiting and would justify reclaiming the next expired player as well.
         if Client and Player and not Client:GetIsSpectator()
-        and Player:GetTeamNumber() == kTeamReadyRoom then
-            self:ReclaimPlayerSlot( Client, Player )
+        and Player:GetTeamNumber() == kTeamReadyRoom
+        and self:ReclaimPlayerSlot( Client, Player ) then
+            return
         end
     end
 end
@@ -844,7 +901,8 @@ function Plugin:ReclaimPlayerSlot( Client, Player )
     -- PostJoinTeam fires mid-move and would report a queue position that does not include them yet.
     self.ReclaimingSteamID = SteamID
 
-    local Ok, Moved = pcall( Gamerules.JoinTeam, Gamerules, Player, kSpectatorIndex, true )
+    -- Without ShineForce, plugins that restrict spectating (norookies, hiveteamrestriction) veto every retry.
+    local Ok, Moved = pcall( Gamerules.JoinTeam, Gamerules, Player, kSpectatorIndex, true, true )
 
     self.ReclaimingSteamID = nil
 
@@ -863,6 +921,10 @@ function Plugin:ReclaimPlayerSlot( Client, Player )
 
     if self.Config.ReadyRoomGracePeriod.EnqueueOnExpiry then
         self:Enqueue( Client, true )
+    else
+        self:SendTranslatedNotify( Client, "QUEUE_INFORM", {
+            Position = self.PlayerQueue:GetCount()
+        } )
     end
 
     -- The move to the spectator team already popped the queue, this only covers the case where it did not.
@@ -872,8 +934,6 @@ function Plugin:ReclaimPlayerSlot( Client, Player )
 end
 
 function Plugin:OnTick()
-    self:CheckReadyRoomGrace()
-
     if self.PlayerQueue:GetCount() > 0 or self.ReservedQueue:GetCount() > 0 then
         -- Pick up player slots that were freed by something the plugin does not hook.
         local NumPlayers, MaxPlayers = self:GetSlotCounts()
@@ -882,134 +942,97 @@ function Plugin:OnTick()
         end
     end
 
-    -- After the pop, so nobody is warned over a waiting player that a free slot is about to serve anyway.
+    -- After the pop, so nobody is reclaimed or warned over a waiting player that a free slot serves anyway.
+    self:CheckReadyRoomGrace()
     self:StartPendingReadyRoomGraces()
 end
 
 function Plugin:PrintQueue( Client )
-    local Message = {}
-
-    if self.PlayerQueue:GetCount() == 0 then
-        Message[1] = "Player Slot Queue is currently empty."
-    else
-
-        Message[#Message + 1] = "Player Slot Queue:"
-        for SteamId, Position in self.PlayerQueue:Iterate() do
-            local ClientName = "Unknown"
-            local QueuedClient = Shine.GetClientByNS2ID( SteamId )
-            if QueuedClient then
-                ClientName = Shine.GetClientName( QueuedClient )
-            end
-
-            Message[#Message + 1] = string.format("%d - %s[%d]", Position, ClientName, SteamId)
+    local function PrintEntries( Title, Queue )
+        if Queue:GetCount() == 0 then
+            Shine.PrintToConsole( Client, Title .. " is empty." )
+            return
         end
 
-        if self.ReservedQueue:GetCount() > 0 then
-            Message[#Message + 1] = "\n Reserved Slot Queue:"
+        Shine.PrintToConsole( Client, Title .. ":" )
 
-            for SteamId, Position in self.ReservedQueue:Iterate() do
-                local ClientName = "Unknown"
-                local QueuedClient = Shine.GetClientByNS2ID( SteamId )
-                if QueuedClient then
-                    ClientName = Shine.GetClientName( QueuedClient )
-                end
+        for SteamID, Position in Queue:Iterate() do
+            local QueuedClient = Shine.GetClientByNS2ID( SteamID )
 
-                Message[#Message + 1] = string.format("%d - %s[%d]", Position, ClientName, SteamId)
-            end
+            Shine.PrintToConsole( Client, StringFormat( "%d - %s[%d]%s", Position,
+                QueuedClient and Shine.GetClientName( QueuedClient ) or "Unknown", SteamID,
+                QueuedClient and QueuedClient.RRReclaimed and " (reclaimed)" or "" ) )
         end
-
     end
+
+    PrintEntries( "Player Slot Queue", self.PlayerQueue )
+    PrintEntries( "Reserved Slot Queue", self.ReservedQueue )
 
     local NumPlayers, MaxPlayers, NumReserved = self:GetSlotCounts()
-    Message[#Message + 1] = string.format("\n%d/%d player slots used, %d of them reserved.",
-        NumPlayers, MaxPlayers, NumReserved)
-
-    if not Client then
-        Notify( TableConcat( Message, "\n" ) )
-    else
-        for i = 1, #Message do
-            ServerAdminPrint( Client, Message[ i ] )
-        end
-    end
+    Shine.PrintToConsole( Client, StringFormat( "%d/%d player slots used, %d of them reserved.",
+        NumPlayers, MaxPlayers, NumReserved ) )
 end
 
 function Plugin:CreateCommands()
-    local function EnqueuePlayer(Client )
+    local function EnqueuePlayer( Client )
         if not Client then return end
 
-        self:Enqueue(Client)
+        local _, Position = self:Enqueue( Client )
+        if Position then
+            self:SendQueuePosition( Client, Position )
+        end
     end
     local Enqueue = self:BindCommand( "sh_rr_enqueue", "rr_enqueue", EnqueuePlayer, true )
-    Enqueue:Help("Enter the queue for a player slot")
+    Enqueue:Help( "Enter the queue for a player slot" )
 
     local function DequeuePlayer( Client )
+        if not Client then return end
 
-        if not self:Dequeue(Client) then
-            self:NotifyTranslatedError( Client, "DEQUEUE_FAILED")
+        if not self:Dequeue( Client ) then
+            self:NotifyTranslatedError( Client, "DEQUEUE_FAILED" )
             return
         end
 
-
-        self:NotifyTranslated( Client, "DEQUEUE_SUCCESS")
+        self:NotifyTranslated( Client, "DEQUEUE_SUCCESS" )
     end
-
     local Dequeue = self:BindCommand( "sh_rr_dequeue", "rr_dequeue", DequeuePlayer, true )
-    Dequeue:Help("Leave the player slot queue")
+    Dequeue:Help( "Leave the player slot queue" )
 
     local function DisplayPosition( Client )
-        local position = self:GetQueuePosition( Client )
-        if not position then
-            self:NotifyTranslatedError( Client, "QUEUE_POSITION_UNKNOWN")
+        if not Client then return end
+
+        local Position = self.PlayerQueue:Get( Client:GetUserId() )
+        if not Position then
+            self:NotifyTranslatedError( Client, "QUEUE_POSITION_UNKNOWN" )
             return
         end
 
-        self:SendQueuePosition( Client, position )
+        self:SendQueuePosition( Client, Position )
     end
     local Position = self:BindCommand( "sh_rr_position", "rr_position", DisplayPosition, true )
-    Position:Help("Returns your current position in the player slot queue")
+    Position:Help( "Returns your current position in the player slot queue" )
 
-    local function PrintQueue( Client )
+    local PrintQueue = self:BindCommand( "sh_rr_printqueue", nil, function( Client )
         self:PrintQueue( Client )
-    end
-    self:BindCommand( "sh_rr_printqueue", nil , PrintQueue, true )
+    end )
+    PrintQueue:Help( "Prints both player slot queues and the current slot usage" )
 
-    local function ListClients( Client )
-        local Message = {}
-
+    local ListClients = self:BindCommand( "sh_rr_listclients", nil, function( Client )
         local Clients, Count = Shine.GetAllClients()
         for i = 1, Count do
-            local client = Clients[ i ]
-            local ClientPlayer = client:GetControllingPlayer()
-            Message[#Message + 1] = string.format("%s - spectator: %s - team: %s",
-                Shine.GetClientInfo(client), tostring( client:GetIsSpectator() ),
-                tostring( ClientPlayer and ClientPlayer:GetTeamNumber() ))
-        end
+            local Target = Clients[ i ]
+            local ClientPlayer = Target:GetControllingPlayer()
 
-        if not Client then
-            Notify( TableConcat( Message, "\n" ) )
-        else
-            for i = 1, #Message do
-                ServerAdminPrint( Client, Message[ i ] )
-            end
+            Shine.PrintToConsole( Client, StringFormat( "%s - spectator: %s - team: %s",
+                Shine.GetClientInfo( Target ), tostring( Target:GetIsSpectator() ),
+                tostring( ClientPlayer and ClientPlayer:GetTeamNumber() ) ) )
         end
-    end
-    self:BindCommand( "sh_rr_listclients", nil , ListClients, true )
+    end )
+    ListClients:Help( "Lists every client with its spectator flag and team" )
 end
 
 function Plugin:MapChange()
     if not self.Config.RestoreQueueAfterMapchange then return end
 
     self:SaveQueueHistory()
-end
-
-function Plugin:Cleanup()
-    self.BaseClass.Cleanup( self )
-
-    self.GraceExpiries = nil
-    self.InRoundEndMove = nil
-    self.Popping = nil
-    self.QueuesDirty = nil
-    self.ReclaimingSteamID = nil
-    self.connectionChecked = nil
-    self.Enabled = false
 end
