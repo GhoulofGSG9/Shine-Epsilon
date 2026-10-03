@@ -17,5 +17,22 @@
   "QUEUE_WELCOME_BACK": "Welcome back! We restored your previous player slot queue position ({Position}). To leave the queue enter !rr_dequeue into the chat.",
   "QUEUE_WAITTIME": "Average queue time is {Time:Duration}. You may want to consider seeding an empty server.",
   "RR_GRACE_WARNING": "Players are waiting for a player slot. Join a team within {Time:Duration} or your slot will be given to the next player in the queue.",
-  "RR_GRACE_EXPIRED": "Your player slot was given to a player waiting in the queue. You are now using a spectator slot."
+  "RR_GRACE_EXPIRED": "Your player slot was given to a player waiting in the queue. You are now using a spectator slot.",
+  "BACK": "Back",
+  "ASK": "Ask me",
+  "ALWAYS": "Always join",
+  "NEVER": "Never join",
+  "SEED_PREF_DESCRIPTION": "When you wait in a full server's queue, queued players from several servers can be moved together to seed an empty server. Choose whether you want to be asked, always join or never join.",
+  "SEED_PREF_ASK": "Queued players from several servers can be moved together to seed an empty server. You will be asked first. To change this enter !seedpref always or !seedpref never into the chat, or use the vote menu.",
+  "SEED_PREF_BUTTON": "Seed queue",
+  "SEED_PREF_USAGE": "Enter !seedpref ask, !seedpref always or !seedpref never.",
+  "SEED_OFFER": "{Count} queued players can seed {Name} (ping {Ping}). Join them? Use the vote menu or enter !seed yes or !seed no.",
+  "SEED_OFFER_BUTTON": "Seed offer",
+  "SEED_YES": "Yes, join the seed",
+  "SEED_NO": "No, keep waiting",
+  "SEED_ACCEPTED": "You accepted the seed. You will be connected once enough players have accepted.",
+  "SEED_DECLINED": "You declined the seed and keep your place in the queue.",
+  "SEED_ABORT": "The seed did not go ahead. You keep your place in the queue.",
+  "SEED_ANSWER_USAGE": "Enter !seed yes or !seed no.",
+  "SEED_NO_OFFER": "There is no seed offer to answer right now."
 }

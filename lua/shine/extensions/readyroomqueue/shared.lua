@@ -28,6 +28,17 @@ function Plugin:SetupDataTable()
     } )
 
     self:AddNetworkMessage( "QueueLeft", {}, "Client")
+
+    -- An empty URL switches the global seed queue off for that client.
+    self:AddNetworkMessage( "SeedActive", { URL = "string (255)" }, "Client" )
+    self:AddNetworkMessage( "SeedOffer", {
+        Name = "string (128)", Address = "string (64)", Count = "integer", Time = "integer"
+    }, "Client" )
+    self:AddNetworkMessage( "SeedAbort", {}, "Client" )
+
+    self:AddNetworkMessage( "SeedScore", { Address = "string (64)", Score = "float" }, "Server" )
+    self:AddNetworkMessage( "SeedAnswer", { Accept = "boolean" }, "Server" )
+    self:AddNetworkMessage( "SeedPref", { Pref = "string (8)" }, "Server" )
 end
 
 return Plugin

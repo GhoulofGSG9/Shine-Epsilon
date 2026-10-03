@@ -5,7 +5,7 @@ local TableCount = table.Count
 local TableEmpty = table.Empty
 local TableQuickCopy = table.QuickCopy
 
-local Plugin = ...
+local Plugin, PluginName = ...
 Plugin.PrintName = "Ready Room Queue"
 
 Plugin.HasConfig = true
@@ -26,6 +26,20 @@ Plugin.DefaultConfig = {
     VIPPlayers = {
         Enabled = false,
         PermissionString = "sh_vip"
+    },
+    GlobalQueue = {
+        -- Lets queued players get matched with players queued on other servers to seed an empty one.
+        Enabled = false,
+        URL = "https://steamstats-api-1309760101.azurewebsites.net",
+        MatchingTarget = true, -- accept seeds from other servers when this server is empty
+        HopReturnTime = 180, -- how long a player that left for a seed keeps their queue position here
+        PromptTime = 20,
+        -- Filled in by the enrolment with the coordinator.
+        ServerId = "",
+        Token = "",
+        TokenExpiresAt = 0,
+        RefreshToken = "",
+        RefreshTokenExpiresAt = 0
     }
 }
 Plugin.CheckConfig = true
@@ -64,6 +78,9 @@ function Plugin:Initialise()
     self:LoadWaitTimeHistory()
 
     self:CreateCommands()
+
+    self:InitialiseGlobalQueue()
+    self:CreateSeedCommands()
 
     self:CreateTimer( "RRQueueTick", self.TickInterval, -1, function()
         self:OnTick()
@@ -222,7 +239,11 @@ function Plugin:ClientDisconnect( Client )
         self.GraceExpiries[ SteamID ] = nil
     end
 
+    self:ForgetSeedClient( Client, SteamID )
+
     local WasSpectator = Client:GetIsSpectator()
+
+    if WasSpectator and self:HoldHopReturn( SteamID ) then return end
 
     self:Dequeue( Client )
 
@@ -1011,6 +1032,10 @@ function Plugin:OnTick()
     -- After the pop, so nobody is reclaimed or warned over a waiting player that a free slot serves anyway.
     self:CheckReadyRoomGrace()
     self:StartPendingReadyRoomGraces()
+
+    if self.SeedEnabled then
+        self:SyncSeedActive()
+    end
 end
 
 function Plugin:PrintQueue( Client )
@@ -1099,3 +1124,5 @@ function Plugin:MapChange()
 
     self:SaveQueueHistory()
 end
+
+Shine.LoadPluginFile( PluginName, "globalqueue.lua", Plugin )
