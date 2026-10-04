@@ -415,12 +415,13 @@ function Plugin:SendQueuePosition( Client, Position )
 end
 
 --[[
-    Adds a spectator to the queue. Reclaimed marks players the grace period queued rather than players that
-    asked to play: they get no VIP jump and create no demand for further reclaims.
+    Adds a spectator to the queue. Players the grace period queues rather than players that asked to play
+    are marked as reclaimed: they get no VIP jump and create no demand for further reclaims.
 
-    Output: false when they cannot queue, otherwise true plus their position if they were queued already.
+    Takes the client only: other mods wrap this method with that signature and drop any further argument
+    and every return value.
 ]]
-function Plugin:Enqueue( Client, Reclaimed )
+function Plugin:Enqueue( Client )
     if not Client:GetIsSpectator() then
         self:NotifyTranslatedError( Client, "ENQUEUE_ERROR_PLAYER" )
         return false
@@ -429,6 +430,8 @@ function Plugin:Enqueue( Client, Reclaimed )
     local SteamID = Client:GetUserId()
 
     if not SteamID or SteamID < 1 then return false end
+
+    local Reclaimed = SteamID == self.ReclaimingSteamID
 
     -- Only time spent waiting by choice counts towards the average wait time.
     if Reclaimed or Client.RRReclaimed then
@@ -439,7 +442,8 @@ function Plugin:Enqueue( Client, Reclaimed )
 
     local Position = self.PlayerQueue:Get( SteamID )
     if Position then
-        return true, Position
+        self:SendQueuePosition( Client, Position )
+        return true
     end
 
     Position = self:GetQueueInsertPosition( self.PlayerQueue, Client )
@@ -463,6 +467,11 @@ function Plugin:Enqueue( Client, Reclaimed )
     end
 
     return true
+end
+
+-- Read by other mods, e.g. to keep queued spectators from being AFK kicked.
+function Plugin:GetQueuePosition( Client )
+    return self.PlayerQueue:Get( Client:GetUserId() )
 end
 
 function Plugin:UpdateQueuePositions( Queue, Message )
@@ -748,11 +757,22 @@ function Plugin:Pop()
     return Granted
 end
 
+function Plugin:AreTeamsFull()
+    local Enabled, TeamSizes = Shine:IsExtensionEnabled( "enforceteamsizes" )
+    local Gamerules = GetGamerules()
+    if not Enabled or not Gamerules then return false end
+
+    return TeamSizes:IsTeamFull( Gamerules, kTeam1Index ) and TeamSizes:IsTeamFull( Gamerules, kTeam2Index )
+end
+
 --[[
-    True while freeing one more player slot would let somebody in the queue in. Players the grace period
-    itself queued do not count, or every reclaim would create the demand for the next one.
+    True while freeing one more player slot would get somebody in the queue into the round. With both teams
+    full a reclaim only swaps who is stuck in the ready room. Players the grace period itself queued do not
+    count, or every reclaim would create the demand for the next one.
 ]]
 function Plugin:HasWaitingClient()
+    if self:AreTeamsFull() then return false end
+
     local NumPlayers, MaxPlayers, NumReserved = self:GetSlotCounts()
     NumPlayers = NumPlayers - 1
 
@@ -920,7 +940,9 @@ function Plugin:ReclaimPlayerSlot( Client, Player )
     self:NotifyTranslated( Client, "RR_GRACE_EXPIRED" )
 
     if self.Config.ReadyRoomGracePeriod.EnqueueOnExpiry then
-        self:Enqueue( Client, true )
+        self.ReclaimingSteamID = SteamID
+        self:Enqueue( Client )
+        self.ReclaimingSteamID = nil
     else
         self:SendTranslatedNotify( Client, "QUEUE_INFORM", {
             Position = self.PlayerQueue:GetCount()
@@ -977,10 +999,7 @@ function Plugin:CreateCommands()
     local function EnqueuePlayer( Client )
         if not Client then return end
 
-        local _, Position = self:Enqueue( Client )
-        if Position then
-            self:SendQueuePosition( Client, Position )
-        end
+        self:Enqueue( Client )
     end
     local Enqueue = self:BindCommand( "sh_rr_enqueue", "rr_enqueue", EnqueuePlayer, true )
     Enqueue:Help( "Enter the queue for a player slot" )

@@ -88,18 +88,19 @@ function Plugin:PostJoinTeam( Gamerules, _, OldTeam )
 	end
 end
 
+function Plugin:IsTeamFull( Gamerules, TeamNumber )
+	local TeamConfig = self.Config.Teams[string.format("Team%s", TeamNumber)]
+	return TeamConfig ~= nil and self:GetNumPlayers(Gamerules:GetTeam(TeamNumber)) >= TeamConfig.MaxPlayers
+end
+
 function Plugin:JoinTeam( Gamerules, Player, NewTeam, _, ShineForce )
 	if self.Config.IgnoreBots and Player:GetIsVirtual() then return end
 
-	local TeamIndex = string.format("Team%s", NewTeam)
-	if ShineForce or NewTeam == kTeamReadyRoom or not self.Config.Teams[TeamIndex] then return end
+	if ShineForce or NewTeam == kTeamReadyRoom or not self:IsTeamFull(Gamerules, NewTeam) then return end
 
-	--Check if team is above MaxPlayers
-	if self:GetNumPlayers(Gamerules:GetTeam(NewTeam)) >= self.Config.Teams[TeamIndex].MaxPlayers then
-		--Inform player
-		self:Notify(Player, self.Config.Teams[TeamIndex].TooManyMessage, NewTeam)
-		return false
-	end
+	--Inform player
+	self:Notify(Player, self.Config.Teams[string.format("Team%s", NewTeam)].TooManyMessage, NewTeam)
+	return false
 end
 
 --Restrict teams also at voterandom
