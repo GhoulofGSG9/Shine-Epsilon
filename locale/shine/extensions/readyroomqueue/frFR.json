@@ -1,0 +1,21 @@
+{
+  "NOTIFY_PREFIX": "[PlayerSlotQueue]",
+  "QUEUE_CHANGED": "Un joueur devant vous a quitté la file d'attente des places de joueur. Votre nouvelle position est {Position}.",
+  "QUEUE_CHANGED_VIP": "Un joueur VIP a rejoint la file d'attente des places de joueur devant vous. Votre nouvelle position est {Position}.",
+  "PRIORITY_QUEUE_CHANGED": "Un joueur devant vous a quitté la file d'attente des places réservées. Votre nouvelle position dans la file des places réservées est {Position}.",
+  "PRIORITY_QUEUE_CHANGED_VIP": "Un joueur VIP a rejoint la file d'attente des places réservées devant vous. Votre nouvelle position dans la file des places réservées est {Position}.",
+  "QUEUE_ADDED": "Vous avez rejoint la file d'attente des places de joueur ! Votre position actuelle est {Position}. Pour quitter la file, tapez !rr_dequeue dans le chat.",
+  "PRIORITY_QUEUE_ADDED": "Vous avez rejoint la file d'attente des places réservées ! Votre position actuelle est {Position}. Pour quitter la file, tapez !rr_dequeue dans le chat.",
+  "QUEUE_POSITION": "Votre position actuelle dans la file d'attente des places de joueur est {Position}.",
+  "PRIORITY_QUEUE_POSITION": "Votre position actuelle dans la file d'attente des places réservées est {Position}.",
+  "QUEUE_POSITION_UNKNOWN": "Vous n'avez pas encore rejoint la file d'attente des places de joueur !",
+  "DEQUEUE_SUCCESS": "Vous avez quitté la file d'attente des places de joueur !",
+  "DEQUEUE_FAILED": "Vous n'êtes pas dans la file d'attente des places de joueur !",
+  "QUEUE_LEAVE": "Une place de joueur s'est libérée. Vous êtes maintenant déplacé dans le Ready Room ! Merci d'avoir patienté.",
+  "ENQUEUE_ERROR_PLAYER": "Seuls les spectateurs peuvent s'inscrire pour une place de joueur !",
+  "QUEUE_INFORM": "Si vous voulez jouer, appuyez sur F4 ou tapez !rr_enqueue dans le chat. Actuellement, {Position} {Position:Pluralise:joueur attend|joueurs attendent} une place de joueur !",
+  "QUEUE_WELCOME_BACK": "Bon retour ! Votre position précédente dans la file d'attente des places de joueur ({Position}) a été restaurée. Pour quitter la file, tapez !rr_dequeue dans le chat.",
+  "QUEUE_WAITTIME": "Le temps d'attente moyen est de {Time:Duration}. Pensez peut-être à lancer un serveur vide.",
+  "RR_GRACE_WARNING": "Des joueurs attendent une place de joueur. Rejoignez une équipe dans les {Time:Duration} ou votre place sera donnée au prochain joueur de la file.",
+  "RR_GRACE_EXPIRED": "Votre place de joueur a été donnée à un joueur en attente dans la file. Vous occupez maintenant une place de spectateur."
+}

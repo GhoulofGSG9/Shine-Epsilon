@@ -1,0 +1,21 @@
+{
+  "NOTIFY_PREFIX": "[PlayerSlotQueue]",
+  "QUEUE_CHANGED": "Un jugador delante de ti ha salido de la cola de plazas de jugador. Tu nueva posición es {Position}.",
+  "QUEUE_CHANGED_VIP": "Un jugador VIP se ha unido a la cola de plazas de jugador delante de ti. Tu nueva posición es {Position}.",
+  "PRIORITY_QUEUE_CHANGED": "Un jugador delante de ti ha salido de la cola de plazas reservadas. Tu nueva posición en la cola de plazas reservadas es {Position}.",
+  "PRIORITY_QUEUE_CHANGED_VIP": "Un jugador VIP se ha unido a la cola de plazas reservadas delante de ti. Tu nueva posición en la cola de plazas reservadas es {Position}.",
+  "QUEUE_ADDED": "¡Te has unido a la cola de plazas de jugador! Tu posición actual es {Position}. Para salir de la cola, escribe !rr_dequeue en el chat.",
+  "PRIORITY_QUEUE_ADDED": "¡Te has unido a la cola de plazas reservadas! Tu posición actual es {Position}. Para salir de la cola, escribe !rr_dequeue en el chat.",
+  "QUEUE_POSITION": "Tu posición actual en la cola de plazas de jugador es {Position}.",
+  "PRIORITY_QUEUE_POSITION": "Tu posición actual en la cola de plazas reservadas es {Position}.",
+  "QUEUE_POSITION_UNKNOWN": "¡Todavía no te has unido a la cola de plazas de jugador!",
+  "DEQUEUE_SUCCESS": "¡Has salido de la cola de plazas de jugador!",
+  "DEQUEUE_FAILED": "¡No estás en la cola de plazas de jugador!",
+  "QUEUE_LEAVE": "Se ha liberado una plaza de jugador. ¡Ahora te movemos al Ready Room! Gracias por esperar.",
+  "ENQUEUE_ERROR_PLAYER": "¡Solo los espectadores pueden ponerse en cola para una plaza de jugador!",
+  "QUEUE_INFORM": "Si quieres jugar, pulsa F4 o escribe !rr_enqueue en el chat. Actualmente {Position} {Position:Pluralise:jugador está esperando|jugadores están esperando} una plaza de jugador.",
+  "QUEUE_WELCOME_BACK": "¡Bienvenido de nuevo! Hemos restaurado tu posición anterior en la cola de plazas de jugador ({Position}). Para salir de la cola, escribe !rr_dequeue en el chat.",
+  "QUEUE_WAITTIME": "El tiempo medio de espera es de {Time:Duration}. Quizás quieras considerar sembrar un servidor vacío.",
+  "RR_GRACE_WARNING": "Hay jugadores esperando una plaza de jugador. Únete a un equipo en {Time:Duration} o tu plaza se dará al siguiente jugador de la cola.",
+  "RR_GRACE_EXPIRED": "Tu plaza de jugador se ha dado a un jugador que esperaba en la cola. Ahora ocupas una plaza de espectador."
+}

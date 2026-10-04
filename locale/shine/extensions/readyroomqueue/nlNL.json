@@ -1,0 +1,21 @@
+{
+  "NOTIFY_PREFIX": "[PlayerSlotQueue]",
+  "QUEUE_CHANGED": "Een speler voor je heeft de wachtrij voor spelerplekken verlaten. Je nieuwe positie is {Position}.",
+  "QUEUE_CHANGED_VIP": "Een VIP-speler is voor je in de wachtrij voor spelerplekken gekomen. Je nieuwe positie is {Position}.",
+  "PRIORITY_QUEUE_CHANGED": "Een speler voor je heeft de wachtrij voor gereserveerde plekken verlaten. Je nieuwe positie in de wachtrij voor gereserveerde plekken is {Position}.",
+  "PRIORITY_QUEUE_CHANGED_VIP": "Een VIP-speler is voor je in de wachtrij voor gereserveerde plekken gekomen. Je nieuwe positie in de wachtrij voor gereserveerde plekken is {Position}.",
+  "QUEUE_ADDED": "Je staat nu in de wachtrij voor spelerplekken! Je huidige positie is {Position}. Typ !rr_dequeue in de chat om de wachtrij te verlaten.",
+  "PRIORITY_QUEUE_ADDED": "Je staat nu in de wachtrij voor gereserveerde plekken! Je huidige positie is {Position}. Typ !rr_dequeue in de chat om de wachtrij te verlaten.",
+  "QUEUE_POSITION": "Je huidige positie in de wachtrij voor spelerplekken is {Position}.",
+  "PRIORITY_QUEUE_POSITION": "Je huidige positie in de wachtrij voor gereserveerde plekken is {Position}.",
+  "QUEUE_POSITION_UNKNOWN": "Je staat nog niet in de wachtrij voor spelerplekken!",
+  "DEQUEUE_SUCCESS": "Je hebt de wachtrij voor spelerplekken verlaten!",
+  "DEQUEUE_FAILED": "Je staat niet in de wachtrij voor spelerplekken!",
+  "QUEUE_LEAVE": "Er is een spelerplek vrijgekomen. Je wordt nu naar de Ready Room verplaatst! Bedankt voor het wachten.",
+  "ENQUEUE_ERROR_PLAYER": "Alleen toeschouwers kunnen zich in de wachtrij zetten voor een spelerplek!",
+  "QUEUE_INFORM": "Als je wilt spelen, druk dan op F4 of typ !rr_enqueue in de chat. Momenteel {Position:Pluralise:wacht|wachten} {Position} {Position:Pluralise:speler|spelers} op een spelerplek!",
+  "QUEUE_WELCOME_BACK": "Welkom terug! We hebben je vorige positie in de wachtrij voor spelerplekken ({Position}) hersteld. Typ !rr_dequeue in de chat om de wachtrij te verlaten.",
+  "QUEUE_WAITTIME": "De gemiddelde wachttijd is {Time:Duration}. Overweeg misschien een lege server op te starten.",
+  "RR_GRACE_WARNING": "Spelers wachten op een spelerplek. Kies binnen {Time:Duration} een team, anders wordt je plek aan de volgende speler in de wachtrij gegeven.",
+  "RR_GRACE_EXPIRED": "Je spelerplek is gegeven aan een wachtende speler in de wachtrij. Je gebruikt nu een toeschouwersplek."
+}

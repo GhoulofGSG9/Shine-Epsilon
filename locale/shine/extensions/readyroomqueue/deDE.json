@@ -1,0 +1,21 @@
+{
+  "NOTIFY_PREFIX": "[PlayerSlotQueue]",
+  "QUEUE_CHANGED": "Ein Spieler vor dir hat die Spielerplatz-Warteschlange verlassen. Deine neue Position ist {Position}.",
+  "QUEUE_CHANGED_VIP": "Ein VIP-Spieler ist der Spielerplatz-Warteschlange vor dir beigetreten. Deine neue Position ist {Position}.",
+  "PRIORITY_QUEUE_CHANGED": "Ein Spieler vor dir hat die Warteschlange für reservierte Plätze verlassen. Deine neue Position in der Warteschlange für reservierte Plätze ist {Position}.",
+  "PRIORITY_QUEUE_CHANGED_VIP": "Ein VIP-Spieler ist der Warteschlange für reservierte Plätze vor dir beigetreten. Deine neue Position in der Warteschlange für reservierte Plätze ist {Position}.",
+  "QUEUE_ADDED": "Du bist der Spielerplatz-Warteschlange beigetreten! Deine aktuelle Position ist {Position}. Gib !rr_dequeue in den Chat ein, um die Warteschlange zu verlassen.",
+  "PRIORITY_QUEUE_ADDED": "Du bist der Warteschlange für reservierte Plätze beigetreten! Deine aktuelle Position ist {Position}. Gib !rr_dequeue in den Chat ein, um die Warteschlange zu verlassen.",
+  "QUEUE_POSITION": "Deine aktuelle Position in der Spielerplatz-Warteschlange ist {Position}.",
+  "PRIORITY_QUEUE_POSITION": "Deine aktuelle Position in der Warteschlange für reservierte Plätze ist {Position}.",
+  "QUEUE_POSITION_UNKNOWN": "Du bist der Spielerplatz-Warteschlange noch nicht beigetreten!",
+  "DEQUEUE_SUCCESS": "Du hast die Spielerplatz-Warteschlange verlassen!",
+  "DEQUEUE_FAILED": "Du befindest dich nicht in der Spielerplatz-Warteschlange!",
+  "QUEUE_LEAVE": "Ein Spielerplatz ist frei geworden. Du wirst jetzt in den Ready Room verschoben! Danke fürs Warten.",
+  "ENQUEUE_ERROR_PLAYER": "Nur Zuschauer können sich für einen Spielerplatz anstellen!",
+  "QUEUE_INFORM": "Wenn du spielen möchtest, drücke F4 oder gib !rr_enqueue in den Chat ein. Derzeit {Position:Pluralise:wartet|warten} {Position} Spieler auf einen Spielerplatz!",
+  "QUEUE_WELCOME_BACK": "Willkommen zurück! Deine vorherige Position in der Spielerplatz-Warteschlange ({Position}) wurde wiederhergestellt. Gib !rr_dequeue in den Chat ein, um die Warteschlange zu verlassen.",
+  "QUEUE_WAITTIME": "Die durchschnittliche Wartezeit beträgt {Time:Duration}. Vielleicht möchtest du einen leeren Server seeden.",
+  "RR_GRACE_WARNING": "Spieler warten auf einen Spielerplatz. Tritt innerhalb von {Time:Duration} einem Team bei, sonst wird dein Platz an den nächsten Spieler in der Warteschlange vergeben.",
+  "RR_GRACE_EXPIRED": "Dein Spielerplatz wurde an einen wartenden Spieler in der Warteschlange vergeben. Du belegst jetzt einen Zuschauerplatz."
+}

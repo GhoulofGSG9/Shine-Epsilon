@@ -1,0 +1,21 @@
+{
+  "NOTIFY_PREFIX": "[PlayerSlotQueue]",
+  "QUEUE_CHANGED": "Un giocatore davanti a te ha lasciato la coda per gli slot giocatore. La tua nuova posizione è {Position}.",
+  "QUEUE_CHANGED_VIP": "Un giocatore VIP è entrato nella coda per gli slot giocatore davanti a te. La tua nuova posizione è {Position}.",
+  "PRIORITY_QUEUE_CHANGED": "Un giocatore davanti a te ha lasciato la coda per gli slot riservati. La tua nuova posizione nella coda per gli slot riservati è {Position}.",
+  "PRIORITY_QUEUE_CHANGED_VIP": "Un giocatore VIP è entrato nella coda per gli slot riservati davanti a te. La tua nuova posizione nella coda per gli slot riservati è {Position}.",
+  "QUEUE_ADDED": "Sei entrato nella coda per gli slot giocatore! La tua posizione attuale è {Position}. Per lasciare la coda scrivi !rr_dequeue in chat.",
+  "PRIORITY_QUEUE_ADDED": "Sei entrato nella coda per gli slot riservati! La tua posizione attuale è {Position}. Per lasciare la coda scrivi !rr_dequeue in chat.",
+  "QUEUE_POSITION": "La tua posizione attuale nella coda per gli slot giocatore è {Position}.",
+  "PRIORITY_QUEUE_POSITION": "La tua posizione attuale nella coda per gli slot riservati è {Position}.",
+  "QUEUE_POSITION_UNKNOWN": "Non sei ancora entrato nella coda per gli slot giocatore!",
+  "DEQUEUE_SUCCESS": "Hai lasciato la coda per gli slot giocatore!",
+  "DEQUEUE_FAILED": "Non sei nella coda per gli slot giocatore!",
+  "QUEUE_LEAVE": "Si è liberato uno slot giocatore. Ora vieni spostato nella Ready Room! Grazie per l'attesa.",
+  "ENQUEUE_ERROR_PLAYER": "Solo gli spettatori possono mettersi in coda per uno slot giocatore!",
+  "QUEUE_INFORM": "Se vuoi giocare, premi F4 o scrivi !rr_enqueue in chat. Attualmente {Position} {Position:Pluralise:giocatore è in attesa|giocatori sono in attesa} di uno slot giocatore!",
+  "QUEUE_WELCOME_BACK": "Bentornato! Abbiamo ripristinato la tua posizione precedente nella coda per gli slot giocatore ({Position}). Per lasciare la coda scrivi !rr_dequeue in chat.",
+  "QUEUE_WAITTIME": "Il tempo medio di attesa è {Time:Duration}. Potresti considerare di avviare un server vuoto.",
+  "RR_GRACE_WARNING": "Ci sono giocatori in attesa di uno slot giocatore. Unisciti a una squadra entro {Time:Duration} o il tuo slot verrà assegnato al prossimo giocatore in coda.",
+  "RR_GRACE_EXPIRED": "Il tuo slot giocatore è stato assegnato a un giocatore in coda. Ora stai usando uno slot spettatore."
+}

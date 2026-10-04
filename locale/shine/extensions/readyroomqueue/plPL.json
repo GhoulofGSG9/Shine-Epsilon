@@ -1,0 +1,21 @@
+{
+  "NOTIFY_PREFIX": "[PlayerSlotQueue]",
+  "QUEUE_CHANGED": "Gracz przed Tobą opuścił kolejkę na miejsce gracza. Twoja nowa pozycja to {Position}.",
+  "QUEUE_CHANGED_VIP": "Gracz VIP dołączył do kolejki na miejsce gracza przed Tobą. Twoja nowa pozycja to {Position}.",
+  "PRIORITY_QUEUE_CHANGED": "Gracz przed Tobą opuścił kolejkę na miejsce zarezerwowane. Twoja nowa pozycja w kolejce na miejsce zarezerwowane to {Position}.",
+  "PRIORITY_QUEUE_CHANGED_VIP": "Gracz VIP dołączył do kolejki na miejsce zarezerwowane przed Tobą. Twoja nowa pozycja w kolejce na miejsce zarezerwowane to {Position}.",
+  "QUEUE_ADDED": "Dołączyłeś do kolejki na miejsce gracza! Twoja aktualna pozycja to {Position}. Aby opuścić kolejkę, wpisz !rr_dequeue na czacie.",
+  "PRIORITY_QUEUE_ADDED": "Dołączyłeś do kolejki na miejsce zarezerwowane! Twoja aktualna pozycja to {Position}. Aby opuścić kolejkę, wpisz !rr_dequeue na czacie.",
+  "QUEUE_POSITION": "Twoja aktualna pozycja w kolejce na miejsce gracza to {Position}.",
+  "PRIORITY_QUEUE_POSITION": "Twoja aktualna pozycja w kolejce na miejsce zarezerwowane to {Position}.",
+  "QUEUE_POSITION_UNKNOWN": "Nie dołączyłeś jeszcze do kolejki na miejsce gracza!",
+  "DEQUEUE_SUCCESS": "Opuściłeś kolejkę na miejsce gracza!",
+  "DEQUEUE_FAILED": "Nie ma Cię w kolejce na miejsce gracza!",
+  "QUEUE_LEAVE": "Zwolniło się miejsce gracza. Zostajesz przeniesiony do Ready Room! Dziękujemy za cierpliwość.",
+  "ENQUEUE_ERROR_PLAYER": "Tylko widzowie mogą stanąć w kolejce na miejsce gracza!",
+  "QUEUE_INFORM": "Jeśli chcesz grać, naciśnij F4 lub wpisz !rr_enqueue na czacie. Liczba graczy oczekujących na miejsce gracza: {Position}!",
+  "QUEUE_WELCOME_BACK": "Witaj ponownie! Przywróciliśmy Twoją poprzednią pozycję w kolejce na miejsce gracza ({Position}). Aby opuścić kolejkę, wpisz !rr_dequeue na czacie.",
+  "QUEUE_WAITTIME": "Średni czas oczekiwania to {Time:Duration}. Rozważ uruchomienie pustego serwera.",
+  "RR_GRACE_WARNING": "Gracze czekają na miejsce gracza. Dołącz do drużyny w ciągu {Time:Duration}, w przeciwnym razie Twoje miejsce zostanie przekazane następnemu graczowi w kolejce.",
+  "RR_GRACE_EXPIRED": "Twoje miejsce gracza zostało przekazane graczowi oczekującemu w kolejce. Zajmujesz teraz miejsce widza."
+}
