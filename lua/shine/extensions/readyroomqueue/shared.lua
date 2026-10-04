@@ -1,3 +1,5 @@
+local StringFormat = string.format
+
 local Plugin = Shine.Plugin(...)
 
 Plugin.Version = "1.2"
@@ -6,7 +8,13 @@ Plugin.NotifyPrefixColour = {
     255, 160, 0
 }
 
+-- Largest string size Shine and vanilla use for a network variable.
+Plugin.MaxQueueOrderLength = 255
+
 function Plugin:SetupDataTable()
+    -- Client IDs of the player queue in queue order, "-" for an entry whose client is not connected.
+    self:AddDTVar( StringFormat( "string (%d)", Plugin.MaxQueueOrderLength ), "QueueOrder", "" )
+
     local MessageTypes = {
         QueuePosition = {
             Position = "integer"

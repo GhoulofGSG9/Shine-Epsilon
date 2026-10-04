@@ -219,6 +219,7 @@ function Mocks.NewWorld( Options )
     ClientMeta.__index = ClientMeta
 
     function ClientMeta:GetUserId() return self.SteamID end
+    function ClientMeta:GetId() return self.ID end
     function ClientMeta:GetIsVirtual() return self.Virtual == true end
     function ClientMeta:GetIsSpectator() return self.Spectator == true end
     function ClientMeta:GetControllingPlayer() return self.Player end
@@ -279,7 +280,10 @@ function Mocks.NewWorld( Options )
             SteamID = World.NextSteamID
         end
 
+        World.NextClientID = ( World.NextClientID or 0 ) + 1
+
         local NewClient = setmetatable( {
+            ID = World.NextClientID,
             SteamID = SteamID,
             Name = Options.Name or ( "Player" .. SteamID ),
             Virtual = Options.Virtual or false,
@@ -414,6 +418,8 @@ function Mocks.NewWorld( Options )
     end
     Shine.HasAccess = function() return false end
     function Shine:IsExtensionEnabled() return false end
+    -- extensions.lua:33, every loaded plugin by name.
+    Shine.Plugins = Options.Plugins or {}
 
     Shine.Hook = {
         -- Faithful enough to hook.lua: the first non-nil result wins.
@@ -579,7 +585,8 @@ function Mocks.NewWorld( Options )
         Timers = {},
         Notified = {},
         NetworkMessages = {},
-        Logs = {}
+        Logs = {},
+        dt = {}
     }
     World.Plugin = Plugin
 

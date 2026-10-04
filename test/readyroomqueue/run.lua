@@ -1455,6 +1455,84 @@ local function PopulatePage( Populate )
     return Menu, Side
 end
 
+-- --------------------------------------------------------------------------------------------------
+Test( "scoreboard: the queue order lists client IDs in queue order and is cut at an entry boundary", function()
+    local World = Mocks.NewWorld{ MaxPlayers = 4 }
+    CurrentWorld = World
+
+    FillTeams( World, 4 )
+    local First = World:AddSpectator{ Name = "First" }
+    local Second = World:AddSpectator{ Name = "Second" }
+    World:PressF4( First )
+    World:PressF4( Second )
+    World.Plugin.PlayerQueue:Add( 999999, 3 )
+
+    World.Plugin:UpdateQueueOrder()
+    local Full = First:GetId() .. "," .. Second:GetId() .. ",-"
+    AssertEquals( Full, World.Plugin.dt.QueueOrder, "client IDs in queue order, '-' for an absent entry" )
+
+    World.Plugin.MaxQueueOrderLength = #Full - 2
+    World.Plugin:UpdateQueueOrder()
+    AssertEquals( First:GetId() .. "," .. Second:GetId(), World.Plugin.dt.QueueOrder,
+        "a limit ending on an entry boundary keeps that entry" )
+
+    World.Plugin.MaxQueueOrderLength = #tostring( First:GetId() ) + 1
+    World.Plugin:UpdateQueueOrder()
+    AssertEquals( tostring( First:GetId() ), World.Plugin.dt.QueueOrder, "a partial client ID is never sent" )
+end )
+
+Test( "afk guard: queued players are partially immune, cleanup restores afkkick", function()
+    local Original = function( _, Client ) return Client.Immune == true end
+    local AFKKick = { IsClientPartiallyImmune = Original }
+    local World = Mocks.NewWorld{ MaxPlayers = 4, Plugins = { afkkick = AFKKick } }
+    CurrentWorld = World
+
+    FillTeams( World, 4 )
+    local Queued = World:AddSpectator{ Name = "Queued" }
+    local Idle = World:AddSpectator{ Name = "Idle" }
+    World:PressF4( Queued )
+
+    AssertTrue( AFKKick:IsClientPartiallyImmune( Queued ), "a queued player must be immune" )
+    AssertFalse( AFKKick:IsClientPartiallyImmune( Idle ), "a player outside the queue must not be" )
+    Idle.Immune = true
+    AssertTrue( AFKKick:IsClientPartiallyImmune( Idle ), "afkkick's own immunity must still apply" )
+
+    World.Plugin:Cleanup()
+    AssertEquals( Original, AFKKick.IsClientPartiallyImmune, "cleanup must restore the original method" )
+
+    local Late = Mocks.NewWorld{ MaxPlayers = 4 }
+    CurrentWorld = Late
+    local LateAFKKick = { IsClientPartiallyImmune = Original }
+    Shine.Plugins.afkkick = LateAFKKick
+    Late.Plugin:OnPluginLoad( "afkkick" )
+    AssertTrue( LateAFKKick.IsClientPartiallyImmune ~= Original, "an afkkick loaded later must be patched as well" )
+
+    local Off = Mocks.NewWorld{ MaxPlayers = 4, Plugins = { afkkick = { IsClientPartiallyImmune = Original } },
+        Config = { ProtectQueuedFromAFKKick = false } }
+    CurrentWorld = Off
+    AssertEquals( Original, Shine.Plugins.afkkick.IsClientPartiallyImmune, "the config switch must disable the patch" )
+end )
+
+Test( "scoreboard client: ready room rows of queued players show their queue position", function()
+    local Plugin = LoadClientPlugin()
+    Plugin.dt = { QueueOrder = "7,-,9" }
+
+    local function Row( ClientIndex )
+        local Status = { Text = "" }
+        function Status:SetText( Text ) self.Text = Text end
+        return { ClientIndex = ClientIndex, Status = Status }
+    end
+    local Rows = { Row( 7 ), Row( 8 ), Row( 9 ) }
+
+    Plugin:OnGUIScoreboardUpdateTeam( nil, { TeamNumber = kTeam1Index, PlayerList = Rows } )
+    AssertEquals( "", Rows[ 1 ].Status.Text, "only the ready room is annotated" )
+
+    Plugin:OnGUIScoreboardUpdateTeam( nil, { TeamNumber = kTeamReadyRoom, PlayerList = Rows } )
+    AssertEquals( "Queue: 1", Rows[ 1 ].Status.Text, "first in the queue" )
+    AssertEquals( "", Rows[ 2 ].Status.Text, "a player outside the queue is left alone" )
+    AssertEquals( "Queue: 3", Rows[ 3 ].Status.Text, "an absent entry ahead still counts as a position" )
+end )
+
 -- Transcribed from ns2/lua/menu2/NavBar/Screens/ServerBrowser/GMSBEntry.lua UpdateServerRanking, with the
 -- serverEntry and profile getters replaced by fields of e.
 local function GMSBEntryRanking( e )

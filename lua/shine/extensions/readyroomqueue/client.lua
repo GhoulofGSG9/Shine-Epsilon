@@ -7,6 +7,7 @@ local Exp = math.exp
 local Max = math.max
 local Min = math.min
 local Sqrt = math.sqrt
+local StringFormat = string.format
 
 Plugin.SeedPrefType = table.AsEnum{
     "ASK", "ALWAYS", "NEVER"
@@ -347,6 +348,51 @@ VoteMenu:EditPage( "Main", function( self )
         self:SetPage( Pending and "SeedOffer" or "SeedPref" )
     end )
 end )
+
+function Plugin:OnFirstThink()
+    if not GUIScoreboard or not GUIScoreboard.UpdateTeam then return end
+
+    -- Same hook name and mode as voterandom, so whichever plugin sets it up first, the method is wrapped only once.
+    Shine.Hook.SetupClassHook( "GUIScoreboard", "UpdateTeam", "OnGUIScoreboardUpdateTeam", "PassivePost" )
+end
+
+function Plugin:GetQueuePositions()
+    local QueueOrder = self.dt.QueueOrder
+    if QueueOrder ~= self.QueueOrder then
+        self.QueueOrder = QueueOrder
+        self.QueuePositions = {}
+
+        local Position = 0
+        for Entry in QueueOrder:gmatch( "[^,]+" ) do
+            Position = Position + 1
+
+            local ClientID = tonumber( Entry )
+            if ClientID then
+                self.QueuePositions[ ClientID ] = Position
+            end
+        end
+    end
+
+    return self.QueuePositions
+end
+
+-- Runs after vanilla has filled in the rows. The text must stay "Queue: N" in English, other scoreboard mods
+-- match it with the pattern "^Queue: %d+$".
+function Plugin:OnGUIScoreboardUpdateTeam( Scoreboard, Team )
+    if type( Team ) ~= "table" or Team.TeamNumber ~= kTeamReadyRoom or type( Team.PlayerList ) ~= "table" then
+        return
+    end
+
+    local QueuePositions = self:GetQueuePositions()
+
+    for i = 1, #Team.PlayerList do
+        local Row = Team.PlayerList[ i ]
+        local Position = type( Row ) == "table" and QueuePositions[ Row.ClientIndex ]
+        if Position and Row.Status and Row.Status.SetText then
+            Row.Status:SetText( StringFormat( "Queue: %d", Position ) )
+        end
+    end
+end
 
 function Plugin:ReceiveQueueLeft()
     self:Notify( self:GetPhrase( "QUEUE_LEAVE" ) )

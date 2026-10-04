@@ -1,6 +1,7 @@
 local Max = math.max
 local Min = math.min
 local StringFormat = string.format
+local TableConcat = table.concat
 local TableCount = table.Count
 local TableEmpty = table.Empty
 local TableQuickCopy = table.QuickCopy
@@ -27,6 +28,7 @@ Plugin.DefaultConfig = {
         Enabled = false,
         PermissionString = "sh_vip"
     },
+    ProtectQueuedFromAFKKick = true, -- the afkkick plugin treats queued players as partially immune
     GlobalQueue = {
         -- Lets queued players get matched with players queued on other servers to seed an empty one.
         Enabled = false,
@@ -86,7 +88,31 @@ function Plugin:Initialise()
         self:OnTick()
     end )
 
+    self:ProtectQueuedFromAFKKick()
+
     return true
+end
+
+-- afkkick offers no hook for immunity, so its method is wrapped. The wrapper stays a no-op while this plugin is
+-- disabled, because another mod may have wrapped it on top of ours and then it cannot be restored.
+function Plugin:ProtectQueuedFromAFKKick()
+    local AFKKick = Shine.Plugins.afkkick
+    if not AFKKick or self.AFKKickPatch or not self.Config.ProtectQueuedFromAFKKick then return end
+
+    local OldIsClientPartiallyImmune = AFKKick.IsClientPartiallyImmune
+    self.OldIsClientPartiallyImmune = OldIsClientPartiallyImmune
+
+    self.AFKKickPatch = function( AFKPlugin, Client )
+        return OldIsClientPartiallyImmune( AFKPlugin, Client )
+            or self.Enabled and self:GetQueuePosition( Client ) ~= nil
+    end
+    AFKKick.IsClientPartiallyImmune = self.AFKKickPatch
+end
+
+function Plugin:OnPluginLoad( Name )
+    if Name == "afkkick" then
+        self:ProtectQueuedFromAFKKick()
+    end
 end
 
 -- Shine's recursive check walks the old value after replacing a mistyped table, so fix the top level first.
@@ -1073,6 +1099,26 @@ function Plugin:OnTick()
     if self.SeedEnabled then
         self:SyncSeedActive()
     end
+
+    self:UpdateQueueOrder()
+end
+
+function Plugin:UpdateQueueOrder()
+    local Keys = self.PlayerQueue:GetKeys()
+    local ClientIDs = {}
+
+    for i = 1, #Keys do
+        local QueuedClient = Shine.GetClientByNS2ID( Keys[ i ] )
+        ClientIDs[ i ] = QueuedClient and QueuedClient:GetId() or "-"
+    end
+
+    local QueueOrder = TableConcat( ClientIDs, "," )
+    if #QueueOrder > self.MaxQueueOrderLength then
+        -- Cut at an entry boundary, a partial client ID would put the wrong player's position on the scoreboard.
+        QueueOrder = QueueOrder:sub( 1, self.MaxQueueOrderLength + 1 ):match( "^(.*)," ) or ""
+    end
+
+    self.dt.QueueOrder = QueueOrder
 end
 
 function Plugin:PrintQueue( Client )
@@ -1164,6 +1210,13 @@ end
 
 function Plugin:Cleanup()
     self:ResetSeedState()
+
+    local AFKKick = Shine.Plugins.afkkick
+    if AFKKick and self.AFKKickPatch and AFKKick.IsClientPartiallyImmune == self.AFKKickPatch then
+        AFKKick.IsClientPartiallyImmune = self.OldIsClientPartiallyImmune
+    end
+    self.AFKKickPatch = nil
+    self.OldIsClientPartiallyImmune = nil
 
     return self.BaseClass.Cleanup( self )
 end
