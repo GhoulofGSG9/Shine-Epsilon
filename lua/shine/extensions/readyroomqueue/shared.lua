@@ -1,6 +1,6 @@
 local Plugin = Shine.Plugin(...)
 
-Plugin.Version = "1.0"
+Plugin.Version = "1.1"
 
 Plugin.NotifyPrefixColour = {
     255, 160, 0

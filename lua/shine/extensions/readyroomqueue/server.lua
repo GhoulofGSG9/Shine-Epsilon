@@ -31,6 +31,15 @@ Plugin.CheckConfig = true
 Plugin.CheckConfigTypes = true
 Plugin.CheckConfigRecursively = true
 
+Plugin.ConfigMigrationSteps = {
+    {
+        VersionTo = "1.1",
+        Apply = function( Config )
+            Shine.CheckConfig( Config, Plugin.DefaultConfig, true )
+        end
+    }
+}
+
 Plugin.QueueHistoryFile = "config://shine/temp/rr_queue_history.json"
 Plugin.QueueWaitTimeHistoryFile = "config://shine/temp/rr_queue_wait_time_history.json"
 
