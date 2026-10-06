@@ -576,7 +576,7 @@ Test( "grace period: disabled by config", function()
 end )
 
 -- --------------------------------------------------------------------------------------------------
-Test( "grace period: two idlers expiring in the same tick are both handled", function()
+Test( "grace period: two idlers expiring in the same tick are reclaimed one tick apart", function()
     local World = Mocks.NewWorld{ MaxPlayers = 4,
         Config = { ReadyRoomGracePeriod = { Enabled = true, Time = 10, EnqueueOnExpiry = true } } }
     CurrentWorld = World
@@ -598,14 +598,22 @@ Test( "grace period: two idlers expiring in the same tick are both handled", fun
     World:Tick( 11 )
 
     AssertTrue( Players[ 1 ]:GetIsSpectator(), "the first idler must lose their slot" )
-    AssertTrue( Players[ 2 ]:GetIsSpectator(), "the second idler must lose their slot too" )
     AssertEquals( kTeamReadyRoom, First:GetControllingPlayer():GetTeamNumber(),
         "the first queued player must be served" )
+    AssertFalse( Players[ 2 ]:GetIsSpectator(), "only one player is reclaimed per tick" )
+    AssertTrue( World.Plugin.GraceExpiries[ Players[ 2 ].SteamID ] ~= nil,
+        "the second idler stays on the clock for the next tick" )
+
+    World:Tick( 1 )
+
+    AssertTrue( Players[ 2 ]:GetIsSpectator(), "the second idler must lose their slot on the next tick" )
     AssertEquals( kTeamReadyRoom, Second:GetControllingPlayer():GetTeamNumber(),
         "the second queued player must be served" )
     AssertList( { Players[ 1 ].SteamID, Players[ 2 ].SteamID }, World:QueueIDs(),
         "both idlers must end up at the back of the queue" )
-    AssertTrue( next( World.Plugin.GraceExpiries ) == nil, "no grace entries may be left behind" )
+    -- First sat in the ready room on a player slot while Second still waited, so First is on the clock now.
+    AssertEquals( nil, World.Plugin.GraceExpiries[ Players[ 1 ].SteamID ], "no grace entry may be left behind" )
+    AssertEquals( nil, World.Plugin.GraceExpiries[ Players[ 2 ].SteamID ], "no grace entry may be left behind" )
 end )
 
 -- --------------------------------------------------------------------------------------------------
@@ -639,7 +647,7 @@ local QueueTestCount = #Registered
 -- ================================================================================================== seed queue
 
 local function NewSeedWorld( Config )
-    local GlobalQueue = { Enabled = true, ServerId = "server", Token = "token" }
+    local GlobalQueue = { Enabled = true }
     for Key, Value in pairs( Config or {} ) do
         GlobalQueue[ Key ] = Value
     end
@@ -693,13 +701,6 @@ local function Connects( World, SteamID )
     return Out
 end
 
-local function Reconnect( World, SteamID )
-    local Back = World:AddSpectator{ SteamID = SteamID, Name = "Back" }
-    World.Plugin:ClientConnect( Back )
-    World.Plugin:PostJoinTeam( World.Gamerules, Back:GetControllingPlayer(), kTeamReadyRoom, kSpectatorIndex )
-    return Back
-end
-
 -- --------------------------------------------------------------------------------------------------
 Test( "seed: the heartbeat lists queued players with their scores and preferences", function()
     local World = NewSeedWorld()
@@ -717,12 +718,11 @@ Test( "seed: the heartbeat lists queued players with their scores and preference
     World:Tick( 10 )
 
     local Payload, Request = Heartbeat( World )
-    AssertEquals( "server", Request.Options.headers[ "X-Server-Id" ], "the server id goes in a header" )
-    AssertEquals( "token", Request.Options.headers[ "X-Server-Token" ], "the token goes in a header" )
-    AssertTrue( Request.Options.timeout ~= nil, "the request must carry its own timeout" )
+    AssertEquals( "POST", Request.Method, "the heartbeat is a form POST" )
 
     AssertEquals( 1, Payload.v, "contract version" )
     AssertEquals( "Mock Server", Payload.name, "server name" )
+    AssertEquals( 27015, Payload.port, "the game port identifies this server" )
     AssertEquals( 4, Payload.players, "bots and spectators are not counted as players" )
     AssertEquals( 4, Payload.maxPlayers, "max players" )
     AssertEquals( true, Payload.matching, "matching follows the config" )
@@ -742,7 +742,7 @@ Test( "seed: the heartbeat lists queued players with their scores and preference
 end )
 
 -- --------------------------------------------------------------------------------------------------
-Test( "seed: an offer prompts listed players, a commit sends only listed players and only once", function()
+Test( "seed: an offer prompts listed players, a commit sends only players that agreed and only once", function()
     local World = NewSeedWorld()
     local Plugin = World.Plugin
     local Specs = QueueSpectators( World, 4 )
@@ -772,23 +772,50 @@ Test( "seed: an offer prompts listed players, a commit sends only listed players
     AssertEquals( nil, Payload.queue[ 4 ].answer, "D has no answer" )
 
     local Commit = { id = "o-1", target = "1.2.3.4:27015", name = "Target",
-        players = { A.SteamID, C.SteamID, 999999 } }
+        players = { A.SteamID, B.SteamID, C.SteamID, D.SteamID, 999999 } }
     Heartbeat( World, { next = 10, commit = Commit } )
     Heartbeat( World, { next = 10, commit = Commit } )
 
     AssertList( { "connect 1.2.3.4:27015" }, Connects( World, A.SteamID ), "A is sent exactly once" )
     AssertList( { "connect 1.2.3.4:27015" }, Connects( World, C.SteamID ), "C is sent exactly once" )
-    AssertList( {}, Connects( World, B.SteamID ), "B was not committed" )
-    AssertList( {}, Connects( World, D.SteamID ), "D was not offered" )
+    AssertList( {}, Connects( World, B.SteamID ), "B declined, being listed does not send them" )
+    AssertList( {}, Connects( World, D.SteamID ), "D was never offered, being listed does not send them" )
     AssertEquals( 1, CountMessages( World, B.SteamID, "SeedAbort" ), "B's prompt is closed" )
     AssertEquals( 0, CountMessages( World, A.SteamID, "SeedAbort" ), "A is on the way, not aborted" )
 
     Heartbeat( World, { next = 10, offer = Offer } )
     AssertEquals( 1, CountMessages( World, B.SteamID, "SeedOffer" ), "a decided offer is never shown again" )
 
-    local Malicious = { id = "o-2", target = "1.2.3.4:1; quit", players = { D.SteamID } }
+    local Malicious = { id = "o-2", target = "1.2.3.4:1; quit", players = { C.SteamID } }
     Heartbeat( World, { next = 10, commit = Malicious } )
-    AssertList( {}, Connects( World, D.SteamID ), "a malformed target is never sent to a client" )
+    AssertList( { "connect 1.2.3.4:27015" }, Connects( World, C.SteamID ),
+        "a malformed target is never sent to a client" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+Test( "seed: a commit for another offer or without an answer sends nobody but always players", function()
+    local World = NewSeedWorld()
+    local Plugin = World.Plugin
+    local Specs = QueueSpectators( World, 3 )
+    local A, B, C = Specs[ 1 ], Specs[ 2 ], Specs[ 3 ]
+
+    Plugin:ReceiveSeedPref( C, { Pref = "always" } )
+
+    Heartbeat( World, { next = 3, offer = { id = "o-1", target = "1.2.3.4:27015", players = { A.SteamID, B.SteamID } } } )
+    Plugin:ReceiveSeedAnswer( A, { Accept = true } )
+
+    -- A forged heartbeat can get the coordinator to commit an offer nobody here was shown.
+    Heartbeat( World, { next = 10, commit = { id = "o-x", target = "6.6.6.6:27015",
+        players = { A.SteamID, B.SteamID, C.SteamID } } } )
+    AssertList( {}, Connects( World, A.SteamID ), "an accept for another offer does not count" )
+    AssertList( {}, Connects( World, B.SteamID ), "B never answered" )
+    AssertList( { "connect 6.6.6.6:27015" }, Connects( World, C.SteamID ), "an always player agreed to any seed" )
+
+    Heartbeat( World, { next = 10, commit = { id = "o-1", target = "1.2.3.4:27015",
+        players = { A.SteamID, B.SteamID } } } )
+    AssertList( { "connect 1.2.3.4:27015" }, Connects( World, A.SteamID ), "A accepted o-1" )
+    AssertList( {}, Connects( World, B.SteamID ), "B still never answered" )
+    AssertEquals( 1, CountMessages( World, B.SteamID, "SeedAbort" ), "B's prompt is closed" )
 end )
 
 -- --------------------------------------------------------------------------------------------------
@@ -823,6 +850,7 @@ Test( "seed: a player back from a seed within the hop return time gets their old
     local Specs, Players = QueueSpectators( World, 3 )
     local A, B, C = Specs[ 1 ], Specs[ 2 ], Specs[ 3 ]
 
+    World.Plugin:ReceiveSeedPref( A, { Pref = "always" } )
     Heartbeat( World, { next = 10, commit = { id = "o-1", target = "1.2.3.4:27015", players = { A.SteamID } } } )
     World:Disconnect( A )
     AssertList( { A.SteamID, B.SteamID, C.SteamID }, World:QueueIDs(), "A's entry is held" )
@@ -831,7 +859,7 @@ Test( "seed: a player back from a seed within the hop return time gets their old
     AssertList( { A.SteamID, B.SteamID }, World:QueueIDs(), "a plain disconnect still leaves the queue" )
 
     World:Tick( 60 )
-    local Back = Reconnect( World, A.SteamID )
+    local Back = World:AddSpectator{ SteamID = A.SteamID, Name = "Back" }
 
     AssertList( { A.SteamID, B.SteamID }, World:QueueIDs(), "A is back at the front" )
     AssertTrue( NotifiedWith( World, A.SteamID, "QUEUE_WELCOME_BACK" ), "A is told their position is restored" )
@@ -846,63 +874,96 @@ Test( "seed: a player back after the hop return time queues from the back", func
     local Specs = QueueSpectators( World, 3 )
     local A, B, C = Specs[ 1 ], Specs[ 2 ], Specs[ 3 ]
 
+    World.Plugin:ReceiveSeedPref( A, { Pref = "always" } )
     Heartbeat( World, { next = 10, commit = { id = "o-1", target = "1.2.3.4:27015", players = { A.SteamID } } } )
     World:Disconnect( A )
 
     World:Tick( 181 )
     AssertList( { B.SteamID, C.SteamID }, World:QueueIDs(), "the held entry is dropped once the time is up" )
 
-    Reconnect( World, A.SteamID )
+    World:AddSpectator{ SteamID = A.SteamID, Name = "Back" }
     AssertList( { B.SteamID, C.SteamID }, World:QueueIDs(), "A is not restored" )
     AssertTrue( NotifiedWith( World, A.SteamID, "QUEUE_INFORM" ), "A is told how to queue again" )
 end )
 
 -- --------------------------------------------------------------------------------------------------
-Test( "seed: enrolment stores the issued credentials and a rejected token is refreshed", function()
-    local World = NewSeedWorld{ ServerId = "", Token = "" }
+Test( "seed: the heartbeat backs off on 403 and 429, errors and timeouts retry sooner", function()
+    local World = NewSeedWorld()
     local Plugin = World.Plugin
-    local Config = Plugin.Config.GlobalQueue
 
-    Plugin:SeedUpdate()
-    local Request = World:Respond( 200, { challengeId = "c1", challengeTag = "td_chal=abc", expiresAt = 0,
-        pollAfterSeconds = 5 } )
-    AssertTrue( Request.URL:find( "/servers/enroll/start", 1, true ), "enrolment starts first" )
-    AssertEquals( 27015, json.decode( Request.Params.data ).gamePort, "the game port is sent" )
-    AssertList( { "td_chal=abc" }, World.Tags, "the challenge tag is advertised" )
+    local function NextUpdateAfter( Status )
+        Plugin.Timers.SeedUpdate = nil
+        Plugin:SeedUpdate()
+        if Status then
+            World:Respond( Status, { detail = "error" } )
+        else
+            World:Tick( 15 )
+        end
+        return Plugin.Timers.SeedUpdate.Next - World.Time
+    end
 
-    Plugin:SeedUpdate()
-    Request = World:Respond( 200, { serverId = "srv-1", accessToken = "acc", accessTokenExpiresAt = 1e10,
-        refreshToken = "ref", refreshTokenExpiresAt = 2e10 } )
-    AssertTrue( Request.URL:find( "/servers/enroll/complete", 1, true ), "then completed" )
-    AssertEquals( "td_chal=abc", json.decode( Request.Params.data ).observedChallengeTag, "with the tag" )
-    AssertList( {}, World.Tags, "the challenge tag is removed" )
-    AssertEquals( "srv-1", Config.ServerId, "the server id is kept" )
-    AssertEquals( "ref", Config.RefreshToken, "the refresh token is kept" )
+    AssertEquals( 120, NextUpdateAfter( 403 ), "a server Steam does not list backs off" )
+    AssertEquals( 120, NextUpdateAfter( 429 ), "a rate limited server backs off" )
+    AssertEquals( 30, NextUpdateAfter( 500 ), "a server error is retried" )
+    AssertEquals( 30, NextUpdateAfter( nil ), "a timed out request is retried" )
 
-    local _, Beat = Heartbeat( World )
-    AssertEquals( "acc", Beat.Options.headers[ "X-Server-Token" ], "the new token is used" )
-
-    Plugin:SeedUpdate()
-    World:Respond( 401, { detail = "server_token_invalid" } )
-    Plugin:SeedUpdate()
-    Request = World:Respond( 200, { serverId = "srv-1", accessToken = "acc2", accessTokenExpiresAt = 1e10,
-        refreshToken = "ref2", refreshTokenExpiresAt = 2e10 } )
-    AssertTrue( Request.URL:find( "/servers/token/refresh", 1, true ), "a 401 leads to a token refresh" )
-    AssertEquals( "ref", json.decode( Request.Params.data ).refreshToken, "using the stored refresh token" )
-    AssertEquals( "acc2", Config.Token, "the refreshed token is kept" )
+    World:Respond( 200, { next = 1 } )
+    AssertEquals( 30, Plugin.Timers.SeedUpdate.Next - World.Time, "a reply after the timeout is ignored" )
 end )
 
 -- --------------------------------------------------------------------------------------------------
-Test( "seed: an engine without HTTP request options disables the global queue once", function()
+Test( "seed: without an HTTP status the reply body decides", function()
     local World = NewSeedWorld()
     local Plugin = World.Plugin
-    World.HTTPRejectOptions = true
+    local Specs = QueueSpectators( World, 1 )
 
-    Plugin:SeedUpdate()
-    Plugin:SeedUpdate()
+    local function NextUpdateAfter( Body )
+        Plugin.Timers.SeedUpdate = nil
+        Plugin:SeedUpdate()
+        World:Respond( nil, Body )
+        return Plugin.Timers.SeedUpdate.Next - World.Time
+    end
 
-    AssertFalse( Plugin.SeedEnabled, "the global queue switches itself off" )
-    AssertEquals( 1, #Plugin.Logs, "and says so once" )
+    AssertEquals( 7, NextUpdateAfter{ next = 7, offer = { id = "o-1", target = "1.2.3.4:27015",
+        players = { Specs[ 1 ].SteamID } } }, "a reply with next is a success" )
+    AssertEquals( 1, CountMessages( World, Specs[ 1 ].SteamID, "SeedOffer" ), "and is handled" )
+    AssertEquals( 120, NextUpdateAfter{ detail = "not_listed" }, "an error detail backs off" )
+    AssertEquals( 120, NextUpdateAfter{ detail = "Rate limit exceeded" }, "so does a rate limit" )
+    AssertEquals( 30, NextUpdateAfter( "<html>502 Bad Gateway</html>" ), "an undecodable body is retried" )
+    AssertEquals( 30, NextUpdateAfter( "" ), "an empty body is retried" )
+    AssertEquals( 30, NextUpdateAfter{ queue = {} }, "a table without next or detail is retried" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+Test( "config: older configs migrate to the current version without validation errors", function()
+    local World = Mocks.NewWorld()
+    CurrentWorld = World
+    local Plugin = World.Plugin
+
+    local Versions = {
+        { "1.0", { "Debug", "ReadyRoomGracePeriod", "GlobalQueue" } },
+        { "1.1", { "GlobalQueue" } }
+    }
+
+    for i = 1, #Versions do
+        local Version, Missing = Versions[ i ][ 1 ], Versions[ i ][ 2 ]
+        local Config = Mocks.DeepCopy( Plugin.DefaultConfig )
+        Config.__Version = Version
+        for j = 1, #Missing do
+            Config[ Missing[ j ] ] = nil
+        end
+
+        -- base_plugin/config.lua ValidateConfigAfterLoad: the migration, then both validator rules.
+        Shine.ApplyConfigMigration( Config, {
+            NewVersion = Plugin.Version,
+            CurrentVersion = Shine.VersionHolder( Version ),
+            MigrationSteps = Plugin.ConfigMigrationSteps
+        } )
+        AssertEquals( Plugin.Version, Config.__Version, Version .. ": the version is bumped" )
+        AssertFalse( Shine.VerifyConfig( Config, Plugin.DefaultConfig, { __Version = true } ),
+            Version .. ": the migration must leave nothing for validation to add or remove" )
+        AssertFalse( Plugin:TypeCheckConfig( Config ), Version .. ": nothing may be mistyped" )
+    end
 end )
 
 -- --------------------------------------------------------------------------------------------------

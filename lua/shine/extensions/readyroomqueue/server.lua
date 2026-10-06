@@ -33,13 +33,7 @@ Plugin.DefaultConfig = {
         URL = "https://steamstats-api-1309760101.azurewebsites.net",
         MatchingTarget = true, -- accept seeds from other servers when this server is empty
         HopReturnTime = 180, -- how long a player that left for a seed keeps their queue position here
-        PromptTime = 20,
-        -- Filled in by the enrolment with the coordinator.
-        ServerId = "",
-        Token = "",
-        TokenExpiresAt = 0,
-        RefreshToken = "",
-        RefreshTokenExpiresAt = 0
+        PromptTime = 20
     }
 }
 Plugin.CheckConfig = true
@@ -49,6 +43,12 @@ Plugin.CheckConfigRecursively = true
 Plugin.ConfigMigrationSteps = {
     {
         VersionTo = "1.1",
+        Apply = function( Config )
+            Shine.CheckConfig( Config, Plugin.DefaultConfig, true )
+        end
+    },
+    {
+        VersionTo = "1.2",
         Apply = function( Config )
             Shine.CheckConfig( Config, Plugin.DefaultConfig, true )
         end

@@ -52,10 +52,12 @@ local function LoadShineObjects()
 
     package.path = "C:/Git/Shine/lua/?.lua;" .. package.path
 
+    json = json or assert( loadfile( NS2_JSON ) )()
+
     local Files = {
         "lib/debug.lua", "lib/table.lua", "lib/math.lua", "lib/string.lua", "lib/class.lua",
         "lib/objects.lua", "lib/objects/stream.lua", "lib/objects/map.lua", "lib/objects/set.lua",
-        "lib/utf8.lua"
+        "lib/objects/version.lua", "lib/utf8.lua", "core/shared/config.lua"
     }
 
     for i = 1, #Files do
@@ -71,8 +73,6 @@ local function LoadShineObjects()
     if not Shine.Map or not Shine.Set then
         error( "Shine.Map/Shine.Set are unavailable, is C:/Git/Shine checked out?" )
     end
-
-    json = json or assert( loadfile( NS2_JSON ) )()
 end
 
 local function DeepCopy( Value )
@@ -108,6 +108,7 @@ function Mocks.NewWorld( Options )
         Clients = {},
         SpectatorCount = 0,
         ClassHooks = {},
+        PlainHooks = {},
         Notifications = {},
         ClassHookLog = {}
     }
@@ -130,44 +131,59 @@ function Mocks.NewWorld( Options )
     Server.GetName = function() return "Mock Server" end
     Server.GetPort = function() return 27015 end
 
-    World.Tags = {}
-    Server.GetTags = function( Out )
-        for i = 1, #World.Tags do Out[ i ] = World.Tags[ i ] end
-    end
-    Server.AddTag = function( Tag ) World.Tags[ #World.Tags + 1 ] = Tag end
-    Server.RemoveTag = function( Tag )
-        for i = #World.Tags, 1, -1 do
-            if World.Tags[ i ] == Tag then table.remove( World.Tags, i ) end
-        end
-    end
-
     --[[
-        Outgoing HTTP. Requests are recorded for World:Respond, unless World.HTTPFail makes every request
-        fail at once the way an unreachable host does.
+        Outgoing HTTP, Bindings/Shared.txt:545 and the callback in Spark_Server/World.cpp:256. Requests are
+        recorded for World:Respond, unless World.HTTPFail makes every request fail the way an unreachable host
+        does.
     ]]
     World.HTTPRequests = {}
-    Shared.SendHTTPRequest = function( URL, Method, Params, Callback, RequestOptions )
-        if World.HTTPRejectOptions and RequestOptions ~= nil then
-            error( "SendHTTPRequest takes 4 arguments" )
-        end
+    Shared.SendHTTPRequest = function( URL, Method, Params, Callback, ... )
+        assert( select( "#", ... ) == 0, "Shared.SendHTTPRequest takes at most 4 arguments" )
 
         if World.HTTPFail then
             World.HTTPFailures = ( World.HTTPFailures or 0 ) + 1
-            Callback( nil, "Couldn't connect to server", 7, 0 )
-            return #World.HTTPRequests + 1
+            Callback( "", "Couldn't connect to server", 7, 0 )
+            return
         end
 
         World.HTTPRequests[ #World.HTTPRequests + 1 ] = {
-            URL = URL, Method = Method, Params = Params, Callback = Callback, Options = RequestOptions
+            URL = URL, Method = Method, Params = Params, Callback = Callback
         }
-        return #World.HTTPRequests
     end
 
-    -- Answers the oldest outstanding request.
+    -- shine/lib/query.lua:161, its Shine.Timer.Simple driven by World:RunDueTimers.
+    Shine.TimedHTTPRequest = function( URL, Protocol, Params, OnResponse, OnTimeout, Timeout )
+        local Succeeded
+
+        Shared.SendHTTPRequest( URL, Protocol, Params, function( ... )
+            if Succeeded ~= nil then return end
+            Succeeded = true
+            OnResponse( ... )
+        end )
+
+        World.HTTPTimeoutCount = ( World.HTTPTimeoutCount or 0 ) + 1
+        World.Plugin.Timers[ "HTTPTimeout" .. World.HTTPTimeoutCount ] = {
+            Reps = 1, Next = World.Time + ( Timeout or 5 ), Func = function()
+                if Succeeded ~= nil then return end
+                Succeeded = false
+                OnTimeout()
+            end
+        }
+    end
+
+    -- Answers the oldest outstanding request. Without a status it answers like the retail engine, whose
+    -- callback gets the body alone.
     function World:Respond( Status, Body )
         local Request = table.remove( World.HTTPRequests, 1 )
         assert( Request, "no HTTP request to respond to" )
-        Request.Callback( Body and json.encode( Body ) or "", nil, 0, Status )
+
+        local Encoded = type( Body ) == "table" and json.encode( Body ) or Body or ""
+        if Status then
+            Request.Callback( Encoded, nil, 0, Status )
+        else
+            Request.Callback( Encoded )
+        end
+
         return Request
     end
 
@@ -274,17 +290,22 @@ function Mocks.NewWorld( Options )
         NewClient.Player = NewPlayer
 
         World.Clients[ #World.Clients + 1 ] = NewClient
-        Shine.GameIDs:Add( NewClient, #World.Clients )
-
-        if Options.Spectator then
-            -- The engine flags the connection before the world ever sees it, then
-            -- NS2Gamerules:OnClientConnect moves them onto the spectator team.
-            NewClient:SetIsSpectator( true )
-            NewPlayer.TeamNumber = kSpectatorIndex
-        end
 
         if Options.Reserved then
             World.ReservedIDs[ SteamID ] = true
+        end
+
+        if Options.Spectator then
+            -- The engine flags the connection before the world ever sees it, then NS2Gamerules:OnClientConnect
+            -- (NS2Gamerules.lua:288) moves them onto the spectator team before Shine knows the client.
+            NewClient:SetIsSpectator( true )
+            World.Gamerules:JoinTeam( NewPlayer, kSpectatorIndex, true )
+        end
+
+        -- Shine's ClientConnect hook: GameIDs at MAX_PRIORITY (permissions.lua:420), then the plugins.
+        Shine.GameIDs:Add( NewClient, #World.Clients )
+        if World.Plugin.ClientConnect then
+            World.Plugin:ClientConnect( NewClient )
         end
 
         return NewClient
@@ -307,31 +328,40 @@ function Mocks.NewWorld( Options )
     end
 
     function World:Disconnect( TargetClient )
+        -- Shine removes the client from GameIDs at MAX_PRIORITY, before plugin hooks run. The engine still
+        -- counts the connection while the hooks run.
+        Shine.GameIDs:Remove( TargetClient )
+        World.Plugin:ClientDisconnect( TargetClient )
+
         for i = 1, #World.Clients do
             if World.Clients[ i ] == TargetClient then
                 table.remove( World.Clients, i )
                 break
             end
         end
-
-        -- Shine removes the client from GameIDs at MAX_PRIORITY, before plugin hooks run.
-        Shine.GameIDs:Remove( TargetClient )
-
-        -- The engine clears the spectator flag as part of tearing the connection down.
-        World.Plugin:ClientDisconnect( TargetClient )
         TargetClient:SetIsSpectator( false )
+
+        -- The next frame, where zero delay timers run.
+        World:RunDueTimers()
     end
 
     -- ---------------------------------------------------------------- Shine surface
 
     Shine.GameIDs = Shine.Map()
 
+    -- player.lua:453, which only knows clients in GameIDs.
     Shine.GetClientByNS2ID = function( SteamID )
-        for i = 1, #World.Clients do
-            if World.Clients[ i ].SteamID == SteamID then
-                return World.Clients[ i ]
+        local Keys = Shine.GameIDs:GetKeys()
+        for i = 1, #Keys do
+            if Keys[ i ].SteamID == SteamID then
+                return Keys[ i ]
             end
         end
+    end
+
+    -- player.lua:152
+    function Shine:IsValidClient( Target )
+        return Target and self.GameIDs:Get( Target ) ~= nil
     end
 
     Shine.GetClientName = function( TargetClient )
@@ -370,6 +400,7 @@ function Mocks.NewWorld( Options )
     Shine.LoadJSONFile = function() return nil end
     Shine.SaveJSONFile = function() return true end
     Shine.HasAccess = function() return false end
+    function Shine:IsExtensionEnabled() return false end
 
     Shine.Hook = {
         -- Faithful enough to hook.lua: the first non-nil result wins.
@@ -381,7 +412,12 @@ function Mocks.NewWorld( Options )
         SetupClassHook = function( ClassName, Method, HookName, Func )
             World.ClassHooks[ ClassName .. "." .. Method ] = Func
             World.ClassHookLog[ #World.ClassHookLog + 1 ] = ClassName .. "." .. Method
-        end
+        end,
+        Add = function( Event, Name, Func )
+            World.PlainHooks[ Event ] = World.PlainHooks[ Event ] or {}
+            World.PlainHooks[ Event ][ Name ] = Func
+        end,
+        MAX_PRIORITY = -20
     }
 
     -- ---------------------------------------------------------------- gamerules
@@ -436,7 +472,13 @@ function Mocks.NewWorld( Options )
     end
 
     -- NS2Gamerules.lua:1455, wrapped the way Shine's JoinTeam class hook wraps it.
-    function Gamerules:JoinTeam( Player, NewTeamNumber, Force )
+    function Gamerules:JoinTeam( Player, NewTeamNumber, Force, ShineForce )
+        for _, Hook in pairs( World.PlainHooks.JoinTeam or {} ) do
+            if Hook( self, Player, NewTeamNumber, Force, ShineForce ) == false then
+                return false, Player
+            end
+        end
+
         local TargetClient = Player:GetClient()
         if not TargetClient then return end
 
@@ -464,7 +506,7 @@ function Mocks.NewWorld( Options )
 
         -- hook.lua:1105 only broadcasts PostJoinTeam on success.
         if Success and World.Plugin and World.Plugin.PostJoinTeam then
-            World.Plugin:PostJoinTeam( self, Player, OldTeamNumber, NewTeamNumber, Force )
+            World.Plugin:PostJoinTeam( self, Player, OldTeamNumber, NewTeamNumber, Force, ShineForce )
         end
 
         return Success, Player
@@ -579,20 +621,28 @@ function Mocks.NewWorld( Options )
         return Command
     end
 
+    -- Shine loads shared.lua first, server.lua then extends the plugin it created.
+    Plugin.__Name = "readyroomqueue"
+    local SharedChunk = loadfile( PLUGIN_DIR .. "shared.lua" )
+    if SharedChunk then
+        local ShinePlugin = Shine.Plugin
+        Shine.Plugin = function() return Plugin end
+        SharedChunk( Plugin.__Name )
+        Shine.Plugin = ShinePlugin
+    end
+
     local Chunk, Err = loadfile( PLUGIN_FILE )
     if not Chunk then
         error( "Unable to load the plugin: " .. tostring( Err ) )
     end
-    Chunk( Plugin )
+    Chunk( Plugin, Plugin.__Name )
 
     Plugin.Config = DeepCopy( Plugin.DefaultConfig )
 
-    if Mocks.CoordinatorDown then
+    -- Plugin revisions without the global seed queue just rerun the plain queue tests.
+    if Mocks.CoordinatorDown and Plugin.Config.GlobalQueue then
         World.HTTPFail = true
-        local GlobalQueue = Plugin.Config.GlobalQueue
-        GlobalQueue.Enabled = true
-        GlobalQueue.ServerId = "server"
-        GlobalQueue.Token = "token"
+        Plugin.Config.GlobalQueue.Enabled = true
     end
 
     if Options.Config then
@@ -608,6 +658,8 @@ function Mocks.NewWorld( Options )
     end
 
     Plugin:Initialise()
+    -- extensions.lua:694
+    Plugin.Enabled = true
     Plugin:OnFirstThink()
 
     --[[

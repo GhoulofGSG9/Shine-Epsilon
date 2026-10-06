@@ -18,12 +18,6 @@ local REQUEST_TIMEOUT = 15
 local IDLE_DELAY = 10
 local ERROR_DELAY = 30
 local FORBIDDEN_DELAY = 120
-local ENROL_DELAY = 60
-local CHALLENGE_PREFIX = "td_chal="
-local CHALLENGE_LIFETIME = 170
-local MIN_FIRST_POLL = 15
-local COMPLETE_DELAYS = { 10, 15, 20, 20 }
-local TOKEN_REFRESH_LEEWAY = 120
 -- The coordinator repeats a decision for 60 s.
 local DECISION_MEMORY = 120
 local MAX_SCORES = 16
@@ -51,16 +45,6 @@ function Plugin:InitialiseGlobalQueue()
     self:ScheduleSeedUpdate( 1 )
 end
 
-function Plugin:DisableGlobalQueue()
-    self.SeedEnabled = false
-    self.SeedOnline = false
-
-    for Client in pairs( self.SeedActiveClients ) do
-        self:SendNetworkMessage( Client, "SeedActive", { URL = "" }, true )
-    end
-    self.SeedActiveClients = {}
-end
-
 function Plugin:ScheduleSeedUpdate( Delay )
     self:CreateTimer( "SeedUpdate", Delay, 1, function()
         self:SeedUpdate()
@@ -68,198 +52,45 @@ function Plugin:ScheduleSeedUpdate( Delay )
 end
 
 --[[
-    Sends a form POST to the coordinator. Callback receives the decoded JSON body (or nil) and the HTTP status.
+    Sends the heartbeat. The coordinator knows this server by the request's source address and the port in the
+    body, it only answers servers that Steam's server list shows at that address.
 ]]
-function Plugin:SeedRequest( Path, Payload, Headers, Callback )
+function Plugin:SeedUpdate()
+    -- Also the timeout callback, which gets no arguments.
     local function OnReply( Body, _, _, Status )
-        if not self.SeedEnabled then return end
+        if not self.Enabled then return end
 
         local Data
         if type( Body ) == "string" and Body ~= "" then
             local Ok, Decoded = pcall( json.decode, Body )
-            Data = Ok and Decoded or nil
+            Data = Ok and type( Decoded ) == "table" and Decoded or nil
         end
 
-        Callback( Data, tonumber( Status ) or 0 )
-    end
+        -- Only ns2-engine builds pass the HTTP status, the retail engine passes the body alone.
+        Status = tonumber( Status )
 
-    local Ok, RequestID = pcall( Shared.SendHTTPRequest, self.SeedURL..Path, "POST",
-        { data = json.encode( Payload ) }, OnReply, { timeout = REQUEST_TIMEOUT, headers = Headers } )
-
-    if not Ok then
-        self:Print( "Disabling the global seed queue, this server cannot send HTTP headers: %s", true,
-            tostring( RequestID ) )
-        self:DisableGlobalQueue()
-        return
-    end
-
-    -- Refused because the engine's request queue is full, the callback will never run.
-    if RequestID == nil then
-        self:ScheduleSeedUpdate( ERROR_DELAY )
-    end
-end
-
-function Plugin:SeedUpdate()
-    if not self.SeedEnabled then return end
-
-    if self.SeedChallenge then
-        self:CompleteSeedEnrolment()
-        return
-    end
-
-    local Config = self.Config.GlobalQueue
-    local Now = Shared.GetSystemTime()
-
-    local CanRefresh = Config.RefreshToken ~= ""
-        and not ( Config.RefreshTokenExpiresAt > 0 and Config.RefreshTokenExpiresAt <= Now )
-
-    if Config.ServerId == "" or ( Config.Token == "" and not CanRefresh ) then
-        self:StartSeedEnrolment()
-        return
-    end
-
-    if CanRefresh and ( Config.Token == ""
-    or ( Config.TokenExpiresAt > 0 and Config.TokenExpiresAt - TOKEN_REFRESH_LEEWAY <= Now ) ) then
-        self:RefreshSeedToken()
-        return
-    end
-
-    self:SendSeedHeartbeat()
-end
-
-function Plugin:StoreSeedAuth( Data )
-    if type( Data ) ~= "table" or type( Data.serverId ) ~= "string" or Data.serverId == ""
-    or type( Data.accessToken ) ~= "string" or Data.accessToken == ""
-    or type( Data.refreshToken ) ~= "string" or Data.refreshToken == "" then
-        return false
-    end
-
-    local Config = self.Config.GlobalQueue
-    Config.ServerId = Data.serverId
-    Config.Token = Data.accessToken
-    Config.TokenExpiresAt = tonumber( Data.accessTokenExpiresAt ) or 0
-    Config.RefreshToken = Data.refreshToken
-    Config.RefreshTokenExpiresAt = tonumber( Data.refreshTokenExpiresAt ) or 0
-    self:SaveConfig( true )
-
-    return true
-end
-
-function Plugin:ClearSeedAuth()
-    local Config = self.Config.GlobalQueue
-    Config.ServerId = ""
-    Config.Token = ""
-    Config.TokenExpiresAt = 0
-    Config.RefreshToken = ""
-    Config.RefreshTokenExpiresAt = 0
-    self:SaveConfig( true )
-end
-
--- The coordinator proves the enrolling server owns its address by finding this tag in Steam's server list.
-function Plugin:SetChallengeTag( Tag )
-    local Tags = {}
-    Server.GetTags( Tags )
-
-    for i = 1, #Tags do
-        if Tags[ i ]:find( CHALLENGE_PREFIX, 1, true ) then
-            Server.RemoveTag( Tags[ i ] )
-        end
-    end
-
-    if Tag then
-        Server.AddTag( Tag )
-    end
-end
-
-function Plugin:StartSeedEnrolment()
-    self:SeedRequest( "/servers/enroll/start", {
-        gamePort = Server.GetPort(),
-        serverName = Server.GetName()
-    }, nil, function( Data, Status )
-        if Status ~= 200 or type( Data ) ~= "table" or type( Data.challengeId ) ~= "string"
-        or type( Data.challengeTag ) ~= "string" then
-            if not self.SeedEnrolFailLogged then
-                self.SeedEnrolFailLogged = true
-                self:Print( "Global seed queue enrolment could not start (HTTP %s: %s), retrying in the background.",
-                    true, Status, type( Data ) == "table" and tostring( Data.detail ) or "no reply" )
-            end
-
-            self:ScheduleSeedUpdate( Status == 403 and FORBIDDEN_DELAY or ENROL_DELAY )
+        if Data and ( Status == 200 or not Status and tonumber( Data.next ) ) then
+            self.SeedOnline = true
+            self:ScheduleSeedUpdate( Min( Max( tonumber( Data.next ) or IDLE_DELAY, 1 ), 60 ) )
+            self:HandleSeedReply( Data )
             return
         end
 
-        self:SetChallengeTag( Data.challengeTag )
-        self.SeedChallenge = {
-            ID = Data.challengeId,
-            Tag = Data.challengeTag,
-            Attempts = 0,
-            ExpiresAt = Shared.GetTime() + CHALLENGE_LIFETIME
-        }
+        self:DebugPrint( "Seed queue heartbeat failed with HTTP %s.", tostring( Status ) )
 
-        -- Steam needs a while before the server list shows the new tag.
-        self:ScheduleSeedUpdate( Max( tonumber( Data.pollAfterSeconds ) or 0, MIN_FIRST_POLL ) )
-    end )
-end
+        -- 403 or a detail body: this address is not a listed NS2 server (yet), or it is rate limited.
+        local Refused
+        if Status then
+            Refused = Status == 403 or Status == 429
+        else
+            Refused = Data ~= nil and type( Data.detail ) == "string"
+        end
 
-function Plugin:AbandonSeedChallenge()
-    self.SeedChallenge = nil
-    self:SetChallengeTag( nil )
-    self:ScheduleSeedUpdate( ENROL_DELAY )
-end
-
-function Plugin:CompleteSeedEnrolment()
-    local Challenge = self.SeedChallenge
-    if Shared.GetTime() > Challenge.ExpiresAt then
-        self:AbandonSeedChallenge()
-        return
+        self:ScheduleSeedUpdate( Refused and FORBIDDEN_DELAY or ERROR_DELAY )
     end
 
-    Challenge.Attempts = Challenge.Attempts + 1
-
-    self:SeedRequest( "/servers/enroll/complete", {
-        challengeId = Challenge.ID,
-        observedChallengeTag = Challenge.Tag
-    }, nil, function( Data, Status )
-        if Status == 200 and self:StoreSeedAuth( Data ) then
-            self.SeedChallenge = nil
-            self:SetChallengeTag( nil )
-            self:Print( "Enrolled with the global seed queue as server %s.", true, Data.serverId )
-            self:ScheduleSeedUpdate( 1 )
-            return
-        end
-
-        -- 403 covers the tag not having reached Steam's list yet.
-        local Transient = Status == 0 or Status == 403 or Status == 429 or Status >= 500
-        local Delay = COMPLETE_DELAYS[ Challenge.Attempts ]
-        if Transient and Delay then
-            self:ScheduleSeedUpdate( Delay )
-            return
-        end
-
-        self:DebugPrint( "Seed queue enrolment failed (HTTP %s), starting over.", Status )
-        self:AbandonSeedChallenge()
-    end )
-end
-
-function Plugin:RefreshSeedToken()
-    local Config = self.Config.GlobalQueue
-
-    self:SeedRequest( "/servers/token/refresh", {
-        serverId = Config.ServerId,
-        refreshToken = Config.RefreshToken
-    }, nil, function( Data, Status )
-        if Status == 200 and self:StoreSeedAuth( Data ) then
-            self:ScheduleSeedUpdate( 1 )
-            return
-        end
-
-        -- Rejected refresh token or an identity the coordinator purged: only a new enrolment helps.
-        if Status == 403 or Status == 409 or Status == 422 then
-            self:ClearSeedAuth()
-        end
-
-        self:ScheduleSeedUpdate( ERROR_DELAY )
-    end )
+    Shine.TimedHTTPRequest( self.SeedURL.."/seedqueue/heartbeat", "POST",
+        { data = json.encode( self:BuildSeedHeartbeat() ) }, OnReply, OnReply, REQUEST_TIMEOUT )
 end
 
 function Plugin:IsSeedQueued( SteamID )
@@ -313,41 +144,13 @@ function Plugin:BuildSeedHeartbeat()
     return {
         v = 1,
         name = StringUTF8Sub( Server.GetName() or "", 1, MAX_NAME ),
+        port = Server.GetPort(),
         players = NumPlayers,
         maxPlayers = MaxPlayers,
         reserved = NumReserved,
         matching = Config.MatchingTarget,
         queue = Queue
     }
-end
-
-function Plugin:SendSeedHeartbeat()
-    local Config = self.Config.GlobalQueue
-
-    self:SeedRequest( "/seedqueue/heartbeat", self:BuildSeedHeartbeat(), {
-        [ "X-Server-Id" ] = Config.ServerId,
-        [ "X-Server-Token" ] = Config.Token
-    }, function( Data, Status )
-        if Status == 200 and type( Data ) == "table" then
-            self.SeedOnline = true
-            self:HandleSeedReply( Data )
-            self:ScheduleSeedUpdate( Min( Max( tonumber( Data.next ) or IDLE_DELAY, 1 ), 60 ) )
-            return
-        end
-
-        if Status == 401 then
-            -- Refreshes the token next, or enrols again when there is nothing to refresh with.
-            Config.Token = ""
-            Config.TokenExpiresAt = 0
-            self:ScheduleSeedUpdate( IDLE_DELAY )
-            return
-        end
-
-        self:DebugPrint( "Seed queue heartbeat failed with HTTP %s.", Status )
-
-        -- 403 means the coordinator has not activated this server (yet).
-        self:ScheduleSeedUpdate( ( Status == 403 or Status == 429 ) and FORBIDDEN_DELAY or ERROR_DELAY )
-    end )
 end
 
 local function GetPlayerList( Decision )
@@ -433,11 +236,16 @@ function Plugin:OnSeedCommit( Commit )
         self.SeedDecided[ ID ] = Decision
     end
 
+    -- The coordinator takes heartbeats for this server from anything behind its IP, so a commit alone never
+    -- moves a player who did not agree here.
     local Players = GetPlayerList( Commit )
     for i = 1, #Players do
         local SteamID = Players[ i ]
+        local Answer = self.SeedAnswers[ SteamID ]
+        local Agreed = self.SeedPrefs[ SteamID ] == "always"
+            or ( Answer ~= nil and Answer.offer == ID and Answer.accept )
 
-        if not Decision.Dispatched[ SteamID ] then
+        if Agreed and not Decision.Dispatched[ SteamID ] then
             Decision.Dispatched[ SteamID ] = true
 
             local Client = Shine.GetClientByNS2ID( SteamID )
