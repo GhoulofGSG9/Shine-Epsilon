@@ -122,6 +122,8 @@ end
 
 function Plugin:LoadQueueHistory()
     self.HistoricPlayers = Shine.Set()
+    -- SteamID -> queue join time of a HistoricPlayers entry, handed to the client when they come back.
+    self.HistoricJoinTimes = {}
 
     if not self.Config.RestoreQueueAfterMapchange then return end
 
@@ -134,11 +136,18 @@ function Plugin:LoadQueueHistory()
 
     Shine.SaveJSONFile( {}, self.QueueHistoryFile )
 
+    -- Game time starts over with the map.
+    local SavedAt = Shared.GetTime() - ( Shared.GetSystemTime() - TimeStamp )
+    local Waits = type( QueueHistory.Waits ) == "table" and QueueHistory.Waits or {}
+
     local PlayerQueue = QueueHistory.PlayerQueue or {}
     for i = 1, #PlayerQueue do
         local SteamID = PlayerQueue[ i ]
         self.PlayerQueue:Add( SteamID, self.PlayerQueue:GetCount() + 1 )
         self.HistoricPlayers:Add( SteamID )
+
+        local Wait = tonumber( Waits[ tostring( SteamID ) ] )
+        self.HistoricJoinTimes[ SteamID ] = Wait and SavedAt - Wait
     end
 
     local ReservedQueue = QueueHistory.ReservedQueue or {}
@@ -147,7 +156,12 @@ function Plugin:LoadQueueHistory()
     end
 
     self:SimpleTimer( self.Config.QueuePositionMaxReservationTime, function()
-        self.HistoricPlayers = Shine.Set()
+        for i = 1, #PlayerQueue do
+            -- Players away on a seed have their own hold by now.
+            if not self.HopHolds[ PlayerQueue[ i ] ] then
+                self.HistoricPlayers:Remove( PlayerQueue[ i ] )
+            end
+        end
         self:UpdateAllQueuePositions()
     end )
 end
@@ -167,9 +181,29 @@ local function GetRestorableKeys( Queue )
 end
 
 function Plugin:SaveQueueHistory()
+    local PlayerQueue = GetRestorableKeys( self.PlayerQueue )
+    local Now = Shared.GetTime()
+
+    -- Keyed by string, JSON objects cannot have number keys.
+    local Waits = {}
+    for i = 1, #PlayerQueue do
+        local SteamID = PlayerQueue[ i ]
+        local QueuedClient = Shine.GetClientByNS2ID( SteamID )
+        local JoinTime
+        if QueuedClient then
+            JoinTime = self:GetSeedJoinTime( QueuedClient )
+        else
+            JoinTime = self.HistoricJoinTimes[ SteamID ]
+        end
+        if JoinTime then
+            Waits[ tostring( SteamID ) ] = Now - JoinTime
+        end
+    end
+
     local QueueHistory = {
-        PlayerQueue = GetRestorableKeys( self.PlayerQueue ),
+        PlayerQueue = PlayerQueue,
         ReservedQueue = GetRestorableKeys( self.ReservedQueue ),
+        Waits = Waits,
         TimeStamp = Shared.GetSystemTime()
     }
     Shine.SaveJSONFile( QueueHistory, self.QueueHistoryFile )
@@ -243,7 +277,7 @@ function Plugin:ClientDisconnect( Client )
 
     local WasSpectator = Client:GetIsSpectator()
 
-    if WasSpectator and self:HoldHopReturn( SteamID ) then return end
+    if WasSpectator and self:HoldHopReturn( Client, SteamID ) then return end
 
     self:Dequeue( Client )
 
@@ -366,6 +400,9 @@ function Plugin:OnSpectatorJoined( Client )
     if self.HistoricPlayers:Contains( SteamID ) then
         self.HistoricPlayers:Remove( SteamID )
         Position = self.PlayerQueue:Get( SteamID ) or 0
+
+        Client.SeedJoinTime = self.HistoricJoinTimes[ SteamID ]
+        self.HistoricJoinTimes[ SteamID ] = nil
     end
 
     self:Pop()
@@ -1123,6 +1160,12 @@ function Plugin:MapChange()
     if not self.Config.RestoreQueueAfterMapchange then return end
 
     self:SaveQueueHistory()
+end
+
+function Plugin:Cleanup()
+    self:ResetSeedState()
+
+    return self.BaseClass.Cleanup( self )
 end
 
 Shine.LoadPluginFile( PluginName, "globalqueue.lua", Plugin )

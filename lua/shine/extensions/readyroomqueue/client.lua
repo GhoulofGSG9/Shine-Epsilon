@@ -166,9 +166,13 @@ function Plugin:RefreshSeedCandidates()
         local Ok, Data = pcall( json.decode, Body )
         if not Ok or type( Data ) ~= "table" or type( Data.candidates ) ~= "table" then return end
 
-        if Data.version ~= nil and Data.version == self.SeedVersion then return end
-        self.SeedVersion = Data.version
+        if Data.version == nil or Data.version ~= self.SeedVersion then
+            self.SeedVersion = Data.version
+            self.SeedScored = {}
+            self.SeedPings = {}
+        end
 
+        -- Also retries candidates whose refresh never called back, the engine drops it on failure.
         self:ScoreSeedCandidates( Data )
     end )
 end
@@ -177,25 +181,30 @@ function Plugin:ScoreSeedCandidates( Data )
     if not Client.RefreshServer then return end
 
     local URL = self.SeedURL
+    local Scored = self.SeedScored
+    local Version = tostring( Data.version )
     local Favorites = LoadAddressSet( "FavoriteServers.json" )
     local Blocked = LoadAddressSet( "BlockedServers.json" )
     local History = LoadHistory()
     local GroupSize = tonumber( Data.groupSize ) or 12
     local MaxPing = tonumber( Data.maxPing ) or 150
 
-    self.SeedPings = {}
+    local function SendScore( Address, Score )
+        Scored[ Address ] = true
+        self:SendNetworkMessage( "SeedScore", { Address = Address, Score = Score, Version = Version }, true )
+    end
 
     for i = 1, Min( #Data.candidates, self.MaxSeedCandidates ) do
         local Candidate = Data.candidates[ i ]
         local Address = type( Candidate ) == "table" and Candidate.address
 
-        if type( Address ) == "string" then
-            -- Always send a score, so one sent before the candidate became unusable gets replaced.
+        if type( Address ) == "string" and not Scored[ Address ] then
+            -- A 0 is sent too, any score for a new candidate list replaces the old list's scores.
             if Blocked[ Address ] then
-                self:SendNetworkMessage( "SeedScore", { Address = Address, Score = 0 }, true )
+                SendScore( Address, 0 )
             else
                 Client.RefreshServer( Address, function( Info )
-                    if self.SeedURL ~= URL or type( Info ) ~= "table" then return end
+                    if self.SeedURL ~= URL or self.SeedScored ~= Scored or type( Info ) ~= "table" then return end
 
                     self.SeedPings[ Address ] = Info.ping
 
@@ -219,7 +228,7 @@ function Plugin:ScoreSeedCandidates( Data )
                         Now = Shared.GetSystemTime()
                     }
 
-                    self:SendNetworkMessage( "SeedScore", { Address = Address, Score = Score }, true )
+                    SendScore( Address, Score )
                 end )
             end
         end
@@ -233,6 +242,8 @@ function Plugin:CloseSeedOffer()
 end
 
 function Plugin:ReceiveSeedOffer( Data )
+    if not self.SeedURL or self.Config.SeedPref == self.SeedPrefType.NEVER then return end
+
     self.SeedOffer = Data
 
     local Ping = self.SeedPings and self.SeedPings[ Data.Address ]
@@ -275,15 +286,19 @@ function Plugin:AnswerSeedOffer( Accept )
     self:Notify( self:GetPhrase( Accept and "SEED_ACCEPTED" or "SEED_DECLINED" ) )
 end
 
-function Plugin:ReceiveSeedAbort()
+function Plugin:ReceiveSeedClosed( Data )
     if not self.SeedOffer then return end
 
     self:CloseSeedOffer()
-    self:Notify( self:GetPhrase( "SEED_ABORT" ) )
+    self:Notify( self:GetPhrase( "SEED_CLOSED_"..Data.Reason:upper() ) )
 end
 
 function Plugin:Cleanup()
     Shine.ScreenText.Remove( "SeedOffer" )
+
+    self.SeedURL = nil
+    self.SeedVersion = nil
+    self.SeedOffer = nil
 
     return self.BaseClass.Cleanup( self )
 end
@@ -293,15 +308,20 @@ VoteMenu:AddPage( "SeedOffer", function( self )
         self:SetPage( "Main" )
     end )
 
-    if not Plugin.SeedOffer or Plugin.SeedOffer.Answered then return end
+    if Plugin.SeedOffer and not Plugin.SeedOffer.Answered then
+        self:AddSideButton( Plugin:GetPhrase( "SEED_YES" ), function()
+            Plugin:AnswerSeedOffer( true )
+            return true
+        end )
+        self:AddSideButton( Plugin:GetPhrase( "SEED_NO" ), function()
+            Plugin:AnswerSeedOffer( false )
+            return true
+        end )
+    end
 
-    self:AddSideButton( Plugin:GetPhrase( "SEED_YES" ), function()
-        Plugin:AnswerSeedOffer( true )
-        return true
-    end )
-    self:AddSideButton( Plugin:GetPhrase( "SEED_NO" ), function()
-        Plugin:AnswerSeedOffer( false )
-        return true
+    -- Main only links here while an offer is open.
+    self:AddSideButton( Plugin:GetPhrase( "SEED_PREF_BUTTON" ), function()
+        self:SetPage( "SeedPref" )
     end )
 end )
 
@@ -322,14 +342,9 @@ end )
 VoteMenu:EditPage( "Main", function( self )
     if not Plugin.Enabled or not Plugin.SeedURL then return end
 
-    if Plugin.SeedOffer and not Plugin.SeedOffer.Answered then
-        self:AddBottomButton( Plugin:GetPhrase( "SEED_OFFER_BUTTON" ), function()
-            self:SetPage( "SeedOffer" )
-        end )
-    end
-
-    self:AddBottomButton( Plugin:GetPhrase( "SEED_PREF_BUTTON" ), function()
-        self:SetPage( "SeedPref" )
+    local Pending = Plugin.SeedOffer and not Plugin.SeedOffer.Answered
+    self:AddSideButton( Plugin:GetPhrase( Pending and "SEED_OFFER_BUTTON" or "SEED_PREF_BUTTON" ), function()
+        self:SetPage( Pending and "SeedOffer" or "SeedPref" )
     end )
 end )
 

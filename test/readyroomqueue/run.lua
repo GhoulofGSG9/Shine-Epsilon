@@ -77,6 +77,9 @@ local function RunTest( Name, Func )
         elseif CurrentWorld.SpectatorFlagUnderflow then
             Ok = false
             Err = "spectator counter underflowed"
+        elseif CurrentWorld.CallbackErrors[ 1 ] then
+            Ok = false
+            Err = "a wrapped callback errored: " .. tostring( CurrentWorld.CallbackErrors[ 1 ] )
         end
     end
 
@@ -646,13 +649,17 @@ local QueueTestCount = #Registered
 
 -- ================================================================================================== seed queue
 
-local function NewSeedWorld( Config )
+local function NewSeedWorld( Config, Options )
     local GlobalQueue = { Enabled = true }
     for Key, Value in pairs( Config or {} ) do
         GlobalQueue[ Key ] = Value
     end
 
-    local World = Mocks.NewWorld{ MaxPlayers = 4, Config = { GlobalQueue = GlobalQueue } }
+    Options = Options or {}
+    Options.MaxPlayers = 4
+    Options.Config = { GlobalQueue = GlobalQueue }
+
+    local World = Mocks.NewWorld( Options )
     CurrentWorld = World
 
     -- The tests drive the coordinator round trips themselves.
@@ -661,12 +668,14 @@ local function NewSeedWorld( Config )
     return World
 end
 
+-- Queued spectators whose clients reported the default preference, as they do once seeding is active.
 local function QueueSpectators( World, Count )
     local Players = FillTeams( World, 4 )
     local Specs = {}
     for i = 1, Count do
         Specs[ i ] = World:AddSpectator{ Name = "S" .. i }
         World:PressF4( Specs[ i ] )
+        World.Plugin:ReceiveSeedPref( Specs[ i ], { Pref = "ask" } )
     end
     return Specs, Players
 end
@@ -676,7 +685,27 @@ local function Heartbeat( World, Reply )
     World.Plugin:SeedUpdate()
     local Request = World:Respond( 200, Reply or { next = 10 } )
     AssertTrue( Request.URL:find( "/seedqueue/heartbeat", 1, true ), "expected a heartbeat, got " .. Request.URL )
+    World.Plugin.Timers.SeedUpdate = nil
     return json.decode( Request.Params.data ), Request
+end
+
+local function ClosedReasons( World, SteamID )
+    local Out = {}
+    for i = 1, #World.Plugin.NetworkMessages do
+        local Entry = World.Plugin.NetworkMessages[ i ]
+        if Entry.SteamID == SteamID and Entry.Name == "SeedClosed" then
+            Out[ #Out + 1 ] = Entry.Data.Reason
+        end
+    end
+    return Out
+end
+
+local function FindEntry( Payload, SteamID )
+    for i = 1, #Payload.queue do
+        if Payload.queue[ i ].id == SteamID then
+            return Payload.queue[ i ]
+        end
+    end
 end
 
 local function CountMessages( World, SteamID, Name )
@@ -707,13 +736,16 @@ Test( "seed: the heartbeat lists queued players with their scores and preference
     local Plugin = World.Plugin
     local Specs = QueueSpectators( World, 2 )
     World:AddBot()
+    local Silent = World:AddSpectator{ Name = "Silent" }
+    World:PressF4( Silent )
 
     Plugin:ReceiveSeedPref( Specs[ 1 ], { Pref = "always" } )
     Plugin:ReceiveSeedPref( Specs[ 2 ], { Pref = "bogus" } )
-    Plugin:ReceiveSeedScore( Specs[ 1 ], { Address = "1.2.3.4:27015", Score = 1.23456 } )
-    Plugin:ReceiveSeedScore( Specs[ 1 ], { Address = "5.6.7.8:27015", Score = 0 } )
-    Plugin:ReceiveSeedScore( Specs[ 1 ], { Address = "connect evil", Score = 2 } )
-    Plugin:ReceiveSeedScore( Specs[ 2 ], { Address = "1.2.3.4:27015", Score = 0 / 0 } )
+    Plugin:ReceiveSeedPref( Silent, { Pref = "bogus" } )
+    Plugin:ReceiveSeedScore( Specs[ 1 ], { Address = "1.2.3.4:27015", Score = 1.23456, Version = "c-1" } )
+    Plugin:ReceiveSeedScore( Specs[ 1 ], { Address = "5.6.7.8:27015", Score = 0, Version = "c-1" } )
+    Plugin:ReceiveSeedScore( Specs[ 1 ], { Address = "connect evil", Score = 2, Version = "c-1" } )
+    Plugin:ReceiveSeedScore( Specs[ 2 ], { Address = "1.2.3.4:27015", Score = 0 / 0, Version = "c-1" } )
 
     World:Tick( 10 )
 
@@ -727,13 +759,18 @@ Test( "seed: the heartbeat lists queued players with their scores and preference
     AssertEquals( 4, Payload.maxPlayers, "max players" )
     AssertEquals( true, Payload.matching, "matching follows the config" )
 
-    AssertEquals( 2, #Payload.queue, "both queued players must be listed" )
+    AssertEquals( 2, #Payload.queue, "both players with a preference must be listed, the silent one not" )
     local First, Second = Payload.queue[ 1 ], Payload.queue[ 2 ]
     AssertEquals( Specs[ 1 ].SteamID, First.id, "queue order" )
     AssertEquals( Specs[ 2 ].SteamID, Second.id, "queue order" )
     AssertEquals( 10, First.wait, "wait time" )
     AssertEquals( "always", First.pref, "preference" )
     AssertEquals( "ask", Second.pref, "an invalid preference is ignored" )
+    AssertEquals( nil, FindEntry( Payload, Silent.SteamID ), "a player that never reported a preference is left out" )
+
+    Plugin:ReceiveSeedPref( Silent, { Pref = "never" } )
+    Payload = Heartbeat( World )
+    AssertEquals( "never", FindEntry( Payload, Silent.SteamID ).pref, "listed once the preference is known" )
     AssertEquals( 1.235, First.scores[ "1.2.3.4:27015" ], "scores are rounded to 3 decimals" )
     AssertEquals( nil, First.scores[ "5.6.7.8:27015" ], "zero scores are left out" )
     AssertEquals( nil, First.scores[ "connect evil" ], "a malformed address is ignored" )
@@ -780,8 +817,9 @@ Test( "seed: an offer prompts listed players, a commit sends only players that a
     AssertList( { "connect 1.2.3.4:27015" }, Connects( World, C.SteamID ), "C is sent exactly once" )
     AssertList( {}, Connects( World, B.SteamID ), "B declined, being listed does not send them" )
     AssertList( {}, Connects( World, D.SteamID ), "D was never offered, being listed does not send them" )
-    AssertEquals( 1, CountMessages( World, B.SteamID, "SeedAbort" ), "B's prompt is closed" )
-    AssertEquals( 0, CountMessages( World, A.SteamID, "SeedAbort" ), "A is on the way, not aborted" )
+    AssertList( { "declined" }, ClosedReasons( World, B.SteamID ), "B's prompt is closed once, the seed went on" )
+    AssertList( { "committed" }, ClosedReasons( World, A.SteamID ), "A's prompt is closed once, A is on the way" )
+    AssertList( {}, ClosedReasons( World, D.SteamID ), "D was never prompted" )
 
     Heartbeat( World, { next = 10, offer = Offer } )
     AssertEquals( 1, CountMessages( World, B.SteamID, "SeedOffer" ), "a decided offer is never shown again" )
@@ -815,7 +853,7 @@ Test( "seed: a commit for another offer or without an answer sends nobody but al
         players = { A.SteamID, B.SteamID } } } )
     AssertList( { "connect 1.2.3.4:27015" }, Connects( World, A.SteamID ), "A accepted o-1" )
     AssertList( {}, Connects( World, B.SteamID ), "B still never answered" )
-    AssertEquals( 1, CountMessages( World, B.SteamID, "SeedAbort" ), "B's prompt is closed" )
+    AssertList( { "declined" }, ClosedReasons( World, B.SteamID ), "B's prompt is closed" )
 end )
 
 -- --------------------------------------------------------------------------------------------------
@@ -834,9 +872,9 @@ Test( "seed: an abort closes the prompt, clears answers and keeps queue position
     Heartbeat( World, { next = 10, abort = { id = "o-9" } } )
     Heartbeat( World, { next = 10, abort = { id = "o-9" } } )
 
-    AssertEquals( 1, CountMessages( World, A.SteamID, "SeedAbort" ), "A is told once" )
-    AssertEquals( 1, CountMessages( World, B.SteamID, "SeedAbort" ), "B is told once" )
-    AssertEquals( 0, CountMessages( World, Specs[ 3 ].SteamID, "SeedAbort" ), "others are not told" )
+    AssertList( { "aborted" }, ClosedReasons( World, A.SteamID ), "A is told once" )
+    AssertList( { "aborted" }, ClosedReasons( World, B.SteamID ), "B is told once" )
+    AssertList( {}, ClosedReasons( World, Specs[ 3 ].SteamID ), "others are not told" )
     AssertList( Before, World:QueueIDs(), "nobody moves in the queue" )
     AssertList( {}, Connects( World, A.SteamID ), "nobody is sent anywhere" )
 
@@ -904,6 +942,7 @@ Test( "seed: the heartbeat backs off on 403 and 429, errors and timeouts retry s
 
     AssertEquals( 120, NextUpdateAfter( 403 ), "a server Steam does not list backs off" )
     AssertEquals( 120, NextUpdateAfter( 429 ), "a rate limited server backs off" )
+    AssertEquals( 120, NextUpdateAfter( 404 ), "a switched off coordinator backs off" )
     AssertEquals( 30, NextUpdateAfter( 500 ), "a server error is retried" )
     AssertEquals( 30, NextUpdateAfter( nil ), "a timed out request is retried" )
 
@@ -932,6 +971,396 @@ Test( "seed: without an HTTP status the reply body decides", function()
     AssertEquals( 30, NextUpdateAfter( "<html>502 Bad Gateway</html>" ), "an undecodable body is retried" )
     AssertEquals( 30, NextUpdateAfter( "" ), "an empty body is retried" )
     AssertEquals( 30, NextUpdateAfter{ queue = {} }, "a table without next or detail is retried" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+Test( "seed: a heartbeat that fails to build is retried", function()
+    local World = NewSeedWorld()
+    local Plugin = World.Plugin
+
+    local Build = Plugin.BuildSeedHeartbeat
+    Plugin.BuildSeedHeartbeat = function() error( "broken heartbeat" ) end
+    Plugin:ScheduleSeedUpdate( 1 )
+    World:Tick( 1 )
+    Plugin.BuildSeedHeartbeat = Build
+
+    AssertEquals( 1, #World.CallbackErrors, "the error is reported" )
+    AssertTrue( tostring( World.CallbackErrors[ 1 ] ):find( "broken heartbeat", 1, true ), "with its message" )
+    World.CallbackErrors = {}
+    AssertEquals( 0, #World.HTTPRequests, "nothing was sent" )
+
+    World:Tick( 29 )
+    AssertEquals( 0, #World.HTTPRequests, "the retry waits for the error delay" )
+    World:Tick( 1 )
+    AssertEquals( 1, #World.HTTPRequests, "the heartbeat is retried" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+Test( "seed: a new candidate list replaces a player's scores, zeros are never stored", function()
+    local World = NewSeedWorld()
+    local Plugin = World.Plugin
+    local A = QueueSpectators( World, 1 )[ 1 ]
+
+    local function Score( Address, Value, Version )
+        Plugin:ReceiveSeedScore( A, { Address = Address, Score = Value, Version = Version } )
+    end
+    local function Scores()
+        return FindEntry( Heartbeat( World ), A.SteamID ).scores or {}
+    end
+    local function Count( Table )
+        local Total = 0
+        for _ in pairs( Table ) do Total = Total + 1 end
+        return Total
+    end
+
+    -- Blocked or unusable candidates arrive as 0 and must not use up the cap.
+    for i = 1, 20 do
+        Score( "10.0.0." .. i .. ":27015", 0, "c-1" )
+    end
+    for i = 1, 16 do
+        Score( "10.0.1." .. i .. ":27015", 1, "c-1" )
+    end
+    Score( "10.0.2.1:27015", 1, "c-1" )
+
+    local Current = Scores()
+    AssertEquals( 16, Count( Current ), "at most 16 scores per candidate list" )
+    AssertEquals( nil, Current[ "10.0.2.1:27015" ], "a 17th candidate of the same list is dropped" )
+
+    Score( "10.0.2.1:27015", 2, "c-2" )
+    Current = Scores()
+    AssertEquals( 1, Count( Current ), "a new candidate list replaces the old scores" )
+    AssertEquals( 2, Current[ "10.0.2.1:27015" ], "the new list's score is kept" )
+
+    Score( "10.0.2.1:27015", 0, "c-2" )
+    AssertEquals( 0, Count( Scores() ), "a 0 drops the candidate's score" )
+
+    Score( "10.0.2.2:27015", 3, "c-2" )
+    Score( "10.0.2.3:27015", 0, "c-3" )
+    AssertEquals( 0, Count( Scores() ), "a 0 for a new list still replaces the old list's scores" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+Test( "seed: an offer only prompts members that are still waiting in the queue", function()
+    local World = NewSeedWorld()
+    local Specs, Players = QueueSpectators( World, 3 )
+    local A, B, C = Specs[ 1 ], Specs[ 2 ], Specs[ 3 ]
+
+    -- The coordinator picked the members from an earlier heartbeat. A got a slot since, B left the queue.
+    World:Disconnect( Players[ 1 ] )
+    AssertFalse( A:GetIsSpectator(), "A holds a player slot now" )
+    World.Commands.sh_rr_dequeue( B )
+
+    local Offer = { id = "o-1", target = "1.2.3.4:27015", name = "Target", count = 12, remaining = 18,
+        players = { A.SteamID, B.SteamID, C.SteamID } }
+    Heartbeat( World, { next = 3, offer = Offer } )
+    Heartbeat( World, { next = 3, offer = Offer } )
+
+    AssertEquals( 0, CountMessages( World, A.SteamID, "SeedOffer" ), "a player with a slot is not prompted" )
+    AssertEquals( 0, CountMessages( World, B.SteamID, "SeedOffer" ), "a player that left the queue is not prompted" )
+    AssertEquals( 1, CountMessages( World, C.SteamID, "SeedOffer" ), "a queued spectator is prompted once" )
+
+    World.Commands.sh_rr_seed( A, "yes" )
+    AssertTrue( NotifiedWith( World, A.SteamID, "SEED_NO_OFFER" ), "A has no offer to answer" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+Test( "seed: every prompted player gets exactly one close that says what happened", function()
+    local World = NewSeedWorld()
+    local Plugin = World.Plugin
+    local Specs, Players = QueueSpectators( World, 4 )
+    local E, A, B, C = Specs[ 1 ], Specs[ 2 ], Specs[ 3 ], Specs[ 4 ]
+
+    Heartbeat( World, { next = 3, offer = { id = "o-1", target = "1.2.3.4:27015",
+        players = { E.SteamID, A.SteamID, B.SteamID, C.SteamID } } } )
+    Plugin:ReceiveSeedAnswer( E, { Accept = true } )
+    Plugin:ReceiveSeedAnswer( A, { Accept = true } )
+    Plugin:ReceiveSeedAnswer( B, { Accept = false } )
+
+    World:Disconnect( Players[ 1 ] )
+    AssertFalse( E:GetIsSpectator(), "E got a player slot after accepting" )
+
+    local Commit = { id = "o-1", target = "1.2.3.4:27015", players = { E.SteamID, A.SteamID } }
+    Heartbeat( World, { next = 10, commit = Commit } )
+    Heartbeat( World, { next = 10, commit = Commit } )
+
+    AssertList( { "committed" }, ClosedReasons( World, A.SteamID ), "A is told they are on the way" )
+    AssertList( { "declined" }, ClosedReasons( World, B.SteamID ), "B declined, the seed went on without them" )
+    AssertList( { "declined" }, ClosedReasons( World, C.SteamID ), "C never answered" )
+    AssertList( { "declined" }, ClosedReasons( World, E.SteamID ), "E accepted but stays for the slot here" )
+    AssertList( {}, Connects( World, E.SteamID ), "E is not sent" )
+
+    local Closed, Connected
+    for i = 1, #Plugin.NetworkMessages do
+        local Entry = Plugin.NetworkMessages[ i ]
+        if Entry.SteamID == A.SteamID then
+            Closed = Entry.Name == "SeedClosed" and i or Closed
+            Connected = Entry.Name == "Shine_Command" and i or Connected
+        end
+    end
+    AssertTrue( Closed < Connected, "A's prompt is closed before the connect" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+Test( "seed: an offer's server name is cut to the message field on a character boundary", function()
+    local World = NewSeedWorld()
+    local A = QueueSpectators( World, 1 )[ 1 ]
+
+    local function OfferedName( Name, ID )
+        Heartbeat( World, { next = 3, offer = { id = ID, target = "1.2.3.4:27015", name = Name,
+            players = { A.SteamID } } } )
+
+        local Messages = World.Plugin.NetworkMessages
+        for i = #Messages, 1, -1 do
+            if Messages[ i ].Name == "SeedOffer" then
+                return Messages[ i ].Data.Name
+            end
+        end
+    end
+
+    -- "string (128)" keeps 127 bytes.
+    AssertEquals( ( "x" ):rep( 127 ), OfferedName( ( "x" ):rep( 200 ), "o-1" ), "ASCII is cut at 127 bytes" )
+    AssertEquals( "ab" .. ( "é" ):rep( 62 ), OfferedName( "ab" .. ( "é" ):rep( 63 ), "o-2" ),
+        "a 2 byte character across the limit is left out whole" )
+    AssertEquals( ( "€" ):rep( 42 ), OfferedName( ( "€" ):rep( 50 ), "o-3" ), "so is a 3 byte one" )
+    AssertEquals( "Täst", OfferedName( "Täst", "o-4" ), "a short name is untouched" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+-- extensions.lua:730 UnloadExtension, then :619 EnableExtension with the edited config.
+local function Reload( World, GlobalQueue )
+    local Plugin = World.Plugin
+
+    Plugin.Enabled = false
+    Plugin:Cleanup()
+
+    for Key, Value in pairs( GlobalQueue ) do
+        Plugin.Config.GlobalQueue[ Key ] = Value
+    end
+
+    AssertTrue( Plugin:Initialise(), "the plugin loads again" )
+    Plugin.Enabled = true
+end
+
+Test( "seed: reloading the plugin starts the seed queue over", function()
+    local World = NewSeedWorld()
+    local Plugin = World.Plugin
+    local Specs = QueueSpectators( World, 2 )
+
+    Heartbeat( World )
+    World:Tick( 1 )
+    AssertEquals( 1, CountMessages( World, Specs[ 1 ].SteamID, "SeedActive" ), "S1 is activated" )
+
+    -- A heartbeat is in flight while the seed queue is switched off and the plugin reloaded.
+    Plugin:SeedUpdate()
+    Reload( World, { Enabled = false } )
+
+    AssertEquals( nil, Plugin.SeedEnabled, "seeding is off" )
+    AssertEquals( nil, Plugin.SeedOnline, "the coordinator is not known to be online" )
+    AssertEquals( nil, Plugin.SeedURL, "there is no coordinator" )
+    AssertEquals( nil, next( Plugin.SeedActiveClients ), "no client is active" )
+    AssertEquals( nil, next( Plugin.SeedPrefs ), "no preference is kept" )
+
+    -- The reload emptied the queue.
+    World:PressF4( Specs[ 1 ] )
+    World:PressF4( Specs[ 2 ] )
+
+    World:Respond( 200, { next = 1, offer = { id = "o-1", target = "1.2.3.4:27015",
+        players = { Specs[ 1 ].SteamID, Specs[ 2 ].SteamID } } } )
+    AssertEquals( nil, Plugin.Timers.SeedUpdate, "the stale reply does not restart the heartbeat" )
+    AssertEquals( 0, CountMessages( World, Specs[ 2 ].SteamID, "SeedOffer" ), "nor is it handled" )
+
+    World:Tick( 1 )
+    AssertEquals( 1, CountMessages( World, Specs[ 1 ].SteamID, "SeedActive" ), "the tick leaves clients alone" )
+
+    Reload( World, { Enabled = true } )
+    AssertEquals( nil, Plugin.SeedOnline, "online again only once a heartbeat gets through" )
+    World:Tick( 1 )
+    AssertEquals( 1, #World.HTTPRequests, "the heartbeat starts again" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+Test( "seed: a client that vanished without a disconnect is dropped from the active clients", function()
+    local World = NewSeedWorld()
+    local Plugin = World.Plugin
+    local Specs = QueueSpectators( World, 2 )
+
+    Heartbeat( World )
+    World:Tick( 1 )
+    AssertTrue( Plugin.SeedActiveClients[ Specs[ 1 ] ], "S1 is active" )
+
+    -- The engine dropped the connection without the disconnect hook running.
+    SilentlyRemove( World, Specs[ 1 ] )
+    Specs[ 1 ]:SetIsSpectator( false )
+    World:Tick( 1 )
+
+    AssertEquals( nil, Plugin.SeedActiveClients[ Specs[ 1 ] ], "the stale client is dropped" )
+    AssertEquals( 1, CountMessages( World, Specs[ 1 ].SteamID, "SeedActive" ), "and sent nothing" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+Test( "map change restore: a restored player keeps the time they already waited", function()
+    local Old = NewSeedWorld()
+    local Specs = QueueSpectators( Old, 2 )
+    Old:Tick( 30 )
+    local Late = Old:AddSpectator{ Name = "Late" }
+    Old:PressF4( Late )
+    Old:Tick( 70 )
+    Old.Plugin:MapChange()
+
+    -- The next map is up 20 s later, its game time starts over.
+    local World = NewSeedWorld( nil, { Files = Old.Files, SystemTime = Old.SystemTime + Old.Time + 20 } )
+    FillTeams( World, 4 )
+    local Back = World:AddSpectator{ SteamID = Specs[ 1 ].SteamID, Name = "Back" }
+    local LateBack = World:AddSpectator{ SteamID = Late.SteamID, Name = "LateBack" }
+    World.Plugin:ReceiveSeedPref( Back, { Pref = "ask" } )
+    World.Plugin:ReceiveSeedPref( LateBack, { Pref = "ask" } )
+    AssertTrue( NotifiedWith( World, Back.SteamID, "QUEUE_WELCOME_BACK" ), "the position is restored" )
+
+    World:Tick( 5 )
+    local Payload = Heartbeat( World )
+    AssertEquals( 125, FindEntry( Payload, Back.SteamID ).wait, "100 s before the map change, 20 s loading, 5 s since" )
+    AssertEquals( 95, FindEntry( Payload, LateBack.SteamID ).wait, "Late queued 70 s before the map change" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+Test( "seed: a player back from a seed keeps the time they already waited", function()
+    local World = NewSeedWorld{ HopReturnTime = 180 }
+    local A = QueueSpectators( World, 2 )[ 1 ]
+
+    World:Tick( 40 )
+    World.Plugin:ReceiveSeedPref( A, { Pref = "always" } )
+    Heartbeat( World, { next = 10, commit = { id = "o-1", target = "1.2.3.4:27015", players = { A.SteamID } } } )
+    World:Disconnect( A )
+
+    World:Tick( 60 )
+    local Back = World:AddSpectator{ SteamID = A.SteamID, Name = "Back" }
+    World.Plugin:ReceiveSeedPref( Back, { Pref = "ask" } )
+
+    AssertEquals( 100, FindEntry( Heartbeat( World ), A.SteamID ).wait, "the wait carries on across the hop" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+Test( "seed: a hop hold outlives the map change reservation that runs out during it", function()
+    local Old = Mocks.NewWorld{ MaxPlayers = 4 }
+    CurrentWorld = Old
+    FillTeams( Old, 4 )
+    local Gone = Old:AddSpectator{ SteamID = 777001, Name = "Gone" }
+    Old:PressF4( Gone )
+    Old.Plugin:MapChange()
+
+    local World = NewSeedWorld( { HopReturnTime = 180 },
+        { Files = Old.Files, SystemTime = Old.SystemTime + Old.Time + 10 } )
+    local Specs = QueueSpectators( World, 2 )
+    local A, B = Specs[ 1 ], Specs[ 2 ]
+    AssertList( { Gone.SteamID, A.SteamID, B.SteamID }, World:QueueIDs(), "Gone's restored entry is ahead" )
+
+    World:Tick( 200 )
+    World.Plugin:ReceiveSeedPref( A, { Pref = "always" } )
+    Heartbeat( World, { next = 10, commit = { id = "o-1", target = "1.2.3.4:27015", players = { A.SteamID } } } )
+    World:Disconnect( A )
+
+    -- 301 s: the map change reservation is over, A's hold runs until 380 s.
+    World:Tick( 101 )
+    AssertList( { A.SteamID, B.SteamID }, World:QueueIDs(), "Gone is dropped, A's entry is still held" )
+
+    World:Tick( 49 )
+    World:AddSpectator{ SteamID = A.SteamID, Name = "Back" }
+    AssertList( { A.SteamID, B.SteamID }, World:QueueIDs(), "A is back at the front" )
+    AssertTrue( NotifiedWith( World, A.SteamID, "QUEUE_WELCOME_BACK" ), "A is told their position is restored" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+Test( "seed: a second hop is not cut short by the first hop's timer", function()
+    local World = NewSeedWorld{ HopReturnTime = 180 }
+    local Specs = QueueSpectators( World, 2 )
+    local A, B = Specs[ 1 ], Specs[ 2 ]
+
+    World.Plugin:ReceiveSeedPref( A, { Pref = "always" } )
+    Heartbeat( World, { next = 10, commit = { id = "o-1", target = "1.2.3.4:27015", players = { A.SteamID } } } )
+    World:Disconnect( A )
+
+    World:Tick( 60 )
+    local Back = World:AddSpectator{ SteamID = A.SteamID, Name = "Back" }
+    World.Plugin:ReceiveSeedPref( Back, { Pref = "always" } )
+
+    World:Tick( 40 )
+    Heartbeat( World, { next = 10, commit = { id = "o-2", target = "5.6.7.8:27015", players = { A.SteamID } } } )
+    AssertList( { "connect 1.2.3.4:27015", "connect 5.6.7.8:27015" }, Connects( World, A.SteamID ), "A hops twice" )
+    World:Disconnect( Back )
+
+    -- 181 s: the first hold would have run out, the second one runs until 280 s.
+    World:Tick( 81 )
+    AssertList( { A.SteamID, B.SteamID }, World:QueueIDs(), "the second hold is still on" )
+
+    World:Tick( 100 )
+    AssertList( { B.SteamID }, World:QueueIDs(), "the second hold runs out on its own time" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+-- Also passes against develop's server.lua, which never times restored entries.
+Test( "map change restore: a restored player's wait stays out of the average wait time", function()
+    local Old = Mocks.NewWorld{ MaxPlayers = 4 }
+    CurrentWorld = Old
+    FillTeams( Old, 4 )
+    local A = Old:AddSpectator{ SteamID = 777101, Name = "A" }
+    Old:PressF4( A )
+    Old:Tick( 100 )
+    Old.Plugin:MapChange()
+
+    local World = Mocks.NewWorld{ MaxPlayers = 4, Files = Old.Files, SystemTime = Old.SystemTime + Old.Time + 20 }
+    CurrentWorld = World
+    local Players = FillTeams( World, 4 )
+    local Back = World:AddSpectator{ SteamID = A.SteamID, Name = "Back" }
+    World:Tick( 5 )
+    World:Disconnect( Players[ 1 ] )
+
+    AssertFalse( Back:GetIsSpectator(), "the restored player gets the slot" )
+    AssertEquals( 0, World.Plugin.AVGWaitTimeSampleSize, "their wait is not sampled" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+Test( "seed: a player back from a seed stays out of the average wait time", function()
+    local World = NewSeedWorld{ HopReturnTime = 180 }
+    local Specs, Players = QueueSpectators( World, 2 )
+    local A, B = Specs[ 1 ], Specs[ 2 ]
+
+    World.Plugin:ReceiveSeedPref( A, { Pref = "always" } )
+    Heartbeat( World, { next = 10, commit = { id = "o-1", target = "1.2.3.4:27015", players = { A.SteamID } } } )
+    World:Disconnect( A )
+    World:Tick( 60 )
+    local Back = World:AddSpectator{ SteamID = A.SteamID, Name = "Back" }
+
+    World:Disconnect( Players[ 1 ] )
+    AssertFalse( Back:GetIsSpectator(), "A gets the slot back at the front" )
+    AssertEquals( 0, World.Plugin.AVGWaitTimeSampleSize, "the seed trip is not sampled" )
+
+    World:Disconnect( Players[ 2 ] )
+    AssertFalse( B:GetIsSpectator(), "B gets the next slot" )
+    AssertEquals( 1, World.Plugin.AVGWaitTimeSampleSize, "B's wait is sampled as before" )
+    AssertEquals( 60, World.Plugin.AVGWaitTime, "B waited 60 s" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+Test( "seed: a new offer closes the one a player still has open", function()
+    local World = NewSeedWorld()
+    local Plugin = World.Plugin
+    local Specs = QueueSpectators( World, 2 )
+    local A, B = Specs[ 1 ], Specs[ 2 ]
+
+    Heartbeat( World, { next = 3, offer = { id = "o-1", target = "1.2.3.4:27015", players = { A.SteamID, B.SteamID } } } )
+    Plugin:ReceiveSeedAnswer( A, { Accept = true } )
+
+    Heartbeat( World, { next = 3, offer = { id = "o-2", target = "5.6.7.8:27015", players = { A.SteamID } } } )
+    AssertList( { "aborted" }, ClosedReasons( World, A.SteamID ), "A's first offer is closed" )
+    AssertEquals( 2, CountMessages( World, A.SteamID, "SeedOffer" ), "before the second is shown" )
+    AssertEquals( nil, FindEntry( Heartbeat( World ), A.SteamID ).answer, "the answer to the first is dropped" )
+
+    Plugin:ReceiveSeedAnswer( A, { Accept = true } )
+    Heartbeat( World, { next = 10, commit = { id = "o-2", target = "5.6.7.8:27015", players = { A.SteamID } } } )
+    Heartbeat( World, { next = 10, abort = { id = "o-1" } } )
+
+    AssertList( { "aborted", "committed" }, ClosedReasons( World, A.SteamID ), "one close per offer" )
+    AssertList( { "aborted" }, ClosedReasons( World, B.SteamID ), "B's offer is closed by its own abort" )
 end )
 
 -- --------------------------------------------------------------------------------------------------
@@ -993,7 +1422,10 @@ kRookieOnlyLevel = 5
 
 local function LoadClientPlugin()
     local VoteMenu, Validator = Shine.VoteMenu, Shine.Validator
-    Shine.VoteMenu = { AddPage = function() end, EditPage = function() end }
+    -- votemenu_gui.lua:331, EditPage on a page nobody added yet adds it.
+    local Pages = {}
+    local function AddPage( _, Name, Populate ) Pages[ Name ] = Populate end
+    Shine.VoteMenu = { AddPage = AddPage, EditPage = AddPage, SetPage = function() end, Visible = true }
     Shine.Validator = function()
         return { AddFieldRule = function() end, InEnum = function() end }
     end
@@ -1004,7 +1436,23 @@ local function LoadClientPlugin()
     Shine.VoteMenu, Shine.Validator = VoteMenu, Validator
     if not Ok then error( Err, 0 ) end
 
-    return ClientPlugin
+    return ClientPlugin, Pages
+end
+
+-- Runs a vote menu page's populate function against a menu that records its buttons.
+local function PopulatePage( Populate )
+    local Menu = { Side = {}, Bottom = {} }
+    function Menu:AddSideButton( Text, DoClick ) self.Side[ #self.Side + 1 ] = { Text = Text, DoClick = DoClick } end
+    function Menu:AddBottomButton( Text, DoClick ) self.Bottom[ #self.Bottom + 1 ] = { Text = Text, DoClick = DoClick } end
+    function Menu:SetPage( Name ) self.Page = Name end
+
+    Populate( Menu )
+
+    local Side = {}
+    for i = 1, #Menu.Side do
+        Side[ i ] = Menu.Side[ i ].Text
+    end
+    return Menu, Side
 end
 
 -- Transcribed from ns2/lua/menu2/NavBar/Screens/ServerBrowser/GMSBEntry.lua UpdateServerRanking, with the
@@ -1117,6 +1565,163 @@ Test( "seed: ScoreCandidate with seed adaptations gates and neutralises", functi
         "a favourite ranks higher" )
     AssertTrue( Score( ScoreInputs{ Seed = true, Historical = true, LastConnect = 9500 } )
         < Score( ScoreInputs{ Seed = true } ), "a server left minutes ago ranks lower" )
+end )
+
+-- The client plugin with the parts of the Shine plugin surface the seed code uses.
+local function NewClientPlugin()
+    local Plugin, Pages = LoadClientPlugin()
+    Plugin.Config = { SeedPref = Plugin.SeedPrefType.ASK }
+    Plugin.Sent, Plugin.Notes, Plugin.Timers = {}, {}, {}
+
+    function Plugin:SendNetworkMessage( Name, Data ) self.Sent[ #self.Sent + 1 ] = { Name = Name, Data = Data } end
+    function Plugin:GetPhrase( Key ) return Key end
+    function Plugin:GetInterpolatedPhrase( Key ) return Key end
+    function Plugin:Notify( Message ) self.Notes[ #self.Notes + 1 ] = Message end
+    function Plugin:CreateTimer( Name ) self.Timers[ Name ] = true end
+    function Plugin:DestroyTimer( Name ) self.Timers[ Name ] = nil end
+
+    return Plugin, Pages
+end
+
+-- Engine globals that only exist on the client, set for the duration of Func.
+local function WithClientGlobals( Globals, Func )
+    local Saved = {}
+    for Key, Value in pairs( Globals ) do
+        Saved[ Key ] = rawget( _G, Key )
+        _G[ Key ] = Value
+    end
+
+    local Ok, Err = pcall( Func )
+
+    for Key in pairs( Globals ) do
+        _G[ Key ] = Saved[ Key ]
+    end
+
+    if not Ok then error( Err, 0 ) end
+end
+
+Test( "seed client: an offer is ignored while seeding is off or the preference is never", function()
+    local Plugin = NewClientPlugin()
+    local Shown = 0
+    Shine.ScreenText = { Add = function() Shown = Shown + 1 end, Remove = function() end }
+
+    WithClientGlobals( { Client = { WindowNeedsAttention = function() end } }, function()
+        local Offer = { Name = "Target", Address = "1.2.3.4:27015", Count = 12, Time = 18 }
+
+        Plugin:ReceiveSeedOffer( Offer )
+        AssertEquals( nil, Plugin.SeedOffer, "no offer while seeding is off" )
+
+        Plugin.SeedURL = "https://coordinator"
+        Plugin.Config.SeedPref = Plugin.SeedPrefType.NEVER
+        Plugin:ReceiveSeedOffer( Offer )
+        AssertEquals( nil, Plugin.SeedOffer, "no offer for a never player" )
+        AssertEquals( 0, Shown, "nothing was shown" )
+
+        Plugin.Config.SeedPref = Plugin.SeedPrefType.ASK
+        Plugin:ReceiveSeedOffer( Offer )
+        AssertEquals( Offer, Plugin.SeedOffer, "an ask player is shown the offer" )
+        AssertEquals( 1, Shown, "on screen" )
+
+        Plugin:ReceiveSeedClosed{ Reason = "declined" }
+        AssertEquals( nil, Plugin.SeedOffer, "a close removes the offer" )
+        AssertList( { "SEED_CLOSED_DECLINED" }, Plugin.Notes, "with the reason's phrase" )
+    end )
+
+    local File = assert( io.open( "locale/shine/extensions/readyroomqueue/enGB.json" ) )
+    local Locale = json.decode( File:read( "*a" ) )
+    File:close()
+    for _, Reason in ipairs{ "committed", "declined", "aborted" } do
+        AssertTrue( Locale[ "SEED_CLOSED_" .. Reason:upper() ], Reason .. " needs a phrase" )
+    end
+end )
+
+Test( "seed client: one main menu entry, the preference page stays reachable during an offer", function()
+    local Plugin, Pages = NewClientPlugin()
+    Plugin.Enabled = true
+
+    local Main, Side = PopulatePage( Pages.Main )
+    AssertList( {}, Side, "no entry while seeding is off" )
+
+    Plugin.SeedURL = "https://coordinator"
+    Main, Side = PopulatePage( Pages.Main )
+    AssertList( { "SEED_PREF_BUTTON" }, Side, "the preference page without an offer" )
+    Main.Side[ 1 ].DoClick()
+    AssertEquals( "SeedPref", Main.Page, "which it opens" )
+
+    Plugin.SeedOffer = { Name = "Target", Address = "1.2.3.4:27015", Count = 12, Time = 18 }
+    Main, Side = PopulatePage( Pages.Main )
+    AssertList( { "SEED_OFFER_BUTTON" }, Side, "the offer while one is open" )
+    AssertEquals( 0, #Main.Bottom, "the bottom slot is left to other plugins" )
+
+    local Offer
+    Offer, Side = PopulatePage( Pages.SeedOffer )
+    AssertList( { "SEED_YES", "SEED_NO", "SEED_PREF_BUTTON" }, Side, "the offer page answers and links on" )
+    Offer.Side[ 3 ].DoClick()
+    AssertEquals( "SeedPref", Offer.Page, "to the preference page" )
+
+    Plugin.SeedOffer.Answered = true
+    Offer, Side = PopulatePage( Pages.SeedOffer )
+    AssertList( { "SEED_PREF_BUTTON" }, Side, "an answered offer only links on" )
+end )
+
+Test( "seed client: candidates without a score are refreshed again, a new list starts over", function()
+    local World = Mocks.NewWorld()
+    CurrentWorld = World
+    local Plugin = NewClientPlugin()
+    Plugin.SeedURL = "https://coordinator"
+
+    local Refreshes = {}
+    local Info = { ping = 50, maxPlayers = 24, numReservedSlots = 2, performanceScore = 30,
+        performanceQuality = 80, mode = "ns2" }
+
+    local function Refresh( Version )
+        Refreshes = {}
+        Plugin:RefreshSeedCandidates()
+        -- The retail engine's callback gets the body alone.
+        World:Respond( nil, { version = Version, groupSize = 12, maxPing = 150, candidates = {
+            { address = "1.1.1.1:27015" }, { address = "2.2.2.2:27015" }, { address = "3.3.3.3:27015" }
+        } } )
+
+        local Addresses = {}
+        for i = 1, #Refreshes do
+            Addresses[ i ] = Refreshes[ i ].Address
+        end
+        return Addresses
+    end
+
+    WithClientGlobals( {
+        Client = {
+            -- The engine never calls back when the query fails.
+            RefreshServer = function( Address, Callback )
+                Refreshes[ #Refreshes + 1 ] = { Address = Address, Callback = Callback }
+            end
+        },
+        LoadConfigFile = function( Name )
+            if Name == "BlockedServers.json" then
+                return { { address = "3.3.3.3:27015" } }
+            end
+        end
+    }, function()
+        AssertList( { "1.1.1.1:27015", "2.2.2.2:27015" }, Refresh( "c-1" ), "the usable candidates are refreshed" )
+        local FirstList = Refreshes
+        FirstList[ 1 ].Callback( Info )
+
+        AssertList( { "2.2.2.2:27015" }, Refresh( "c-1" ), "the same list refreshes only the unscored candidate" )
+        Refreshes[ 1 ].Callback( Info )
+        AssertList( {}, Refresh( "c-1" ), "a fully scored list refreshes nothing" )
+
+        AssertList( { "1.1.1.1:27015", "2.2.2.2:27015" }, Refresh( "c-2" ), "a new list is scored from scratch" )
+        FirstList[ 2 ].Callback( Info )
+    end )
+
+    local Sent = {}
+    for i = 1, #Plugin.Sent do
+        local Data = Plugin.Sent[ i ].Data
+        Sent[ i ] = Data.Address .. ( Data.Score > 0 and " + " or " 0 " ) .. Data.Version
+    end
+    AssertList( {
+        "3.3.3.3:27015 0 c-1", "1.1.1.1:27015 + c-1", "2.2.2.2:27015 + c-1", "3.3.3.3:27015 0 c-2"
+    }, Sent, "each candidate is scored once per list and a late answer for an old list is dropped" )
 end )
 
 -- --------------------------------------------------------------------------------------------------

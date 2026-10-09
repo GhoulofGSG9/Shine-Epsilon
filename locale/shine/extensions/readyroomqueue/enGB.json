@@ -32,7 +32,9 @@
   "SEED_NO": "No, keep waiting",
   "SEED_ACCEPTED": "You accepted the seed. You will be connected once enough players have accepted.",
   "SEED_DECLINED": "You declined the seed and keep your place in the queue.",
-  "SEED_ABORT": "The seed did not go ahead. You keep your place in the queue.",
+  "SEED_CLOSED_COMMITTED": "Enough players accepted the seed. Connecting you now.",
+  "SEED_CLOSED_DECLINED": "The seed goes ahead without you.",
+  "SEED_CLOSED_ABORTED": "The seed did not go ahead. You keep your place in the queue.",
   "SEED_ANSWER_USAGE": "Enter !seed yes or !seed no.",
   "SEED_NO_OFFER": "There is no seed offer to answer right now."
 }

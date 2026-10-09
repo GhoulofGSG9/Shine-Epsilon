@@ -89,7 +89,8 @@ Mocks.DeepCopy = DeepCopy
 
 --[[
     Creates a fresh world. Options:
-        MaxPlayers, MaxSpectators, ReservedSlots, RookieOnly, GameStarted, ReservedIDs, Config
+        MaxPlayers, MaxSpectators, ReservedSlots, RookieOnly, GameStarted, ReservedIDs, Config,
+        Files (another world's Files, to carry them over a map change), SystemTime (system time at game time 0)
 ]]
 function Mocks.NewWorld( Options )
     LoadShineObjects()
@@ -110,13 +111,17 @@ function Mocks.NewWorld( Options )
         ClassHooks = {},
         PlainHooks = {},
         Notifications = {},
-        ClassHookLog = {}
+        ClassHookLog = {},
+        Files = Options.Files or {},
+        SystemTime = Options.SystemTime or 0,
+        CallbackErrors = {}
     }
 
     -- ---------------------------------------------------------------- engine / NS2 globals
 
+    -- Game time starts over with every map, system time does not.
     Shared.GetTime = function() return World.Time end
-    Shared.GetSystemTime = function() return World.Time end
+    Shared.GetSystemTime = function() return World.SystemTime + World.Time end
     Shared.Message = function() end
     Shared.GetCheatsEnabled = function() return false end
     Shared.GetDevMode = function() return false end
@@ -397,8 +402,16 @@ function Mocks.NewWorld( Options )
         return Chunk( ... )
     end
 
-    Shine.LoadJSONFile = function() return nil end
-    Shine.SaveJSONFile = function() return true end
+    -- config.lua:50 and :132, through a JSON round trip so only what JSON can hold survives.
+    Shine.LoadJSONFile = function( Path )
+        local Data = World.Files[ Path ]
+        if not Data then return false, "file not found" end
+        return json.decode( Data )
+    end
+    Shine.SaveJSONFile = function( Table, Path )
+        World.Files[ Path ] = json.encode( Table )
+        return true
+    end
     Shine.HasAccess = function() return false end
     function Shine:IsExtensionEnabled() return false end
 
@@ -562,13 +575,43 @@ function Mocks.NewWorld( Options )
     -- ---------------------------------------------------------------- plugin
 
     local Plugin = {
-        BaseClass = { Cleanup = function() end },
+        BaseClass = {},
         Timers = {},
         Notified = {},
         NetworkMessages = {},
         Logs = {}
     }
     World.Plugin = Plugin
+
+    -- timers.lua:95, the base Cleanup destroys the plugin's timers. Shine.TimedHTTPRequest's are global.
+    function Plugin.BaseClass.Cleanup()
+        for Name in pairs( Plugin.Timers ) do
+            if not Name:find( "^HTTPTimeout" ) then
+                Plugin.Timers[ Name ] = nil
+            end
+        end
+    end
+
+    -- base_plugin.lua:156, for plugin revisions without a Cleanup of their own.
+    function Plugin:Cleanup()
+        return self.BaseClass.Cleanup( self )
+    end
+
+    -- base_plugin.lua:215, errors are reported rather than raised.
+    local function UnwrapResults( Ok, ... )
+        if not Ok then
+            World.CallbackErrors[ #World.CallbackErrors + 1 ] = ( ... )
+            return
+        end
+        return ...
+    end
+
+    function Plugin:WrapCallback( Callback )
+        return function( ... )
+            if not self.Enabled then return end
+            return UnwrapResults( pcall( Callback, ... ) )
+        end
+    end
 
     function Plugin:Print( Message, _, ... )
         local Args = { ... }
@@ -608,8 +651,11 @@ function Mocks.NewWorld( Options )
         }
     end
 
+    -- timer.lua:83, creating a timer that exists edits it in place, even from inside its own function.
     function Plugin:CreateTimer( Name, Delay, Reps, Func )
-        Plugin.Timers[ Name ] = { Delay = Delay, Reps = Reps, Func = Func, Next = World.Time + Delay }
+        local Timer = Plugin.Timers[ Name ] or {}
+        Timer.Delay, Timer.Reps, Timer.Func, Timer.Next = Delay, Reps, Func, World.Time + Delay
+        Plugin.Timers[ Name ] = Timer
     end
 
     function Plugin:SaveConfig() end
@@ -671,7 +717,11 @@ function Mocks.NewWorld( Options )
         World:RunDueTimers()
     end
 
-    -- Runs every timer but the queue tick, which Tick drives itself.
+    --[[
+        Runs every timer but the queue tick, which Tick drives itself. Like timer.lua:167 the repetition is used
+        up before the function runs and a function that errors destroys its timer. The error is raised again
+        here, so a test never passes over it.
+    ]]
     function World:RunDueTimers()
         local Due = {}
         for Key, Timer in pairs( Plugin.Timers ) do
@@ -683,12 +733,22 @@ function Mocks.NewWorld( Options )
         for i = 1, #Due do
             local Key, Timer = Due[ i ].Key, Due[ i ].Timer
             if Plugin.Timers[ Key ] == Timer then
-                if Timer.Reps == 1 then
-                    Plugin.Timers[ Key ] = nil
+                if Timer.Reps > 0 then
+                    Timer.Reps = Timer.Reps - 1
+                end
+
+                local Ok, Err = pcall( Timer.Func, Timer )
+                if not Ok or Timer.Reps == 0 then
+                    if Plugin.Timers[ Key ] == Timer then
+                        Plugin.Timers[ Key ] = nil
+                    end
                 else
                     Timer.Next = World.Time + Timer.Delay
                 end
-                Timer.Func()
+
+                if not Ok then
+                    error( Err, 0 )
+                end
             end
         end
     end

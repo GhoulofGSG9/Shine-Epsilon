@@ -34,9 +34,12 @@ function Plugin:SetupDataTable()
     self:AddNetworkMessage( "SeedOffer", {
         Name = "string (128)", Address = "string (64)", Count = "integer", Time = "integer"
     }, "Client" )
-    self:AddNetworkMessage( "SeedAbort", {}, "Client" )
+    -- Reason: committed (being sent to the seed), declined (it goes ahead without them) or aborted.
+    self:AddNetworkMessage( "SeedClosed", { Reason = "string (16)" }, "Client" )
 
-    self:AddNetworkMessage( "SeedScore", { Address = "string (64)", Score = "float" }, "Server" )
+    -- Version is the candidate list's version, a new one replaces the scores of the old list.
+    self:AddNetworkMessage( "SeedScore", { Address = "string (64)", Score = "float", Version = "string (32)" },
+        "Server" )
     self:AddNetworkMessage( "SeedAnswer", { Accept = "boolean" }, "Server" )
     self:AddNetworkMessage( "SeedPref", { Pref = "string (8)" }, "Server" )
 end

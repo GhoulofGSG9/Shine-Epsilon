@@ -8,6 +8,7 @@ local Plugin = ...
 local Floor = math.floor
 local Max = math.max
 local Min = math.min
+local StringByte = string.byte
 local StringFormat = string.format
 local StringUTF8Sub = string.UTF8Sub
 local TableCount = table.Count
@@ -23,15 +24,29 @@ local DECISION_MEMORY = 120
 local MAX_SCORES = 16
 local MAX_QUEUE = 128
 local MAX_NAME = 100
+-- SeedOffer's "string (128)" keeps 127 bytes, the engine cuts it byte-wise.
+local MAX_NAME_BYTES = 127
 
-function Plugin:InitialiseGlobalQueue()
-    local Config = self.Config.GlobalQueue
-    if not Config.Enabled then return end
+local function TruncateBytes( String, MaxBytes )
+    if #String <= MaxBytes then return String end
 
-    self.SeedEnabled = true
-    self.SeedURL = Config.URL:gsub( "/+$", "" )
+    local End = MaxBytes
+    local Byte = StringByte( String, End + 1 )
+    while End > 0 and Byte >= 0x80 and Byte < 0xC0 do
+        Byte = StringByte( String, End )
+        End = End - 1
+    end
+
+    return String:sub( 1, End )
+end
+
+function Plugin:ResetSeedState()
+    self.SeedEnabled = nil
+    self.SeedOnline = nil
+    self.SeedURL = nil
 
     self.SeedPrefs = {}
+    -- SteamID -> { Version, ByAddress }, the scores for the candidate list the client last reported.
     self.SeedScores = {}
     self.SeedAnswers = {}
     -- SteamID -> id of the offer they were shown.
@@ -40,15 +55,28 @@ function Plugin:InitialiseGlobalQueue()
     self.SeedDecided = {}
     -- SteamID -> time until which a disconnect keeps their queue entry, armed when they are sent away.
     self.HopReturns = {}
+    -- SteamID -> time at which the queue entry held for a player away on a seed is dropped.
+    self.HopHolds = {}
     self.SeedActiveClients = {}
+end
+
+function Plugin:InitialiseGlobalQueue()
+    self:ResetSeedState()
+
+    local Config = self.Config.GlobalQueue
+    if not Config.Enabled then return end
+
+    self.SeedEnabled = true
+    self.SeedURL = Config.URL:gsub( "/+$", "" )
 
     self:ScheduleSeedUpdate( 1 )
 end
 
 function Plugin:ScheduleSeedUpdate( Delay )
-    self:CreateTimer( "SeedUpdate", Delay, 1, function()
+    -- Shine destroys a timer whose function errors, including the retry SeedUpdate scheduled on it.
+    self:CreateTimer( "SeedUpdate", Delay, 1, self:WrapCallback( function()
         self:SeedUpdate()
-    end )
+    end ) )
 end
 
 --[[
@@ -56,9 +84,11 @@ end
     body, it only answers servers that Steam's server list shows at that address.
 ]]
 function Plugin:SeedUpdate()
+    local URL = self.SeedURL
+
     -- Also the timeout callback, which gets no arguments.
     local function OnReply( Body, _, _, Status )
-        if not self.Enabled then return end
+        if not self.Enabled or self.SeedURL ~= URL then return end
 
         local Data
         if type( Body ) == "string" and Body ~= "" then
@@ -78,10 +108,11 @@ function Plugin:SeedUpdate()
 
         self:DebugPrint( "Seed queue heartbeat failed with HTTP %s.", tostring( Status ) )
 
-        -- 403 or a detail body: this address is not a listed NS2 server (yet), or it is rate limited.
+        -- 403 or a detail body: this address is not a listed NS2 server (yet), or it is rate limited. 404: the
+        -- coordinator is switched off.
         local Refused
         if Status then
-            Refused = Status == 403 or Status == 429
+            Refused = Status == 403 or Status == 404 or Status == 429
         else
             Refused = Data ~= nil and type( Data.detail ) == "string"
         end
@@ -89,12 +120,26 @@ function Plugin:SeedUpdate()
         self:ScheduleSeedUpdate( Refused and FORBIDDEN_DELAY or ERROR_DELAY )
     end
 
-    Shine.TimedHTTPRequest( self.SeedURL.."/seedqueue/heartbeat", "POST",
+    -- Kept if building or sending the heartbeat throws, the reply or timeout replaces it.
+    self:ScheduleSeedUpdate( ERROR_DELAY )
+
+    Shine.TimedHTTPRequest( URL.."/seedqueue/heartbeat", "POST",
         { data = json.encode( self:BuildSeedHeartbeat() ) }, OnReply, OnReply, REQUEST_TIMEOUT )
 end
 
 function Plugin:IsSeedQueued( SteamID )
     return self.PlayerQueue:Get( SteamID ) ~= nil or self.ReservedQueue:Get( SteamID ) ~= nil
+end
+
+--[[
+    RRQueueJoinTime feeds the queue's average wait time and stays nil for entries restored after a map change or
+    a seed hop, those carry their join time in SeedJoinTime. A later stay in the queue sets RRQueueJoinTime or
+    marks them reclaimed, so a SeedJoinTime left over from an earlier stay is never used.
+]]
+function Plugin:GetSeedJoinTime( Client )
+    if Client.RRReclaimed then return nil end
+
+    return Client.RRQueueJoinTime or Client.SeedJoinTime
 end
 
 function Plugin:BuildSeedHeartbeat()
@@ -110,21 +155,23 @@ function Plugin:BuildSeedHeartbeat()
         for i = 1, #Keys do
             local SteamID = Keys[ i ]
             local Client = not Seen[ SteamID ] and #Queue < MAX_QUEUE and Shine.GetClientByNS2ID( SteamID )
+            -- Until their client reports it, the player may well be set to never.
+            local Pref = self.SeedPrefs[ SteamID ]
 
-            if Client and Client:GetIsSpectator() then
+            if Client and Pref and Client:GetIsSpectator() then
                 Seen[ SteamID ] = true
 
                 local Entry = {
                     id = SteamID,
-                    wait = Floor( Now - ( Client.RRQueueJoinTime or Now ) ),
-                    pref = self.SeedPrefs[ SteamID ] or "ask",
+                    wait = Floor( Now - ( self:GetSeedJoinTime( Client ) or Now ) ),
+                    pref = Pref,
                     answer = self.SeedAnswers[ SteamID ]
                 }
 
                 -- The coordinator stores the queue in a 30000 character table cell, keep it lean.
                 local Scores = self.SeedScores[ SteamID ]
                 if Scores then
-                    for Address, Score in pairs( Scores ) do
+                    for Address, Score in pairs( Scores.ByAddress ) do
                         local Rounded = Floor( Score * 1000 + 0.5 ) / 1000
                         if Rounded > 0 then
                             Entry.scores = Entry.scores or {}
@@ -188,7 +235,7 @@ function Plugin:OnSeedOffer( Offer )
 
     local Players = GetPlayerList( Offer )
     local Message = {
-        Name = StringUTF8Sub( tostring( Offer.name or "" ), 1, MAX_NAME ),
+        Name = TruncateBytes( tostring( Offer.name or "" ), MAX_NAME_BYTES ),
         Address = Target,
         Count = Floor( tonumber( Offer.count ) or #Players ),
         Time = Floor( tonumber( Offer.remaining ) or self.Config.GlobalQueue.PromptTime )
@@ -198,7 +245,15 @@ function Plugin:OnSeedOffer( Offer )
         local SteamID = Players[ i ]
         local Client = Shine.GetClientByNS2ID( SteamID )
 
-        if Client and self.SeedOffered[ SteamID ] ~= ID then
+        -- The members come from an earlier heartbeat, some may have been given a player slot since.
+        if Client and Client:GetIsSpectator() and self:IsSeedQueued( SteamID )
+        and self.SeedOffered[ SteamID ] ~= ID then
+            -- A new offer supersedes the one they still have open.
+            if self.SeedOffered[ SteamID ] then
+                self.SeedAnswers[ SteamID ] = nil
+                self:SendNetworkMessage( Client, "SeedClosed", { Reason = "aborted" }, true )
+            end
+
             self.SeedOffered[ SteamID ] = ID
 
             -- Players set to always count as accepted without being asked.
@@ -209,15 +264,17 @@ function Plugin:OnSeedOffer( Offer )
     end
 end
 
-function Plugin:CloseSeedOffer( ID, Dispatched )
+-- Sending is nil for an abort, else the players being sent to the seed.
+function Plugin:CloseSeedOffer( ID, Sending )
     for SteamID, OfferID in pairs( self.SeedOffered ) do
         if OfferID == ID then
             self.SeedOffered[ SteamID ] = nil
             self.SeedAnswers[ SteamID ] = nil
 
-            local Client = not Dispatched[ SteamID ] and Shine.GetClientByNS2ID( SteamID )
+            local Client = Shine.GetClientByNS2ID( SteamID )
             if Client then
-                self:SendNetworkMessage( Client, "SeedAbort", {}, true )
+                local Reason = not Sending and "aborted" or Sending[ SteamID ] and "committed" or "declined"
+                self:SendNetworkMessage( Client, "SeedClosed", { Reason = Reason }, true )
             end
         end
     end
@@ -238,6 +295,7 @@ function Plugin:OnSeedCommit( Commit )
 
     -- The coordinator takes heartbeats for this server from anything behind its IP, so a commit alone never
     -- moves a player who did not agree here.
+    local Sending = {}
     local Players = GetPlayerList( Commit )
     for i = 1, #Players do
         local SteamID = Players[ i ]
@@ -251,16 +309,20 @@ function Plugin:OnSeedCommit( Commit )
             local Client = Shine.GetClientByNS2ID( SteamID )
             -- Someone that got a player slot here in the meantime stays.
             if Client and Client:GetIsSpectator() and self:IsSeedQueued( SteamID ) then
-                self.HopReturns[ SteamID ] = Shared.GetTime() + self.Config.GlobalQueue.HopReturnTime
-
-                Shine.SendNetworkMessage( Client, "Shine_Command", {
-                    Command = StringFormat( "connect %s", Target )
-                }, true )
+                Sending[ SteamID ] = Client
             end
         end
     end
 
-    self:CloseSeedOffer( ID, Decision.Dispatched )
+    self:CloseSeedOffer( ID, Sending )
+
+    for SteamID, Client in pairs( Sending ) do
+        self.HopReturns[ SteamID ] = Shared.GetTime() + self.Config.GlobalQueue.HopReturnTime
+
+        Shine.SendNetworkMessage( Client, "Shine_Command", {
+            Command = StringFormat( "connect %s", Target )
+        }, true )
+    end
 end
 
 function Plugin:OnSeedAbort( Abort )
@@ -268,24 +330,32 @@ function Plugin:OnSeedAbort( Abort )
     if self.SeedDecided[ ID ] then return end
 
     self.SeedDecided[ ID ] = { At = Shared.GetTime(), Dispatched = {} }
-    self:CloseSeedOffer( ID, self.SeedDecided[ ID ].Dispatched )
+    self:CloseSeedOffer( ID )
 end
 
 --[[
     Keeps the queue entry of a player that just left for a seed, so they get their place back if the seed
     falls through. Output: true when the entry is being held.
 ]]
-function Plugin:HoldHopReturn( SteamID )
-    local Expiry = self.HopReturns and self.HopReturns[ SteamID ]
-    if not Expiry then return false end
+function Plugin:HoldHopReturn( Client, SteamID )
+    local Armed = self.HopReturns[ SteamID ]
+    if not Armed then return false end
 
     self.HopReturns[ SteamID ] = nil
 
-    if Expiry < Shared.GetTime() or not self:IsSeedQueued( SteamID ) then return false end
+    local Now = Shared.GetTime()
+    if Armed < Now or not self:IsSeedQueued( SteamID ) then return false end
 
+    local Expiry = Now + self.Config.GlobalQueue.HopReturnTime
+    self.HopHolds[ SteamID ] = Expiry
     self.HistoricPlayers:Add( SteamID )
+    self.HistoricJoinTimes[ SteamID ] = self:GetSeedJoinTime( Client )
 
     self:SimpleTimer( self.Config.GlobalQueue.HopReturnTime, function()
+        if self.HopHolds[ SteamID ] ~= Expiry then return end
+
+        self.HopHolds[ SteamID ] = nil
+
         if not self.HistoricPlayers:Contains( SteamID ) or Shine.GetClientByNS2ID( SteamID ) then return end
 
         self.HistoricPlayers:Remove( SteamID )
@@ -316,7 +386,9 @@ function Plugin:SyncSeedActive()
     local Active = self.SeedActiveClients
 
     for Client in pairs( Active ) do
-        if not ( Client:GetIsSpectator() and self:IsSeedQueued( Client:GetUserId() ) ) then
+        if not Shine:IsValidClient( Client ) then
+            Active[ Client ] = nil
+        elseif not ( Client:GetIsSpectator() and self:IsSeedQueued( Client:GetUserId() ) ) then
             Active[ Client ] = nil
             self:SendNetworkMessage( Client, "SeedActive", { URL = "" }, true )
         end
@@ -368,14 +440,20 @@ function Plugin:ReceiveSeedScore( Client, Data )
 
     local SteamID = Client:GetUserId()
     local Scores = self.SeedScores[ SteamID ]
-    if not Scores then
-        Scores = {}
+    if not Scores or Scores.Version ~= Data.Version then
+        Scores = { Version = Data.Version, ByAddress = {} }
         self.SeedScores[ SteamID ] = Scores
     end
 
-    if not Scores[ Data.Address ] and TableCount( Scores ) >= MAX_SCORES then return end
+    local ByAddress = Scores.ByAddress
+    if Score == 0 then
+        ByAddress[ Data.Address ] = nil
+        return
+    end
 
-    Scores[ Data.Address ] = Score
+    if not ByAddress[ Data.Address ] and TableCount( ByAddress ) >= MAX_SCORES then return end
+
+    ByAddress[ Data.Address ] = Score
 end
 
 function Plugin:CreateSeedCommands()
