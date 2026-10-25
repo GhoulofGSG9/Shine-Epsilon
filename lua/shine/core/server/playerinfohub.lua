@@ -116,29 +116,6 @@ local function RegisterExternalAPIEndpoints()
 		end
 	} )
 
-	if not ExternalAPIHandler:GetAPI( "GeoIP" ) then
-		Shine.RegisterExternalAPI( "GeoIP", {
-			URL = "https://api.ipapi.is/",
-			Params = {},
-			GlobalRequestParams = {},
-			EndPoints = {}
-		} )
-	end
-
-	Shine.RegisterExternalAPIEndPoint( "GeoIP", "Lookup", {
-		Protocol = "GET",
-		URL = "",
-		Params = {
-			q = tostring
-		},
-		GetCacheKey = function( Params ) return tostring( Params.q ) end,
-		ResponseTransformer = function( Response )
-			if Type( Response ) ~= "table" then return nil end
-			if Response.error or not Response.ip then return 0 end
-			return Response
-		end
-	} )
-
 	if not ExternalAPIHandler:GetAPI( "ENSL" ) then
 		Shine.RegisterExternalAPI( "ENSL", {
 			URL = "http://www.ensl.org/",
@@ -162,9 +139,51 @@ local function PerformExternalRequest( APIName, EndPointName, Params, OnSuccess,
 
 	ExternalAPIHandler:PerformRequest( APIName, EndPointName, Params, {
 		OnSuccess = OnSuccess,
-		OnFailure = OnFailure,
-		OnTimeout = OnFailure
+		OnFailure = OnFailure
 	}, 2 )
+end
+
+--[[
+	country.is takes the IP in the path, which the external API handler cannot build. Lookups run one at a
+	time: it allows 10 requests per second and a map change reconnects every player at once.
+]]
+local GeoQueue = {}
+local GeoRequestActive = false
+
+local function ParseCountry( Body )
+	local Response = Type( Body ) == "string" and Body ~= "" and JsonDecode( Body )
+	if Type( Response ) ~= "table" or Type( Response.country ) ~= "string" or #Response.country ~= 2 then
+		return 0
+	end
+
+	return { countryCode = Response.country }
+end
+
+local function ProcessGeoQueue()
+	local Request = TableRemove( GeoQueue, 1 )
+	if not Request then
+		GeoRequestActive = false
+		return
+	end
+	GeoRequestActive = true
+
+	Shine.HTTPRequestWithRetry( "https://api.country.is/"..Request.IP, "GET", {
+		OnSuccess = function( Body )
+			ProcessGeoQueue()
+			Request.Callback( ParseCountry( Body ) )
+		end,
+		OnFailure = function()
+			ProcessGeoQueue()
+			Request.Callback( -1 )
+		end
+	}, 2, 15 )
+end
+
+local function PerformGeoRequest( IP, Callback )
+	TableInsert( GeoQueue, { IP = IP, Callback = Callback } )
+	if not GeoRequestActive then
+		ProcessGeoQueue()
+	end
 end
 
 local function RegisterENSLEndPoint( EndPointName, SteamId )
@@ -390,7 +409,7 @@ function PlayerInfoHub:OnConnect( Client )
 			ENSLData[ SteamId ] = -2
 
 			PerformENSLRequest( SteamId, function( Data )
-				ENSLData[ SteamId ] = Data
+				ENSLData[ SteamId ] = Data or 0
 				CallEvent()
 			end, function()
 				ENSLData[ SteamId ] = -1
@@ -405,14 +424,9 @@ function PlayerInfoHub:OnConnect( Client )
 		if not GeoData[ SteamId ] then
 			GeoData[ SteamId ] = -2
 
-			PerformExternalRequest( "GeoIP", "Lookup", {
-				q = IPAddressToString( Server.GetClientAddress( Client ) )
-			}, function( Data )
-				GeoData[ SteamId ] = Data or 0
-				Call( "OnReceiveGeoData", Client, GeoData[ SteamId ] )
-			end, function()
-				GeoData[ SteamId ] = -1
-				Call( "OnReceiveGeoData", Client, GeoData[ SteamId ] )
+			PerformGeoRequest( IPAddressToString( Server.GetClientAddress( Client ) ), function( Data )
+				GeoData[ SteamId ] = Data
+				Call( "OnReceiveGeoData", Client, Data )
 			end )
 		elseif GeoData[ SteamId ] ~= -2 then
 			Call( "OnReceiveGeoData", Client, GeoData[ SteamId ] )

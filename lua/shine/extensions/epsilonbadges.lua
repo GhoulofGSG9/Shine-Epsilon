@@ -123,10 +123,9 @@ function Plugin:OnReceiveGeoData( Client, GeoData )
     local Nationality = "UNO"
     local Country = "Unknown"
 
-    if type(GeoData) == "table" then
-        local Location = GeoData.location
-        Nationality = (type(Location) == "table" and Location.country_code) or GeoData.countryCode or Nationality
-        Country = (type(Location) == "table" and Location.country) or GeoData.country or Country
+    if type(GeoData) == "table" and GeoData.countryCode then
+        Nationality = GeoData.countryCode
+        Country = Nationality
     end
 
     local SetBagde = self:SetBadge( Client, Nationality, self.Config.FlagsRow,
