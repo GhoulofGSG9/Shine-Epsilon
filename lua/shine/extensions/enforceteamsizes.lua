@@ -107,7 +107,7 @@ end
 function Plugin:PreShuffleOptimiseTeams ( TeamMembers )
 	local  Gamerules = GetGamerules()
 	local team1Max = self.Config.Teams.Team1 and self.Config.Teams.Team1.MaxPlayers or 1000
-	local team2Max = self.Config.Teams.Team1 and self.Config.Teams.Team1.MaxPlayers or 1000
+	local team2Max = self.Config.Teams.Team2 and self.Config.Teams.Team2.MaxPlayers or 1000
 	local max = math.min( team1Max, team2Max )
 
 	if max == 1000 then return end

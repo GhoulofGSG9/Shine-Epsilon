@@ -1,6 +1,7 @@
 local Max = math.max
 local Min = math.min
 local StringFormat = string.format
+local TableCount = table.Count
 local TableEmpty = table.Empty
 local TableQuickCopy = table.QuickCopy
 
@@ -172,9 +173,11 @@ function Plugin:OnFirstThink()
 
     -- Vanilla's GetCanJoinPlayingTeam never sees ShineForce, so remember which player a Shine admin move is
     -- for. A plain hook at top priority, because shuffles force their moves through a top priority hook that
-    -- stops plugin hooks from running.
+    -- stops plugin hooks from running. A later hook can still veto the move before vanilla consumes the flag, so
+    -- it only counts within the frame it was set in.
     Shine.Hook.Add( "JoinTeam", "RRQueueAdminTeamMove", function( _, Player, NewTeam, _, ShineForce )
         self.AdminTeamMove = ShineForce and NewTeam ~= kSpectatorIndex and Player or nil
+        self.AdminTeamMoveTime = Shared.GetTime()
     end, Shine.Hook.MAX_PRIORITY )
 
     -- At the end of a round the gamerules move every single player back into the ready room. Those moves
@@ -233,7 +236,7 @@ function Plugin:ClientDisconnect( Client )
 end
 
 function Plugin:OnGetCanJoinPlayingTeam( _, Player, Allowed )
-    local AdminTeamMove = self.AdminTeamMove == Player
+    local AdminTeamMove = self.AdminTeamMove == Player and self.AdminTeamMoveTime == Shared.GetTime()
     self.AdminTeamMove = nil
 
     -- Anyone that is not flagged as a spectator already occupies a player slot, so the queue has no
@@ -455,6 +458,9 @@ function Plugin:Enqueue( Client )
         return true
     end
 
+    -- Drop entries of clients that are gone first, so the insert index is the position we report.
+    self:UpdateQueuePositions( self.PlayerQueue )
+
     Position = self:GetQueueInsertPosition( self.PlayerQueue, Client )
     self:InsertIntoQueue( self.PlayerQueue, SteamID, Position, "QUEUE_CHANGED_VIP" )
     self:SendTranslatedNotify( Client, "QUEUE_ADDED", {
@@ -464,6 +470,8 @@ function Plugin:Enqueue( Client )
     self:SendWaitTime( Client )
 
     if GetHasReservedSlotAccess( SteamID ) then
+        self:UpdateQueuePositions( self.ReservedQueue, "PRIORITY_QUEUE_CHANGED" )
+
         Position = self:GetQueueInsertPosition( self.ReservedQueue, Client )
         self:InsertIntoQueue( self.ReservedQueue, SteamID, Position, "PRIORITY_QUEUE_CHANGED_VIP" )
         self:SendTranslatedNotify( Client, "PRIORITY_QUEUE_ADDED", {
@@ -640,9 +648,15 @@ function Plugin:GrantPlayerSlot( Client )
     end
 
     if Player:GetTeamNumber() ~= kTeamReadyRoom then
-        if not Gamerules:JoinTeam( Player, kTeamReadyRoom, true, true ) then
+        local Ok, Moved = pcall( Gamerules.JoinTeam, Gamerules, Player, kTeamReadyRoom, true, true )
+
+        if not Ok or not Moved then
             if WasSpectator then
                 Client:SetIsSpectator( true )
+            end
+
+            if not Ok then
+                error( Moved, 0 )
             end
 
             return false
@@ -769,7 +783,8 @@ end
 function Plugin:AreTeamsFull()
     local Enabled, TeamSizes = Shine:IsExtensionEnabled( "enforceteamsizes" )
     local Gamerules = GetGamerules()
-    if not Enabled or not Gamerules then return false end
+    -- Other mods may ship their own enforceteamsizes without IsTeamFull, and an error here kills the tick timer.
+    if not Enabled or not Gamerules or not TeamSizes.IsTeamFull then return false end
 
     return TeamSizes:IsTeamFull( Gamerules, kTeam1Index ) and TeamSizes:IsTeamFull( Gamerules, kTeam2Index )
 end
@@ -794,6 +809,23 @@ function Plugin:HasWaitingClient()
         and self:GetFirstServableClient( self.ReservedQueue, nil, true, true ) ~= nil
 end
 
+-- Reserved slot queue entries are always in the player slot queue as well.
+function Plugin:CountWaitingClients()
+    local Count = 0
+
+    local Keys = self.PlayerQueue:GetKeys()
+    for i = 1, #Keys do
+        local SteamID = Keys[ i ]
+        local QueuedClient = not self.HistoricPlayers:Contains( SteamID ) and Shine.GetClientByNS2ID( SteamID )
+
+        if QueuedClient and QueuedClient:GetIsSpectator() and not QueuedClient.RRReclaimed then
+            Count = Count + 1
+        end
+    end
+
+    return Count
+end
+
 -- Callers are responsible for making sure somebody is actually waiting for the slot.
 function Plugin:StartReadyRoomGrace( Client, SteamID )
     local Config = self.Config.ReadyRoomGracePeriod
@@ -807,6 +839,9 @@ function Plugin:StartReadyRoomGrace( Client, SteamID )
 
     local Gamerules = GetGamerules()
     if not Gamerules or not Gamerules:GetGameStarted() then return false end
+
+    -- One grace period per waiting player, otherwise the whole ready room is warned over a single slot.
+    if TableCount( self.GraceExpiries ) >= self:CountWaitingClients() then return false end
 
     self.GraceExpiries[ SteamID ] = Shared.GetTime() + Config.Time
 
