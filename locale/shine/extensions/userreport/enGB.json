@@ -13,6 +13,8 @@
   "REASON_GRIEFING_TIP": "Commander recycling structures mid game, players blocking entry to the Command Chair etc.",
   "REASON_SPAMMING": "Spamming",
   "REASON_SPAMMING_TIP": "Disrupting the flow of conversation with repeated posts of a similar nature, whether for personal or commercial purposes.",
+  "REASON_ADVERTISING": "Advertising",
+  "REASON_ADVERTISING_TIP": "Promoting other servers, communities or websites, e.g. asking players to join another server.",
   "REASON_NEGATIVE_ATTITUDE": "Negative Attitude",
   "REASON_NEGATIVE_ATTITUDE_TIP": "Constantly putting other players down or being generally negative about the game.",
   "REASON_INAPPROPRIATE_NAME": "Inappropriate Name",

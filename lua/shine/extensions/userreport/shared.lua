@@ -17,6 +17,7 @@ Plugin.Reasons = {
     "VERBAL_ABUSE",
     "GRIEFING",
     "SPAMMING",
+    "ADVERTISING",
     "NEGATIVE_ATTITUDE",
     "INAPPROPRIATE_NAME",
     "UNSKILLED",

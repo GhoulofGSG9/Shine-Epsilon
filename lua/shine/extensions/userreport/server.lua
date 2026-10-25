@@ -56,7 +56,7 @@ Plugin.MaxResultsPerPage = 30
 Plugin.AutoReactions = {
     {
         Name = "Gag",
-        Reasons = { "OFFENSIVE_LANGUAGE", "VERBAL_ABUSE", "SPAMMING", "NEGATIVE_ATTITUDE" },
+        Reasons = { "OFFENSIVE_LANGUAGE", "VERBAL_ABUSE", "SPAMMING", "ADVERTISING", "NEGATIVE_ATTITUDE" },
         Apply = function( self, Target, Settings )
             Shine:RunCommand( nil, "sh_gag", false, tostring( Target:GetUserId() ), tostring( Settings.Duration ) )
         end
