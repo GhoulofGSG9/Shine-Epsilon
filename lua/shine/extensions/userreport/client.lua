@@ -13,6 +13,7 @@ local Auto = Units.Auto
 
 local Bor = bit.bor
 local Date = os.date
+local Min = math.min
 local StringFormat = string.format
 local TableConcat = table.concat
 
@@ -229,6 +230,8 @@ function Plugin:SetupAdminMenu()
 
             Shine.AdminMenu.SetupListWithScaling( List )
 
+            List:SetSortedExternally( true )
+
             Layout:AddElement( List )
 
             self.ReportList = List
@@ -236,9 +239,20 @@ function Plugin:SetupAdminMenu()
             Data = Data or {
                 Page = 1,
                 MaxResults = 15,
+                SortColumn = self.SortColumn.DATE,
+                SortAscending = false,
                 Filter = ""
             }
             self.CurrentPage = Data
+
+            function List.HandleExternalSorting( List, Column, Descending )
+                Data.SortColumn = Column
+                Data.SortAscending = not Descending
+
+                self:RequestReportPage( Data )
+
+                return true
+            end
 
             function SearchBox.OnTextChanged()
                 self.SearchTimer = self.SearchTimer or self:SimpleTimer( 0.3, function()
@@ -282,6 +296,40 @@ function Plugin:SetupAdminMenu()
             PageLabel:SetAlignment( SGUI.LayoutAlignment.CENTRE )
             PageLabel:SetCrossAxisAlignment( SGUI.LayoutAlignment.CENTRE )
             PageLabel:SetMargin( Spacing( HighResScaled( 16 ), 0, HighResScaled( 16 ), 0 ) )
+
+            function PageLabel.DoClick()
+                local TextEntry = SGUI:Create( "TextEntry", Panel )
+                TextEntry:SetFontScale( Font, Scale )
+                TextEntry:SetSize( PageLabel:GetSize() )
+                TextEntry:SetMargin( PageLabel:GetMargin() )
+                TextEntry:SetText( tostring( Data.Page ) )
+                TextEntry:SetNumeric( true )
+                TextEntry:SetAlignment( SGUI.LayoutAlignment.CENTRE )
+                TextEntry:SetCrossAxisAlignment( SGUI.LayoutAlignment.CENTRE )
+                function TextEntry.OnEnter()
+                    local MaxPages = self.PageData and self.PageData.NumPages or Data.Page
+
+                    Data.Page = tonumber( TextEntry:GetText() ) or Data.Page
+                    PageLabel:SetText( StringFormat( "%d / %d", Min( Data.Page, MaxPages ), MaxPages ) )
+
+                    self:RequestReportPage( Data )
+
+                    TextEntry:OnEscape()
+                end
+                function TextEntry.OnEscape()
+                    TextEntry:Destroy()
+                    PageLabel:SetIsVisible( true )
+                    ControlLayout:RemoveElement( TextEntry )
+                end
+                TextEntry.OnLoseFocus = TextEntry.OnEscape
+
+                ControlLayout:InsertElementAfter( PageLabel, TextEntry )
+
+                PageLabel:SetIsVisible( false )
+
+                TextEntry:RequestFocus()
+                TextEntry:SelectAll()
+            end
             self.PageLabel = PageLabel
 
             ControlLayout:AddElement( PageLabel )
@@ -334,8 +382,7 @@ function Plugin:SetupAdminMenu()
 
             Panel:SetLayout( Layout )
             Panel:InvalidateLayout( true )
-
-            self:RequestReportPage( Data )
+            List:SortRows( Data.SortColumn, nil, not Data.SortAscending )
         end,
 
         OnCleanup = function()
@@ -399,6 +446,8 @@ function Plugin:ReceiveReportPage( PageData )
 
     self.CurrentPage.Page = PageData.Page
     self.CurrentPage.MaxResults = PageData.MaxResults
+
+    self.PageData = PageData
 
     self.PageLabel:SetText( StringFormat( "%d / %d", PageData.Page, PageData.NumPages ) )
     self.PageLabel:SetTooltip( self:GetInterpolatedPhrase( "TOTAL_RESULTS_TIP", {

@@ -11,6 +11,7 @@ local StringFind = string.find
 local StringUTF8Lower = string.UTF8Lower
 local TableConcat = table.concat
 local TableRemove = table.remove
+local TableSort = table.sort
 local tonumber = tonumber
 local tostring = tostring
 
@@ -252,19 +253,39 @@ local function MatchesFilter( Report, Filter )
         or StringFind( tostring( Report.ReporterID ), Filter, 1, true )
 end
 
+Plugin.SortKeys = {
+    [ Plugin.SortColumn.DATE ] = function( self, Report ) return Report.ID end,
+    [ Plugin.SortColumn.TARGET ] = function( self, Report ) return StringUTF8Lower( Report.TargetName ) end,
+    [ Plugin.SortColumn.REASONS ] = function( self, Report ) return self:ReasonsToMask( Report.Reasons ) end,
+    [ Plugin.SortColumn.REPORTER ] = function( self, Report ) return StringUTF8Lower( Report.ReporterName ) end
+}
+
 function Plugin:ReceiveRequestReportPage( Client, PageRequest )
     if not Shine:GetPermission( Client, self.ListPermission ) then return end
 
     local Filter = StringUTF8Lower( PageRequest.Filter )
 
-    -- Newest first.
     local Results = {}
-    for i = #self.Reports, 1, -1 do
+    for i = 1, #self.Reports do
         local Report = self.Reports[ i ]
         if Filter == "" or MatchesFilter( Report, Filter ) then
             Results[ #Results + 1 ] = Report
         end
     end
+
+    local GetSortKey = self.SortKeys[ PageRequest.SortColumn ]
+    local Ascending = PageRequest.SortAscending
+    TableSort( Results, function( A, B )
+        local KeyA, KeyB = GetSortKey( self, A ), GetSortKey( self, B )
+        if KeyA == KeyB then
+            KeyA, KeyB = A.ID, B.ID
+        end
+
+        if Ascending then
+            return KeyA < KeyB
+        end
+        return KeyA > KeyB
+    end )
 
     local MaxResults = Clamp( PageRequest.MaxResults, 5, self.MaxResultsPerPage )
     local NumPages = Max( 1, Ceil( #Results / MaxResults ) )

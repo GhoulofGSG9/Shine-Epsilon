@@ -25,6 +25,10 @@ Plugin.Reasons = {
     "CHEATING"
 }
 
+Plugin.SortColumn = table.AsEnum( {
+    "DATE", "TARGET", "REASONS", "REPORTER"
+}, function( Index ) return Index end )
+
 local Band = bit.band
 local Bor = bit.bor
 local LShift = bit.lshift
@@ -65,7 +69,9 @@ function Plugin:SetupDataTable()
     self:AddNetworkMessage( "RequestReportPage", {
         Page = "integer",
         MaxResults = "integer",
-        Filter = "string (128)"
+        Filter = "string (128)",
+        SortColumn = "integer (1 to 4)",
+        SortAscending = "boolean"
     }, "Server" )
 
     self:AddNetworkMessage( "ReportPage", {
