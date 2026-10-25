@@ -1113,9 +1113,10 @@ function Plugin:UpdateQueueOrder()
     end
 
     local QueueOrder = TableConcat( ClientIDs, "," )
-    if #QueueOrder > self.MaxQueueOrderLength then
+    -- A "string (N)" network variable keeps N - 1 bytes.
+    if #QueueOrder >= self.MaxQueueOrderLength then
         -- Cut at an entry boundary, a partial client ID would put the wrong player's position on the scoreboard.
-        QueueOrder = QueueOrder:sub( 1, self.MaxQueueOrderLength + 1 ):match( "^(.*)," ) or ""
+        QueueOrder = QueueOrder:sub( 1, self.MaxQueueOrderLength ):match( "^(.*)," ) or ""
     end
 
     self.dt.QueueOrder = QueueOrder

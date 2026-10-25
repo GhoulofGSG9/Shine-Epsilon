@@ -23,6 +23,12 @@ local FORBIDDEN_DELAY = 120
 local DECISION_MEMORY = 120
 local MAX_SCORES = 16
 local MAX_QUEUE = 128
+-- The coordinator refuses a heartbeat over 30000 characters, measured after it fills in the fields each entry
+-- leaves out (answer, scores), so every entry is budgeted with some slack and the server info gets the rest.
+local MAX_QUEUE_CHARS = 28000
+local ENTRY_SLACK = 32
+-- The coordinator rejects the whole heartbeat if one score is above this.
+local MAX_SCORE = 1e6
 local MAX_NAME = 100
 -- SeedOffer's "string (128)" keeps 127 bytes, the engine cuts it byte-wise.
 local MAX_NAME_BYTES = 127
@@ -107,6 +113,7 @@ function Plugin:SeedUpdate()
         end
 
         self:DebugPrint( "Seed queue heartbeat failed with HTTP %s.", tostring( Status ) )
+        self.SeedOnline = nil
 
         -- 403 or a detail body: this address is not a listed NS2 server (yet), or it is rate limited. 404: the
         -- coordinator is switched off.
@@ -149,12 +156,14 @@ function Plugin:BuildSeedHeartbeat()
 
     local Queue = {}
     local Seen = {}
+    local QueueChars = 0
+    local Full = false
 
     local function AddEntries( Map )
         local Keys = Map:GetKeys()
         for i = 1, #Keys do
             local SteamID = Keys[ i ]
-            local Client = not Seen[ SteamID ] and #Queue < MAX_QUEUE and Shine.GetClientByNS2ID( SteamID )
+            local Client = not Full and not Seen[ SteamID ] and #Queue < MAX_QUEUE and Shine.GetClientByNS2ID( SteamID )
             -- Until their client reports it, the player may well be set to never.
             local Pref = self.SeedPrefs[ SteamID ]
 
@@ -168,7 +177,6 @@ function Plugin:BuildSeedHeartbeat()
                     answer = self.SeedAnswers[ SteamID ]
                 }
 
-                -- The coordinator stores the queue in a 30000 character table cell, keep it lean.
                 local Scores = self.SeedScores[ SteamID ]
                 if Scores then
                     for Address, Score in pairs( Scores.ByAddress ) do
@@ -178,6 +186,12 @@ function Plugin:BuildSeedHeartbeat()
                             Entry.scores[ Address ] = Rounded
                         end
                     end
+                end
+
+                QueueChars = QueueChars + #json.encode( Entry ) + ENTRY_SLACK
+                if QueueChars > MAX_QUEUE_CHARS then
+                    Full = true
+                    return
                 end
 
                 Queue[ #Queue + 1 ] = Entry
@@ -300,8 +314,12 @@ function Plugin:OnSeedCommit( Commit )
     for i = 1, #Players do
         local SteamID = Players[ i ]
         local Answer = self.SeedAnswers[ SteamID ]
-        local Agreed = self.SeedPrefs[ SteamID ] == "always"
-            or ( Answer ~= nil and Answer.offer == ID and Answer.accept )
+        local Agreed
+        if Answer and Answer.offer == ID then
+            Agreed = Answer.accept
+        else
+            Agreed = self.SeedPrefs[ SteamID ] == "always"
+        end
 
         if Agreed and not Decision.Dispatched[ SteamID ] then
             Decision.Dispatched[ SteamID ] = true
@@ -435,7 +453,7 @@ function Plugin:ReceiveSeedScore( Client, Data )
     if not self.SeedEnabled then return end
 
     local Score = tonumber( Data.Score )
-    if not Score or Score ~= Score or Score < 0 or Score == math.huge then return end
+    if not Score or Score ~= Score or Score < 0 or Score > MAX_SCORE then return end
     if not Data.Address:match( "^[%w%.%-]+:%d+$" ) then return end
 
     local SteamID = Client:GetUserId()

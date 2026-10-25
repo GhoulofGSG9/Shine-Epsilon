@@ -746,6 +746,8 @@ Test( "seed: the heartbeat lists queued players with their scores and preference
     Plugin:ReceiveSeedScore( Specs[ 1 ], { Address = "5.6.7.8:27015", Score = 0, Version = "c-1" } )
     Plugin:ReceiveSeedScore( Specs[ 1 ], { Address = "connect evil", Score = 2, Version = "c-1" } )
     Plugin:ReceiveSeedScore( Specs[ 2 ], { Address = "1.2.3.4:27015", Score = 0 / 0, Version = "c-1" } )
+    -- The coordinator would refuse the whole heartbeat over it.
+    Plugin:ReceiveSeedScore( Specs[ 2 ], { Address = "5.6.7.8:27015", Score = 1e30, Version = "c-1" } )
 
     World:Tick( 10 )
 
@@ -854,6 +856,65 @@ Test( "seed: a commit for another offer or without an answer sends nobody but al
     AssertList( { "connect 1.2.3.4:27015" }, Connects( World, A.SteamID ), "A accepted o-1" )
     AssertList( {}, Connects( World, B.SteamID ), "B still never answered" )
     AssertList( { "declined" }, ClosedReasons( World, B.SteamID ), "B's prompt is closed" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+Test( "seed: an always player who said no to this offer is not sent", function()
+    local World = NewSeedWorld()
+    local Plugin = World.Plugin
+    local A = QueueSpectators( World, 1 )[ 1 ]
+
+    Plugin:ReceiveSeedPref( A, { Pref = "always" } )
+    Heartbeat( World, { next = 3, offer = { id = "o-1", target = "1.2.3.4:27015", players = { A.SteamID } } } )
+    World.Commands.sh_rr_seed( A, "no" )
+
+    Heartbeat( World, { next = 10, commit = { id = "o-1", target = "1.2.3.4:27015", players = { A.SteamID } } } )
+    AssertList( {}, Connects( World, A.SteamID ), "an explicit no beats the always preference" )
+    AssertList( { "declined" }, ClosedReasons( World, A.SteamID ), "A's offer is closed" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+Test( "seed: the heartbeat stays under the coordinator's size limit", function()
+    local World = NewSeedWorld()
+    local Plugin = World.Plugin
+    local Specs = QueueSpectators( World, 40 )
+
+    -- Clients pick the addresses they score, the longest the network message carries.
+    for i = 1, #Specs do
+        for j = 1, 16 do
+            local Address = string.format( "%s%02d:27015", string.rep( "a", 54 ), j )
+            Plugin:ReceiveSeedScore( Specs[ i ], { Address = Address, Score = 1.5, Version = "c-1" } )
+        end
+    end
+
+    local Payload, Request = Heartbeat( World )
+    AssertTrue( #Payload.queue > 0 and #Payload.queue < #Specs, "the queue is cut, got " .. #Payload.queue )
+    AssertTrue( #Request.Params.data + 32 * #Payload.queue <= 30000, "the heartbeat fits the coordinator's limit" )
+    AssertEquals( Specs[ 1 ].SteamID, Payload.queue[ 1 ].id, "the front of the queue is kept" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+Test( "seed: a coordinator that goes down after being up stops activating clients", function()
+    local World = NewSeedWorld()
+    local Plugin = World.Plugin
+    local Specs = QueueSpectators( World, 1 )
+
+    Heartbeat( World )
+    World:Tick( 1 )
+    AssertEquals( 1, CountMessages( World, Specs[ 1 ].SteamID, "SeedActive" ), "S1 is activated while it is up" )
+
+    Plugin:SeedUpdate()
+    World:Respond( 500, { detail = "down" } )
+    Plugin.Timers.SeedUpdate = nil
+
+    local Late = World:AddSpectator{ Name = "Late" }
+    World:PressF4( Late )
+    World:Tick( 1 )
+    AssertEquals( 0, CountMessages( World, Late.SteamID, "SeedActive" ), "a client queued while it is down waits" )
+
+    Heartbeat( World )
+    World:Tick( 1 )
+    AssertEquals( 1, CountMessages( World, Late.SteamID, "SeedActive" ), "activated once a heartbeat gets through" )
 end )
 
 -- --------------------------------------------------------------------------------------------------
@@ -1471,12 +1532,17 @@ Test( "scoreboard: the queue order lists client IDs in queue order and is cut at
     local Full = First:GetId() .. "," .. Second:GetId() .. ",-"
     AssertEquals( Full, World.Plugin.dt.QueueOrder, "client IDs in queue order, '-' for an absent entry" )
 
-    World.Plugin.MaxQueueOrderLength = #Full - 2
+    World.Plugin.MaxQueueOrderLength = #Full
+    World.Plugin:UpdateQueueOrder()
+    AssertEquals( First:GetId() .. "," .. Second:GetId(), World.Plugin.dt.QueueOrder,
+        "the variable keeps one byte less than its size, the last entry does not fit" )
+
+    World.Plugin.MaxQueueOrderLength = #Full - 1
     World.Plugin:UpdateQueueOrder()
     AssertEquals( First:GetId() .. "," .. Second:GetId(), World.Plugin.dt.QueueOrder,
         "a limit ending on an entry boundary keeps that entry" )
 
-    World.Plugin.MaxQueueOrderLength = #tostring( First:GetId() ) + 1
+    World.Plugin.MaxQueueOrderLength = #tostring( First:GetId() ) + 2
     World.Plugin:UpdateQueueOrder()
     AssertEquals( tostring( First:GetId() ), World.Plugin.dt.QueueOrder, "a partial client ID is never sent" )
 end )
