@@ -23,6 +23,7 @@ Plugin.HasConfig = true
 Plugin.ConfigName = "UserReport.json"
 Plugin.DefaultConfig = {
     ReportCooldown = 30, -- seconds a player has to wait between two reports
+    ReportRetentionDays = 30, -- reports older than this are deleted on map change, 0 keeps them forever
     AutoReact = {
         -- MinReporters is the number of different players that have to report someone for a matching reason.
         Gag = {
@@ -98,6 +99,7 @@ function Plugin:Initialise()
 
     self.Reports = Data and Data.Reports or {}
     self.NextID = Data and Data.NextID or #self.Reports + 1
+    self:PruneOldReports()
 
     -- Everything below only lives for the current map.
     self.LastReportTime = {}
@@ -116,6 +118,25 @@ end
 
 function Plugin:SaveReports()
     Shine.SaveJSONFile( { NextID = self.NextID, Reports = self.Reports }, self.ReportsFile )
+end
+
+function Plugin:PruneOldReports()
+    local RetentionDays = self.Config.ReportRetentionDays
+    if RetentionDays <= 0 then return end
+
+    local MinDate = OSTime() - RetentionDays * 86400
+    local Kept = {}
+    for i = 1, #self.Reports do
+        local Report = self.Reports[ i ]
+        if Report.Date >= MinDate then
+            Kept[ #Kept + 1 ] = Report
+        end
+    end
+
+    if #Kept < #self.Reports then
+        self.Reports = Kept
+        self:SaveReports()
+    end
 end
 
 function Plugin:NotifyReportDataChanged()
