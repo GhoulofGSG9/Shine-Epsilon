@@ -30,7 +30,7 @@
   "REASON_CHEATING_TIP": "The player is suspected to cheat or to use in-game exploits.",
   "REPORT_SENT": "Thank you! Your report has been sent to the server operators.",
   "ERROR_INVALID_TARGET": "This player can not be reported.",
-  "ERROR_ALREADY_REPORTED": "You have already reported this player.",
+  "ERROR_ALREADY_REPORTED": "You have already reported this player for this offense.",
   "ERROR_REPORT_COOLDOWN": "Please wait a moment before sending another report.",
   "NEW_REPORT": "{ReporterName} reported {TargetName}. Check the Reports tab of the admin menu for details.",
   "REPORTS_TAB": "Reports",
