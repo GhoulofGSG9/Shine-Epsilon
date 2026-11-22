@@ -3,6 +3,7 @@
   "REPORT_PLAYER": "Report player",
   "REPORT_TITLE": "Report {TargetName}",
   "REASONS_LABEL": "Why do you want to report this player?",
+  "SELECT_REASON": "Select an offense...",
   "DETAILS_LABEL": "Details (optional):",
   "SEND_REPORT": "Send report",
   "REASON_OFFENSIVE_LANGUAGE": "Harassment: Offensive Language",
