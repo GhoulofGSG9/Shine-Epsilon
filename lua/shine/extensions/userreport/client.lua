@@ -11,7 +11,6 @@ local Spacing = Units.Spacing
 local UnitVector = Units.UnitVector
 local Auto = Units.Auto
 
-local Bor = bit.bor
 local Date = os.date
 local Min = math.min
 local StringFormat = string.format
@@ -95,20 +94,15 @@ function Plugin:OpenReportWindow( SteamID, Name )
         }
     }
 
-    for i = 1, #self.Reasons do
-        local Reason = self.Reasons[ i ]
-        Tree[ #Tree + 1 ] = {
-            ID = Reason,
-            Class = "CheckBoxWithLabel",
-            Props = {
-                AutoFont = Font,
-                AutoSize = UnitVector( Percentage.ONE_HUNDRED, HighResScaled( 28 ) ),
-                CheckBoxAutoSize = UnitVector( HighResScaled( 24 ), HighResScaled( 24 ) ),
-                Tooltip = self:GetPhrase( "REASON_"..Reason.."_TIP" ),
-                Margin = Spacing( 0, 0, 0, HighResScaled( 4 ) )
-            }
+    Tree[ #Tree + 1 ] = {
+        ID = "ReasonDropdown",
+        Class = "Dropdown",
+        Props = {
+            AutoFont = Font,
+            AutoSize = UnitVector( Percentage.ONE_HUNDRED, HighResScaled( 32 ) ),
+            Text = self:GetPhrase( "SELECT_REASON" )
         }
-    end
+    }
 
     Tree[ #Tree + 1 ] = {
         Class = "Label",
@@ -143,32 +137,29 @@ function Plugin:OpenReportWindow( SteamID, Name )
 
     local Elements = SGUI:BuildTree( Tree )
 
-    local function GetReasonsMask()
-        local Mask = 0
-        for i = 1, #self.Reasons do
-            local Reason = self.Reasons[ i ]
-            if Elements[ Reason ]:GetChecked() then
-                Mask = Bor( Mask, self.ReasonBits[ Reason ] )
-            end
-        end
-        return Mask
-    end
-
     local SendButton = Elements.SendButton
-    local function OnChecked()
-        SendButton:SetEnabled( GetReasonsMask() ~= 0 )
+    local ReasonDropdown = Elements.ReasonDropdown
+
+    local function OnReasonSelected()
+        SendButton:SetEnabled( true )
     end
 
+    local Options = {}
     for i = 1, #self.Reasons do
         local Reason = self.Reasons[ i ]
-        Elements[ Reason ]:AddLabel( self:GetPhrase( "REASON_"..Reason ) )
-        Elements[ Reason ].OnChecked = OnChecked
+        Options[ i ] = {
+            Text = self:GetPhrase( "REASON_"..Reason ),
+            Tooltip = self:GetPhrase( "REASON_"..Reason.."_TIP" ),
+            Value = Reason,
+            DoClick = OnReasonSelected
+        }
     end
+    ReasonDropdown:SetOptions( Options )
 
     function SendButton.DoClick()
         self:SendNetworkMessage( "Report", {
             TargetID = tostring( SteamID ),
-            Reasons = GetReasonsMask(),
+            Reasons = self.ReasonBits[ ReasonDropdown:GetSelectedOption().Value ],
             Details = Elements.DetailsEntry:GetText()
         }, true )
 

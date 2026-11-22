@@ -2,6 +2,7 @@
     Shine User Report - Server
 ]]
 local Band = bit.band
+local Bor = bit.bor
 local Ceil = math.ceil
 local Clamp = math.Clamp
 local Max = math.max
@@ -182,7 +183,9 @@ function Plugin:ReceiveReport( Client, Data )
 
     local ReporterID = Client:GetUserId()
     local TargetReports = self.ReportsByTarget[ TargetID ] or {}
-    if TargetReports[ ReporterID ] then
+    local Mask = self:ReasonsToMask( Reasons )
+    local PreviousMask = TargetReports[ ReporterID ] or 0
+    if Band( PreviousMask, Mask ) == Mask then
         self:NotifyTranslatedError( Client, "ERROR_ALREADY_REPORTED" )
         return
     end
@@ -195,7 +198,7 @@ function Plugin:ReceiveReport( Client, Data )
     end
 
     self.LastReportTime[ ReporterID ] = Now
-    TargetReports[ ReporterID ] = self:ReasonsToMask( Reasons )
+    TargetReports[ ReporterID ] = Bor( PreviousMask, Mask )
     self.ReportsByTarget[ TargetID ] = TargetReports
 
     local Report = {
