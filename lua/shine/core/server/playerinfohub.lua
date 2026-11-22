@@ -118,26 +118,12 @@ local function RegisterExternalAPIEndpoints()
 
 	if not ExternalAPIHandler:GetAPI( "GeoIP" ) then
 		Shine.RegisterExternalAPI( "GeoIP", {
-			URL = "https://api.ipapi.is/",
+			URL = "http://ip-api.com/",
 			Params = {},
 			GlobalRequestParams = {},
 			EndPoints = {}
 		} )
 	end
-
-	Shine.RegisterExternalAPIEndPoint( "GeoIP", "Lookup", {
-		Protocol = "GET",
-		URL = "",
-		Params = {
-			q = tostring
-		},
-		GetCacheKey = function( Params ) return tostring( Params.q ) end,
-		ResponseTransformer = function( Response )
-			if Type( Response ) ~= "table" then return nil end
-			if Response.error or not Response.ip then return 0 end
-			return Response
-		end
-	} )
 
 	if not ExternalAPIHandler:GetAPI( "ENSL" ) then
 		Shine.RegisterExternalAPI( "ENSL", {
@@ -147,6 +133,20 @@ local function RegisterExternalAPIEndpoints()
 			EndPoints = {}
 		} )
 	end
+
+	Shine.RegisterExternalAPIEndPoint( "GeoIP", "Lookup", {
+		Protocol = "GET",
+		URL = "json/",
+		Params = {
+			query = tostring
+		},
+		GetCacheKey = function( Params ) return tostring( Params.query ) end,
+		ResponseTransformer = function( Response )
+			if Type( Response ) ~= "table" then return nil end
+			if Response.status == "fail" then return 0 end
+			return Response
+		end
+	} )
 
 	PlayerInfoHub.ExternalEndpointsRegistered = true
 end
@@ -406,7 +406,7 @@ function PlayerInfoHub:OnConnect( Client )
 			GeoData[ SteamId ] = -2
 
 			PerformExternalRequest( "GeoIP", "Lookup", {
-				q = IPAddressToString( Server.GetClientAddress( Client ) )
+				query = IPAddressToString( Server.GetClientAddress( Client ) )
 			}, function( Data )
 				GeoData[ SteamId ] = Data or 0
 				Call( "OnReceiveGeoData", Client, GeoData[ SteamId ] )
