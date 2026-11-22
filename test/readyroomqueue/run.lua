@@ -768,9 +768,9 @@ Test( "seed: the heartbeat lists queued players with their scores and preference
     AssertEquals( "ask", Second.pref, "an invalid preference is ignored" )
     AssertEquals( nil, FindEntry( Payload, Silent.SteamID ), "a player that never reported a preference is left out" )
 
-    Plugin:ReceiveSeedPref( Silent, { Pref = "never" } )
+    Plugin:ReceiveSeedPref( Silent, { Pref = "ask" } )
     Payload = Heartbeat( World )
-    AssertEquals( "never", FindEntry( Payload, Silent.SteamID ).pref, "listed once the preference is known" )
+    AssertEquals( "ask", FindEntry( Payload, Silent.SteamID ).pref, "listed once the preference is known" )
     AssertEquals( 1.235, First.scores[ "1.2.3.4:27015" ], "scores are rounded to 3 decimals" )
     AssertEquals( nil, First.scores[ "5.6.7.8:27015" ], "zero scores are left out" )
     AssertEquals( nil, First.scores[ "connect evil" ], "a malformed address is ignored" )
@@ -828,6 +828,41 @@ Test( "seed: an offer prompts listed players, a commit sends only players that a
     Heartbeat( World, { next = 10, commit = Malicious } )
     AssertList( { "connect 1.2.3.4:27015" }, Connects( World, C.SteamID ),
         "a malformed target is never sent to a client" )
+end )
+
+-- --------------------------------------------------------------------------------------------------
+Test( "seed: a player that opts out is not reported, prompted or sent, even after accepting", function()
+    local World = NewSeedWorld()
+    local Plugin = World.Plugin
+    local Specs = QueueSpectators( World, 3 )
+    local A, B, C = Specs[ 1 ], Specs[ 2 ], Specs[ 3 ]
+
+    Plugin:ReceiveSeedPref( A, { Pref = "ask" } )
+    Plugin:ReceiveSeedPref( B, { Pref = "never" } )
+    Plugin:ReceiveSeedPref( C, { Pref = "always" } )
+    Plugin:ReceiveSeedScore( A, { Address = "1.2.3.4:27015", Score = 1, Version = "c-1" } )
+    Plugin:ReceiveSeedScore( B, { Address = "1.2.3.4:27015", Score = 1, Version = "c-1" } )
+
+    local Payload = Heartbeat( World )
+    AssertEquals( nil, FindEntry( Payload, B.SteamID ), "a never player's SteamID is not sent to the coordinator" )
+    AssertTrue( FindEntry( Payload, A.SteamID ), "an ask player is listed" )
+    AssertEquals( nil, Plugin.SeedScores[ B.SteamID ], "a never player's scores are dropped" )
+
+    local Offer = { id = "o-1", target = "1.2.3.4:27015", players = { A.SteamID, B.SteamID, C.SteamID } }
+    Heartbeat( World, { next = 3, offer = Offer } )
+    AssertEquals( 1, CountMessages( World, A.SteamID, "SeedOffer" ), "A is prompted" )
+    AssertEquals( 0, CountMessages( World, B.SteamID, "SeedOffer" ), "a stale offer does not prompt a never player" )
+
+    World.Commands.sh_rr_seed( A, "yes" )
+    World.Commands.sh_rr_seedpref( A, "never" )
+    World.Commands.sh_rr_seedpref( C, "never" )
+    AssertEquals( nil, FindEntry( Heartbeat( World ), A.SteamID ), "opting out drops A from the heartbeat" )
+
+    Heartbeat( World, { next = 10, commit = { id = "o-1", target = "1.2.3.4:27015",
+        players = { A.SteamID, B.SteamID, C.SteamID } } } )
+    AssertList( {}, Connects( World, A.SteamID ), "an accept given before opting out does not send A" )
+    AssertList( {}, Connects( World, B.SteamID ), "B opted out" )
+    AssertList( {}, Connects( World, C.SteamID ), "C switched from always to never" )
 end )
 
 -- --------------------------------------------------------------------------------------------------
@@ -1454,6 +1489,43 @@ local function PopulatePage( Populate )
     end
     return Menu, Side
 end
+
+-- --------------------------------------------------------------------------------------------------
+Test( "seed: an opted out client never contacts the coordinator", function()
+    local Plugin = LoadClientPlugin()
+    local Timers, Requests, Sent = {}, 0, {}
+
+    Plugin.Config = { SeedPref = Plugin.SeedPrefType.NEVER, SeedPrefAsked = true }
+    function Plugin:CreateTimer( Name ) Timers[ Name ] = true end
+    function Plugin:DestroyTimer( Name ) Timers[ Name ] = nil end
+    function Plugin:TimerExists( Name ) return Timers[ Name ] ~= nil end
+    function Plugin:SendNetworkMessage( Name, Data ) Sent[ #Sent + 1 ] = { Name = Name, Data = Data } end
+
+    local SendHTTPRequest, ScreenText = Shared.SendHTTPRequest, Shine.ScreenText
+    Shared.SendHTTPRequest = function() Requests = Requests + 1 end
+    Shine.ScreenText = { Remove = function() end }
+
+    local Ok, Err = pcall( function()
+        Plugin:ReceiveSeedActive( { URL = "https://seed.example" } )
+        AssertEquals( 0, Requests, "no candidate request while opted out" )
+        AssertFalse( Timers.SeedRescore, "no rescore timer while opted out" )
+        AssertEquals( "never", Sent[ 1 ].Data.Pref, "the server still learns the preference" )
+
+        Plugin.Config.SeedPref = Plugin.SeedPrefType.ASK
+        Plugin:UpdateSeedScoring()
+        AssertEquals( 1, Requests, "opting back in fetches the candidates" )
+        AssertTrue( Timers.SeedRescore, "and starts rescoring" )
+
+        Plugin.Config.SeedPref = Plugin.SeedPrefType.NEVER
+        Plugin:UpdateSeedScoring()
+        Plugin:RefreshSeedCandidates()
+        AssertFalse( Timers.SeedRescore, "opting out stops rescoring" )
+        AssertEquals( 1, Requests, "and fetching" )
+    end )
+
+    Shared.SendHTTPRequest, Shine.ScreenText = SendHTTPRequest, ScreenText
+    if not Ok then error( Err, 0 ) end
+end )
 
 -- --------------------------------------------------------------------------------------------------
 Test( "scoreboard: the queue order lists client IDs in queue order and is cut at an entry boundary", function()

@@ -121,6 +121,7 @@ function Plugin:Initialise()
         CommandMessage = "Seed queue preference set to: %s",
         OnChange = function( self )
             self:SendSeedPref()
+            self:UpdateSeedScoring()
         end
     } )
 
@@ -142,7 +143,6 @@ function Plugin:ReceiveSeedActive( Data )
     end
 
     self.SeedURL = Data.URL
-    self.SeedVersion = nil
     self:SendSeedPref()
 
     if not self.Config.SeedPrefAsked then
@@ -151,6 +151,25 @@ function Plugin:ReceiveSeedActive( Data )
         self:Notify( self:GetPhrase( "SEED_PREF_ASK" ) )
     end
 
+    self:UpdateSeedScoring()
+end
+
+function Plugin:IsSeedOptedOut()
+    return self.Config.SeedPref == self.SeedPrefType.NEVER
+end
+
+-- Opted out players never contact the coordinator or ping its candidates.
+function Plugin:UpdateSeedScoring()
+    if not self.SeedURL or self:IsSeedOptedOut() then
+        self:DestroyTimer( "SeedRescore" )
+        self:CloseSeedOffer()
+        return
+    end
+
+    if self:TimerExists( "SeedRescore" ) then return end
+
+    -- The server forgets the scores of a player that opted out, so score the list again from scratch.
+    self.SeedVersion = nil
     self:RefreshSeedCandidates()
     self:CreateTimer( "SeedRescore", self.SeedRescoreInterval, -1, function()
         self:RefreshSeedCandidates()
@@ -159,7 +178,7 @@ end
 
 function Plugin:RefreshSeedCandidates()
     local URL = self.SeedURL
-    if not URL then return end
+    if not URL or self:IsSeedOptedOut() then return end
 
     Shared.SendHTTPRequest( URL.."/seedqueue/candidates", "GET", {}, function( Body )
         if self.SeedURL ~= URL or type( Body ) ~= "string" then return end
@@ -243,7 +262,7 @@ function Plugin:CloseSeedOffer()
 end
 
 function Plugin:ReceiveSeedOffer( Data )
-    if not self.SeedURL or self.Config.SeedPref == self.SeedPrefType.NEVER then return end
+    if not self.SeedURL or self:IsSeedOptedOut() then return end
 
     self.SeedOffer = Data
 

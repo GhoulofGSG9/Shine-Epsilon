@@ -158,7 +158,7 @@ function Plugin:BuildSeedHeartbeat()
             -- Until their client reports it, the player may well be set to never.
             local Pref = self.SeedPrefs[ SteamID ]
 
-            if Client and Pref and Client:GetIsSpectator() then
+            if Client and Pref and Pref ~= "never" and Client:GetIsSpectator() then
                 Seen[ SteamID ] = true
 
                 local Entry = {
@@ -247,7 +247,7 @@ function Plugin:OnSeedOffer( Offer )
 
         -- The members come from an earlier heartbeat, some may have been given a player slot since.
         if Client and Client:GetIsSpectator() and self:IsSeedQueued( SteamID )
-        and self.SeedOffered[ SteamID ] ~= ID then
+        and self.SeedOffered[ SteamID ] ~= ID and self.SeedPrefs[ SteamID ] ~= "never" then
             -- A new offer supersedes the one they still have open.
             if self.SeedOffered[ SteamID ] then
                 self.SeedAnswers[ SteamID ] = nil
@@ -425,20 +425,33 @@ function Plugin:ReceiveSeedAnswer( Client, Data )
     self:SetSeedAnswer( Client, Data.Accept )
 end
 
+function Plugin:SetSeedPref( Client, Pref )
+    local SteamID = Client:GetUserId()
+    self.SeedPrefs[ SteamID ] = Pref
+
+    if Pref ~= "never" then return end
+
+    self.SeedScores[ SteamID ] = nil
+    self.SeedAnswers[ SteamID ] = nil
+    self.SeedOffered[ SteamID ] = nil
+end
+
 function Plugin:ReceiveSeedPref( Client, Data )
     if not self.SeedEnabled or not Prefs[ Data.Pref ] then return end
 
-    self.SeedPrefs[ Client:GetUserId() ] = Data.Pref
+    self:SetSeedPref( Client, Data.Pref )
 end
 
 function Plugin:ReceiveSeedScore( Client, Data )
     if not self.SeedEnabled then return end
 
+    local SteamID = Client:GetUserId()
+    if self.SeedPrefs[ SteamID ] == "never" then return end
+
     local Score = tonumber( Data.Score )
     if not Score or Score ~= Score or Score < 0 or Score == math.huge then return end
     if not Data.Address:match( "^[%w%.%-]+:%d+$" ) then return end
 
-    local SteamID = Client:GetUserId()
     local Scores = self.SeedScores[ SteamID ]
     if not Scores or Scores.Version ~= Data.Version then
         Scores = { Version = Data.Version, ByAddress = {} }
@@ -486,7 +499,7 @@ function Plugin:CreateSeedCommands()
             return
         end
 
-        self.SeedPrefs[ Client:GetUserId() ] = Value
+        self:SetSeedPref( Client, Value )
         Shine.SendNetworkMessage( Client, "Shine_Command", { Command = "sh_seedpref "..Value:upper() }, true )
     end
     local PrefCommand = self:BindCommand( "sh_rr_seedpref", "seedpref", SetPref, true )
